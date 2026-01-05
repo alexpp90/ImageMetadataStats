@@ -1,0 +1,30 @@
+[project]
+name = "image-metadata-analyzer"
+version = "0.1.0"
+description = "A tool to analyze image metadata and provide statistics."
+authors = [
+    {name = "Jules"}
+]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pandas (>=2.3.3,<3.0.0)",
+    "matplotlib (>=3.10.8,<4.0.0)",
+    "pillow (>=12.1.0,<13.0.0)",
+    "tqdm (>=4.67.1,<5.0.0)",
+    "exifread (>=3.5.1,<4.0.0)"
+]
+
+[project.scripts]
+image-metadata-analyzer = "image_metadata_analyzer.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest (>=9.0.2,<10.0.0)",
+    "flake8 (>=7.3.0,<8.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
