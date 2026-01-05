@@ -13,3 +13,8 @@ pip-delete-this-directory.txt
 .nox/
 .pytest_cache/
 analysis_results/
+
+# Build artifacts
+build/
+dist/
+*.spec
