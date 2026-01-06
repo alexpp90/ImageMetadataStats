@@ -5,8 +5,24 @@ set -e
 check_module() {
     local module=$1
     echo "Checking for $module..."
-    if ! poetry run python -c "import $module" 2>/dev/null; then
-        echo "Error: '$module' module not found in the poetry environment."
+
+    # Capture output and exit code
+    if ! output=$(poetry run python -c "import $module" 2>&1); then
+        echo "Error: '$module' module check failed."
+        echo "========================================"
+        echo "Import Error Details:"
+        echo "$output"
+        echo "========================================"
+
+        echo "Diagnosing installation status..."
+        if poetry run pip show "$module" >/dev/null 2>&1; then
+             echo "Diagnostic: '$module' seems to be installed in the poetry environment, but the import failed."
+             echo "This usually indicates a runtime issue, such as missing system dependencies (e.g. C++ libraries for pandas)."
+        else
+             echo "Diagnostic: '$module' is NOT found in 'pip list'."
+             echo "Please ensure you have run 'poetry install' successfully."
+        fi
+
         return 1
     fi
 }
@@ -27,7 +43,7 @@ fi
 
 # Check for Pandas (and other core deps just in case)
 if ! check_module "pandas"; then
-    echo "Please run 'poetry install' to ensure all dependencies are installed."
+    echo "Build failed due to missing or broken dependencies."
     exit 1
 fi
 
