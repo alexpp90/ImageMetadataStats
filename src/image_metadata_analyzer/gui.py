@@ -54,9 +54,17 @@ class ImageLibraryStatistics(ttk.Frame):
         ttk.Entry(controls_frame, textvariable=self.output_folder_var, width=50).grid(row=1, column=1, padx=5)
         ttk.Button(controls_frame, text="Browse...", command=self.browse_output_folder).grid(row=1, column=2)
 
+        # Buttons Frame
+        btn_frame = ttk.Frame(controls_frame)
+        btn_frame.grid(row=2, column=0, columnspan=3, pady=10)
+
         # Analyze Button
-        self.analyze_btn = ttk.Button(controls_frame, text="Analyze", command=self.start_analysis)
-        self.analyze_btn.grid(row=2, column=0, columnspan=3, pady=10)
+        self.analyze_btn = ttk.Button(btn_frame, text="Analyze", command=self.start_analysis)
+        self.analyze_btn.pack(side="left", padx=5)
+
+        # Cancel Button
+        self.cancel_btn = ttk.Button(btn_frame, text="Cancel", command=self.cancel_analysis, state="disabled")
+        self.cancel_btn.pack(side="left", padx=5)
 
         # Progress Bar
         self.progress_var = tk.DoubleVar()
@@ -110,6 +118,12 @@ class ImageLibraryStatistics(ttk.Frame):
         if self.is_analyzing:
             self.after(100, self.update_logs)
 
+    def cancel_analysis(self):
+        if self.is_analyzing:
+            self.stop_event.set()
+            self.log("Cancellation requested. Finishing current file...")
+            self.cancel_btn.config(state="disabled")
+
     def start_analysis(self):
         root_path = self.root_folder_var.get()
         output_path = self.output_folder_var.get()
@@ -119,9 +133,13 @@ class ImageLibraryStatistics(ttk.Frame):
             return
 
         self.is_analyzing = True
+        self.stop_event = threading.Event()
         self.analyze_btn.config(state="disabled")
-        self.progress_bar.config(mode="indeterminate")
-        self.progress_bar.start()
+        self.cancel_btn.config(state="normal")
+
+        # Reset progress bar
+        self.progress_var.set(0)
+        self.progress_bar.config(mode="determinate", maximum=100)
 
         # Clear logs
         self.log_text.config(state="normal")
@@ -144,6 +162,7 @@ class ImageLibraryStatistics(ttk.Frame):
 
         try:
             root_path = Path(root_folder)
+            # Use of output_folder might be implemented later for saving reports
             output_path = Path(output_folder)
 
             if not root_path.is_dir():
@@ -154,31 +173,34 @@ class ImageLibraryStatistics(ttk.Frame):
             print(f"Scanning for images in '{root_path}'...")
 
             image_files = [f for f in root_path.rglob('*') if f.suffix.lower() in image_extensions]
+            total_files = len(image_files)
 
             if not image_files:
                 print("No supported image files found.")
                 return
 
-            print(f"Found {len(image_files)} image files. Extracting metadata...")
+            # Set progress bar maximum in the GUI thread
+            self.after(0, lambda: self.progress_bar.config(maximum=total_files))
 
-            # Since we can't easily hook into tqdm from here without more work,
-            # we'll iterate manually to update progress if we wanted specific progress,
-            # but for now we are using indeterminate mode.
-            # To actually show progress, we'd need to change how we process images.
-            # Let's do a simple loop here instead of list comp to update logs/progress occasionally?
-            # Or just rely on indeterminate for now.
+            print(f"Found {total_files} image files. Extracting metadata...")
 
             all_metadata = []
             for i, f in enumerate(image_files):
+                # Check for cancellation
+                if self.stop_event.is_set():
+                    print("\nAnalysis cancelled by user.")
+                    break
+
                 data = get_exif_data(f)
                 if data:
                     all_metadata.append(data)
 
-                # Update simple progress every 10 images to avoid spamming queue
-                if i % 10 == 0:
-                    # We can't easily update the specific progress bar from the thread safely
-                    # without queue or `after`, but indeterminate is running.
-                    pass
+                # Update progress bar safely in main thread
+                self.after(0, lambda val=i+1: self.progress_var.set(val))
+
+            if self.stop_event.is_set() and not all_metadata:
+                print("Analysis cancelled and no data was collected.")
+                return
 
             if not all_metadata:
                 print("Could not extract any valid EXIF metadata from the found images.")
@@ -213,7 +235,7 @@ class ImageLibraryStatistics(ttk.Frame):
             }
 
             # Schedule GUI update to show plots
-            self.parent.after(0, lambda: self.display_results(plots))
+            self.after(0, lambda: self.display_results(plots))
 
             print("Analysis complete.")
 
@@ -223,7 +245,7 @@ class ImageLibraryStatistics(ttk.Frame):
             traceback.print_exc()
         finally:
             sys.stdout = old_stdout
-            self.parent.after(0, self.analysis_finished)
+            self.after(0, self.analysis_finished)
 
     def display_results(self, plots):
         for name, fig in plots.items():
@@ -244,8 +266,10 @@ class ImageLibraryStatistics(ttk.Frame):
     def analysis_finished(self):
         self.is_analyzing = False
         self.analyze_btn.config(state="normal")
-        self.progress_bar.stop()
-        self.progress_bar.config(mode="determinate", value=100)
+        self.cancel_btn.config(state="disabled")
+        # If finished successfully (not cancelled), ensure bar is full
+        if not hasattr(self, 'stop_event') or not self.stop_event.is_set():
+            self.progress_bar.config(value=self.progress_bar['maximum'])
 
 
 class Sidebar(ttk.Frame):
@@ -296,6 +320,7 @@ class MainApp(tk.Tk):
 def main():
     app = MainApp()
     app.mainloop()
+
 
 if __name__ == "__main__":
     main()
