@@ -1,6 +1,7 @@
 import warnings
 from pathlib import Path
 from PIL import Image, ExifTags
+from image_metadata_analyzer.utils import get_exiftool_path
 
 # Suppress specific warnings from Pillow about potentially corrupt EXIF data
 # which it often handles gracefully anyway.
@@ -26,7 +27,12 @@ def get_exif_data(image_path: Path, debug: bool = False) -> dict | None:
         # Try exiftool first
         try:
             import exiftool
-            with exiftool.ExifToolHelper() as et:
+            exiftool_path = get_exiftool_path()
+
+            # Configure ExifToolHelper with the custom path if found
+            kwargs = {'executable': exiftool_path} if exiftool_path else {}
+
+            with exiftool.ExifToolHelper(**kwargs) as et:
                 # We fetch specific tags to avoid fetching everything
                 tags_to_fetch = [
                     "Composite:ShutterSpeed", "Composite:Aperture",

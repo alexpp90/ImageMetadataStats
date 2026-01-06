@@ -18,3 +18,4 @@ analysis_results/
 build/
 dist/
 *.spec
+src/image_metadata_analyzer/bin/

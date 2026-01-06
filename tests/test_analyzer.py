@@ -1,19 +1,24 @@
-import pandas as pd
-from image_metadata_analyzer.analyzer import analyze_data
 
-
-def test_analyze_data_runs(capsys):
-    data = {
-        'Shutter Speed': [0.01, 0.02, 0.01],
-        'Aperture': [2.8, 5.6, 2.8],
-        'Focal Length': [50, 85, 50],
-        'ISO': [100, 200, 100],
-        'Lens': ['Lens A', 'Lens B', 'Lens A']
-    }
-    df = pd.DataFrame(data)
-
-    # Just check if it runs without error and prints something
-    analyze_data(df)
+def test_analyzer_no_data(capsys):
+    from image_metadata_analyzer.analyzer import analyze_data
+    analyze_data([])
     captured = capsys.readouterr()
-    assert "Image Metadata Analysis" in captured.out
-    assert "Top 5 Lenses" in captured.out
+    assert "No data to analyze" in captured.out
+
+def test_analyzer_basic_stats(capsys):
+    from image_metadata_analyzer.analyzer import analyze_data
+    data = [
+        {'Shutter Speed': 0.01, 'Aperture': 2.8, 'Focal Length': 50, 'ISO': 100, 'Lens': 'Lens A'},
+        {'Shutter Speed': 0.02, 'Aperture': 4.0, 'Focal Length': 50, 'ISO': 200, 'Lens': 'Lens A'},
+        {'Shutter Speed': 0.01, 'Aperture': 2.8, 'Focal Length': 85, 'ISO': 100, 'Lens': 'Lens B'},
+    ]
+    analyze_data(data)
+    captured = capsys.readouterr()
+    assert "Total images with EXIF data analyzed: 3" in captured.out
+    assert "Top 5 Lenses:" in captured.out
+    assert "Lens A: 2" in captured.out
+    assert "Lens B: 1" in captured.out
+    assert "Top 5 ISOs:" in captured.out
+    assert "100: 2" in captured.out
+    assert "200: 1" in captured.out
+    assert "f/2.8 @ 50mm: 1" in captured.out

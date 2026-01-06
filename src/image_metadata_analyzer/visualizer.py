@@ -2,11 +2,11 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List, Dict
+from collections import Counter
 
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
-import pandas as pd
 
 
 def _open_file_for_user(filepath: Path):
@@ -23,13 +23,18 @@ def _open_file_for_user(filepath: Path):
         print(f"Error: {e}")
 
 
-def get_shutter_speed_plot(df: pd.DataFrame) -> Optional[Figure]:
-    if not df['Shutter Speed'].notna().any():
+def get_shutter_speed_plot(data: List[Dict]) -> Optional[Figure]:
+    values = [d['Shutter Speed'] for d in data if d.get('Shutter Speed') is not None]
+    if not values:
         return None
 
-    top_shutter_speeds = df['Shutter Speed'].value_counts().nlargest(25)
-    # Sort by shutter speed value (the index) before plotting
-    top_shutter_speeds = top_shutter_speeds.sort_index()
+    counter = Counter(values)
+    top_shutter_speeds = dict(counter.most_common(25))
+
+    # Sort by shutter speed value (the key)
+    sorted_items = sorted(top_shutter_speeds.items(), key=lambda x: x[0])
+    x_vals = [x[0] for x in sorted_items]
+    y_vals = [x[1] for x in sorted_items]
 
     def format_shutter(val):
         if val >= 1:
@@ -39,13 +44,13 @@ def get_shutter_speed_plot(df: pd.DataFrame) -> Optional[Figure]:
             return f"1/{int(round(denominator))}s"
         return f"{val:.5f}s"
 
-    # Create new labels for the plot from the float index
-    plot_labels = top_shutter_speeds.index.map(format_shutter)
+    plot_labels = [format_shutter(v) for v in x_vals]
 
     fig = Figure(figsize=(12, 7))
     ax = fig.add_subplot(111)
-    top_shutter_speeds.plot(kind='bar', rot=45, ax=ax)
-    ax.set_xticklabels(plot_labels)
+    ax.bar(range(len(x_vals)), y_vals)
+    ax.set_xticks(range(len(x_vals)))
+    ax.set_xticklabels(plot_labels, rotation=45)
     ax.set_title('Top 25 Most Used Shutter Speeds')
     ax.set_xlabel('Shutter Speed')
     ax.set_ylabel('Count')
@@ -53,13 +58,20 @@ def get_shutter_speed_plot(df: pd.DataFrame) -> Optional[Figure]:
     return fig
 
 
-def get_aperture_plot(df: pd.DataFrame) -> Optional[Figure]:
-    if not df['Aperture'].notna().any():
+def get_aperture_plot(data: List[Dict]) -> Optional[Figure]:
+    values = [d['Aperture'] for d in data if d.get('Aperture') is not None]
+    if not values:
         return None
+
+    counter = Counter(values)
+    sorted_items = sorted(counter.items()) # Sort by aperture value
+    x_vals = [str(x[0]) for x in sorted_items]
+    y_vals = [x[1] for x in sorted_items]
 
     fig = Figure(figsize=(12, 6))
     ax = fig.add_subplot(111)
-    df['Aperture'].value_counts().sort_index().plot(kind='bar', rot=45, ax=ax)
+    ax.bar(x_vals, y_vals)
+    ax.tick_params(axis='x', rotation=45)
     ax.set_title('Aperture (F-Number) Distribution')
     ax.set_xlabel('Aperture (f-stop)')
     ax.set_ylabel('Count')
@@ -67,13 +79,20 @@ def get_aperture_plot(df: pd.DataFrame) -> Optional[Figure]:
     return fig
 
 
-def get_iso_plot(df: pd.DataFrame) -> Optional[Figure]:
-    if not df['ISO'].notna().any():
+def get_iso_plot(data: List[Dict]) -> Optional[Figure]:
+    values = [d['ISO'] for d in data if d.get('ISO') is not None]
+    if not values:
         return None
+
+    counter = Counter(values)
+    sorted_items = sorted(counter.items()) # Sort by ISO value
+    x_vals = [str(x[0]) for x in sorted_items]
+    y_vals = [x[1] for x in sorted_items]
 
     fig = Figure(figsize=(12, 6))
     ax = fig.add_subplot(111)
-    df['ISO'].value_counts().sort_index().plot(kind='bar', rot=45, ax=ax)
+    ax.bar(x_vals, y_vals)
+    ax.tick_params(axis='x', rotation=45)
     ax.set_title('ISO Distribution')
     ax.set_xlabel('ISO')
     ax.set_ylabel('Count')
@@ -81,15 +100,21 @@ def get_iso_plot(df: pd.DataFrame) -> Optional[Figure]:
     return fig
 
 
-def get_focal_length_plot(df: pd.DataFrame) -> Optional[Figure]:
-    if not df['Focal Length'].notna().any():
+def get_focal_length_plot(data: List[Dict]) -> Optional[Figure]:
+    values = [d['Focal Length'] for d in data if d.get('Focal Length') is not None]
+    if not values:
         return None
 
-    # Let's show a bar chart for the top 25 focal lengths for clarity
-    top_focal_lengths = df['Focal Length'].value_counts().nlargest(25)
+    counter = Counter(values)
+    top_items = dict(counter.most_common(25))
+    sorted_items = sorted(top_items.items()) # Sort by focal length value
+    x_vals = [str(x[0]) for x in sorted_items]
+    y_vals = [x[1] for x in sorted_items]
+
     fig = Figure(figsize=(12, 7))
     ax = fig.add_subplot(111)
-    top_focal_lengths.sort_index().plot(kind='bar', rot=45, ax=ax)
+    ax.bar(x_vals, y_vals)
+    ax.tick_params(axis='x', rotation=45)
     ax.set_title('Top 25 Most Used Focal Lengths')
     ax.set_xlabel('Focal Length (mm)')
     ax.set_ylabel('Count')
@@ -97,14 +122,20 @@ def get_focal_length_plot(df: pd.DataFrame) -> Optional[Figure]:
     return fig
 
 
-def get_lens_plot(df: pd.DataFrame) -> Optional[Figure]:
-    if not df['Lens'].notna().any():
+def get_lens_plot(data: List[Dict]) -> Optional[Figure]:
+    values = [d['Lens'] for d in data if d.get('Lens') is not None]
+    if not values:
         return None
 
-    # Adjust figure size to better accommodate long lens names
-    fig = Figure(figsize=(12, max(6, len(df['Lens'].unique()) * 0.4)))
+    counter = Counter(values)
+    # Sort by count ascending for horizontal bar chart
+    sorted_items = sorted(counter.items(), key=lambda x: x[1])
+    labels = [x[0] for x in sorted_items]
+    counts = [x[1] for x in sorted_items]
+
+    fig = Figure(figsize=(12, max(6, len(sorted_items) * 0.4)))
     ax = fig.add_subplot(111)
-    df['Lens'].value_counts().sort_values().plot(kind='barh', ax=ax)
+    ax.barh(labels, counts)
     ax.set_title('Lens Usage')
     ax.set_xlabel('Number of Photos')
     ax.set_ylabel('Lens Model')
@@ -112,23 +143,26 @@ def get_lens_plot(df: pd.DataFrame) -> Optional[Figure]:
     return fig
 
 
-def get_combination_plot(df: pd.DataFrame) -> Optional[Figure]:
-    if not (df['Aperture'].notna().any() and df['Focal Length'].notna().any()):
+def get_combination_plot(data: List[Dict]) -> Optional[Figure]:
+    values = []
+    for d in data:
+        if d.get('Aperture') is not None and d.get('Focal Length') is not None:
+             values.append((d['Aperture'], d['Focal Length']))
+
+    if not values:
         return None
 
-    # Let's show a bar chart for the top 25 combinations for clarity
-    combo_counts = df.dropna(
-        subset=['Aperture', 'Focal Length']
-    ).groupby(['Aperture', 'Focal Length']).size().nlargest(25)
+    counter = Counter(values)
+    top_items = counter.most_common(25)
+    # Sort by count ascending for horizontal bar chart
+    top_items.sort(key=lambda x: x[1])
 
-    # Format labels for the plot
-    combo_labels = [f"f/{aperture} @ {int(focal)}mm" for aperture, focal in combo_counts.index]
+    labels = [f"f/{ap} @ {int(fl)}mm" for (ap, fl), _ in top_items]
+    counts = [c for _, c in top_items]
 
-    fig = Figure(figsize=(12, max(8, len(combo_counts) * 0.4)))
+    fig = Figure(figsize=(12, max(8, len(top_items) * 0.4)))
     ax = fig.add_subplot(111)
-    # Create a temporary series with string labels for plotting
-    plot_series = pd.Series(combo_counts.values, index=combo_labels)
-    plot_series.sort_values().plot(kind='barh', ax=ax)
+    ax.barh(labels, counts)
     ax.set_title('Top 25 Most Used Aperture & Focal Length Combinations')
     ax.set_xlabel('Number of Photos')
     ax.set_ylabel('Combination (Aperture @ Focal Length)')
@@ -136,7 +170,7 @@ def get_combination_plot(df: pd.DataFrame) -> Optional[Figure]:
     return fig
 
 
-def create_plots(df: pd.DataFrame, output_dir: Path, show_plots: bool = False):
+def create_plots(data: List[Dict], output_dir: Path, show_plots: bool = False):
     """Generates and saves plots for the analyzed data, optionally opening them."""
     print(f"\nGenerating plots in '{output_dir}'...")
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -144,14 +178,14 @@ def create_plots(df: pd.DataFrame, output_dir: Path, show_plots: bool = False):
     plt.style.use('seaborn-v0_8-whitegrid')
 
     # Shutter Speed
-    fig = get_shutter_speed_plot(df)
+    fig = get_shutter_speed_plot(data)
     if fig:
         fig.savefig(output_dir / 'shutter_speed_distribution.png')
     else:
         print("Skipping Shutter Speed plot: No data available.")
 
     # Aperture
-    fig = get_aperture_plot(df)
+    fig = get_aperture_plot(data)
     if fig:
         aperture_path = output_dir / 'aperture_distribution.png'
         fig.savefig(aperture_path)
@@ -161,14 +195,14 @@ def create_plots(df: pd.DataFrame, output_dir: Path, show_plots: bool = False):
         print("Skipping Aperture plot: No data available.")
 
     # ISO
-    fig = get_iso_plot(df)
+    fig = get_iso_plot(data)
     if fig:
         fig.savefig(output_dir / 'iso_distribution.png')
     else:
         print("Skipping ISO plot: No data available.")
 
     # Focal Length
-    fig = get_focal_length_plot(df)
+    fig = get_focal_length_plot(data)
     if fig:
         focal_length_path = output_dir / 'focal_length_distribution.png'
         fig.savefig(focal_length_path)
@@ -178,7 +212,7 @@ def create_plots(df: pd.DataFrame, output_dir: Path, show_plots: bool = False):
         print("Skipping Focal Length plot: No data available.")
 
     # Lens
-    fig = get_lens_plot(df)
+    fig = get_lens_plot(data)
     if fig:
         lens_path = output_dir / 'lens_usage.png'
         fig.savefig(lens_path)
@@ -188,7 +222,7 @@ def create_plots(df: pd.DataFrame, output_dir: Path, show_plots: bool = False):
         print("Skipping Lens plot: No data available.")
 
     # Aperture & Focal Length Combinations
-    fig = get_combination_plot(df)
+    fig = get_combination_plot(data)
     if fig:
         combo_path = output_dir / 'aperture_focal_length_combinations.png'
         fig.savefig(combo_path)
