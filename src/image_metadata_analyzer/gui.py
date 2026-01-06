@@ -269,7 +269,27 @@ class MainApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Image Metadata Analyzer")
-        self.geometry("1000x700")
+
+        # Attempt to improve DPI awareness on Windows/Linux
+        try:
+            # Unix/Linux often needs this for proper scaling if not handled by window manager
+            self.call('tk', 'scaling', self.winfo_fpixels('1i')/72.0)
+        except Exception:
+            pass
+
+        # Maximize window
+        try:
+            # Windows and some Linux window managers
+            self.state('zoomed')
+        except tk.TclError:
+            try:
+                # Linux (X11)
+                self.attributes('-zoomed', True)
+            except tk.TclError:
+                # Fallback: simple geometry set to screen size
+                width = self.winfo_screenwidth()
+                height = self.winfo_screenheight()
+                self.geometry(f"{width}x{height}")
 
         self.sidebar = Sidebar(self, self)
 
