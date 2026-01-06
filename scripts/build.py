@@ -7,6 +7,7 @@ import urllib.request
 import platform
 import subprocess
 from pathlib import Path
+from generate_notices import generate_notices
 
 # Constants
 EXIFTOOL_VERSION = "13.45"
@@ -155,6 +156,12 @@ def main():
 
     print("Building GUI...")
     run_pyinstaller("gui")
+
+    # Generate fresh notices
+    try:
+        generate_notices()
+    except Exception as e:
+        print(f"Warning: Failed to regenerate notices: {e}")
 
     print("Copying licenses to dist/...")
     dist_dir = Path("dist")
