@@ -38,6 +38,8 @@ This project can be packaged into a single, standalone executable for easier dis
 
 ## Usage
 
+### Command Line Interface
+
 Once you have built the executable, you can run it directly from your terminal:
 
 ```bash
@@ -50,17 +52,42 @@ Alternatively, you can run the tool using `poetry run`:
 poetry run python -m image_metadata_analyzer.cli /path/to/your/photos
 ```
 
-### Options
+**Options:**
 
 -   `-o` or `--output`: Specify the folder to save graphs (default: `analysis_results`).
 -   `--debug`: Enable detailed debug output for files that could not be processed.
 -   `--show-plots`: Automatically open the generated plots after creation.
 
-### Example
+**Example:**
 
 ```bash
 ./dist/image-metadata-analyzer ./my_photos --output ./stats --show-plots
 ```
+
+### Graphical User Interface (GUI)
+
+A graphical interface is also available.
+
+**Running via Poetry:**
+
+```bash
+poetry run image-metadata-gui
+```
+
+**Running via Standalone Executable:**
+
+After running `./build.sh`, a second executable named `image-metadata-gui` will be created in the `dist/` folder.
+
+```bash
+./dist/image-metadata-gui
+```
+
+The GUI allows you to:
+1.  Navigate to "Image Library Statistics" via the sidebar.
+2.  Select your image folder and output folder.
+3.  Click "Analyze" to process images.
+4.  View logs and progress in real-time.
+5.  View the generated plots directly within the application tabs.
 
 ## Development
 

@@ -17,6 +17,7 @@ dependencies = [
 
 [project.scripts]
 image-metadata-analyzer = "image_metadata_analyzer.cli:main"
+image-metadata-gui = "image_metadata_analyzer.gui:main"
 
 [dependency-groups]
 dev = [
