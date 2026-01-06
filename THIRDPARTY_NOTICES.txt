@@ -1,0 +1,51 @@
+THIRD-PARTY SOFTWARE NOTICES
+
+This software includes third-party software components. below are the license notices for these components.
+
+================================================================================
+ExifTool by Phil Harvey
+================================================================================
+This application bundles the ExifTool executable.
+Copyright (c) 2003-2025 Phil Harvey
+Website: https://exiftool.org/
+
+ExifTool is free software; you can redistribute it and/or modify it under the same terms as Perl itself.
+This application uses ExifTool under the terms of the Artistic License.
+
+The Artistic License 1.0 can be found at: http://dev.perl.org/licenses/artistic.html
+
+================================================================================
+PyExifTool
+================================================================================
+Used as a library to communicate with ExifTool.
+Copyright (c) Sven Marnach and others.
+License: BSD License (3-Clause)
+
+================================================================================
+Pillow (Python Imaging Library Fork)
+================================================================================
+Copyright (c) 2010-2025 by Jeffrey A. Clark (Alex) and contributors.
+License: HPND License (open source, MIT-like)
+https://python-pillow.org/
+
+================================================================================
+Matplotlib
+================================================================================
+Copyright (c) 2002-2012 John D. Hunter. All Rights Reserved.
+Copyright (c) 2012-2025 The Matplotlib development team. All Rights Reserved.
+License: BSD compatible (PSF-based)
+https://matplotlib.org/
+
+================================================================================
+tqdm
+================================================================================
+Copyright (c) 2013 noamraph.
+License: MIT License / MPL 2.0
+https://github.com/tqdm/tqdm
+
+================================================================================
+ExifRead
+================================================================================
+Copyright (c) 2013 Ianaré Sévi.
+License: BSD License
+https://github.com/ianare/exif-py
