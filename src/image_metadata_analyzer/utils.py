@@ -1,7 +1,71 @@
 import shutil
 import sys
 import os
+import urllib.parse
 from pathlib import Path
+
+def resolve_path(path_str: str) -> Path:
+    """
+    Resolves a path string to a pathlib.Path object.
+    Supports resolving smb:// URLs to local mount points on Linux (GVFS) and macOS.
+
+    Args:
+        path_str: The input path string (e.g., '/tmp/test' or 'smb://server/share/path')
+
+    Returns:
+        Path object pointing to the local file system location.
+    """
+    # Check if it looks like an SMB URL
+    if path_str.startswith("smb://"):
+        # Parse the URL
+        parsed = urllib.parse.urlparse(path_str)
+        server = parsed.hostname
+        # Path usually comes as '/share/folder/file'
+        # We need to strip the leading slash to split easily, but keep it for logic
+        full_path = parsed.path
+        if not full_path:
+            return Path(path_str) # Should probably just return as is if malformed
+
+        # Unquote to handle spaces (%20)
+        full_path_decoded = urllib.parse.unquote(full_path)
+
+        # Split into share and relative path
+        # full_path_decoded starts with /, e.g. /private/Bilder_Alben
+        parts = full_path_decoded.strip('/').split('/', 1)
+        share_name = parts[0]
+        remainder = parts[1] if len(parts) > 1 else ""
+
+        if sys.platform == "linux":
+            # GVFS mount point pattern: /run/user/<uid>/gvfs/smb-share:server=<server>,share=<share>/<remainder>
+            try:
+                uid = os.getuid()
+                gvfs_root = Path(f"/run/user/{uid}/gvfs")
+
+                # Construct the directory name.
+                # Note: commas in server or share names might need escaping in theory,
+                # but standard GVFS behavior for simple names is server=<server>,share=<share>
+                # We assume standard behavior.
+                mount_dir_name = f"smb-share:server={server},share={share_name}"
+
+                potential_path = gvfs_root / mount_dir_name
+                if remainder:
+                    potential_path = potential_path / remainder
+
+                return potential_path
+            except AttributeError:
+                # os.getuid might not be available on Windows, but we are in linux block
+                pass
+
+        elif sys.platform == "darwin":
+            # macOS mount point pattern: /Volumes/<share>/<remainder>
+            # macOS typically mounts using just the share name in /Volumes
+            potential_path = Path(f"/Volumes/{share_name}")
+            if remainder:
+                potential_path = potential_path / remainder
+            return potential_path
+
+    # Default: treat as local path
+    return Path(path_str)
 
 def get_exiftool_path() -> str | None:
     """

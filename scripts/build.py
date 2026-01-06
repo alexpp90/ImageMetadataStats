@@ -7,6 +7,7 @@ import urllib.request
 import platform
 import subprocess
 from pathlib import Path
+from generate_notices import generate_notices
 
 # Constants
 EXIFTOOL_VERSION = "13.45"
@@ -191,6 +192,21 @@ def main():
 
     print("Building GUI...")
     run_pyinstaller("gui")
+
+    # Generate fresh notices
+    try:
+        generate_notices()
+    except Exception as e:
+        print(f"Warning: Failed to regenerate notices: {e}")
+
+    print("Copying licenses to dist/...")
+    dist_dir = Path("dist")
+    if dist_dir.exists():
+        shutil.copy("LICENSE", dist_dir / "LICENSE")
+        shutil.copy("THIRDPARTY_NOTICES.txt", dist_dir / "THIRDPARTY_NOTICES.txt")
+        print("Licenses copied.")
+    else:
+        print("Warning: dist/ directory not found. Licenses were not copied.")
 
 if __name__ == "__main__":
     main()
