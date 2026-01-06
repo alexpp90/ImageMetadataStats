@@ -70,3 +70,20 @@ The executables will be placed in the `dist/` folder.
 ```bash
 poetry run pytest
 ```
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Third-Party Credits
+
+This application uses open-source software:
+
+*   **ExifTool** by Phil Harvey (Artistic License). [https://exiftool.org/](https://exiftool.org/)
+*   **PyExifTool** (BSD License).
+*   **Pillow** (HPND License).
+*   **Matplotlib** (BSD compatible).
+*   **tqdm** (MIT/MPL).
+*   **ExifRead** (BSD License).
+
+See [THIRDPARTY_NOTICES.txt](THIRDPARTY_NOTICES.txt) for full license details.
