@@ -18,15 +18,37 @@ This project uses [Poetry](https://python-poetry.org/) for dependency management
     poetry install
     ```
 
+## Building a Standalone Executable
+
+This project can be packaged into a single, standalone executable for easier distribution and execution on systems without Python or Poetry installed.
+
+1.  **Build the executable**:
+
+    ```bash
+    ./build.sh
+    ```
+
+    This script uses `pyinstaller` to create a distributable binary in the `dist/` folder.
+
+2.  **Platform-Specific Builds**:
+    *   To create a **Linux** executable, run the script on a Linux machine.
+    *   To create a **macOS** executable, run the script on a Mac.
+
+    The generated executable will be tailored to the operating system it was built on.
+
 ## Usage
 
-You can run the tool using `poetry run`:
+Once you have built the executable, you can run it directly from your terminal:
+
+```bash
+./dist/image-metadata-analyzer /path/to/your/photos
+```
+
+Alternatively, you can run the tool using `poetry run`:
 
 ```bash
 poetry run python -m image_metadata_analyzer.cli /path/to/your/photos
 ```
-
-Or if you have installed the package, you can invoke the module directly.
 
 ### Options
 
@@ -37,7 +59,7 @@ Or if you have installed the package, you can invoke the module directly.
 ### Example
 
 ```bash
-poetry run python -m image_metadata_analyzer.cli ./my_photos --output ./stats --show-plots
+./dist/image-metadata-analyzer ./my_photos --output ./stats --show-plots
 ```
 
 ## Development

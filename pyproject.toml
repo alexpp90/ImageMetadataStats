@@ -6,7 +6,7 @@ authors = [
     {name = "Jules"}
 ]
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.15"
 dependencies = [
     "pandas (>=2.3.3,<3.0.0)",
     "matplotlib (>=3.10.8,<4.0.0)",
@@ -21,10 +21,16 @@ image-metadata-analyzer = "image_metadata_analyzer.cli:main"
 [dependency-groups]
 dev = [
     "pytest (>=9.0.2,<10.0.0)",
-    "flake8 (>=7.3.0,<8.0.0)"
+    "flake8 (>=7.3.0,<8.0.0)",
+    "pyinstaller (>=6.17.0,<7.0.0)"
 ]
 
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+pythonpath = [
+  "src"
+]
