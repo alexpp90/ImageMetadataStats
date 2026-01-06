@@ -1,6 +1,6 @@
 THIRD-PARTY SOFTWARE NOTICES
 
-This software includes third-party software components. below are the license notices for these components.
+This software includes third-party software components. Below are the license notices for these components.
 
 ================================================================================
 ExifTool by Phil Harvey
@@ -14,38 +14,116 @@ This application uses ExifTool under the terms of the Artistic License.
 
 The Artistic License 1.0 can be found at: http://dev.perl.org/licenses/artistic.html
 
-================================================================================
-PyExifTool
-================================================================================
-Used as a library to communicate with ExifTool.
-Copyright (c) Sven Marnach and others.
-License: BSD License (3-Clause)
-
-================================================================================
-Pillow (Python Imaging Library Fork)
-================================================================================
-Copyright (c) 2010-2025 by Jeffrey A. Clark (Alex) and contributors.
-License: HPND License (open source, MIT-like)
-https://python-pillow.org/
-
-================================================================================
-Matplotlib
-================================================================================
-Copyright (c) 2002-2012 John D. Hunter. All Rights Reserved.
-Copyright (c) 2012-2025 The Matplotlib development team. All Rights Reserved.
-License: BSD compatible (PSF-based)
-https://matplotlib.org/
-
-================================================================================
-tqdm
-================================================================================
-Copyright (c) 2013 noamraph.
-License: MIT License / MPL 2.0
-https://github.com/tqdm/tqdm
-
-================================================================================
 ExifRead
-================================================================================
-Copyright (c) 2013 Ianaré Sévi.
-License: BSD License
+3.5.1
+Copyright (c) 2002-2007 Gene Cash
+Copyright (c) 2007-2025 Ianaré Sévi and contributors
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+
+ 1. Redistributions of source code must retain the above copyright
+    notice, this list of conditions and the following disclaimer.
+
+ 2. Redistributions in binary form must reproduce the above
+    copyright notice, this list of conditions and the following
+    disclaimer in the documentation and/or other materials provided
+    with the distribution.
+
+ 3. Neither the name of the authors nor the names of its contributors
+    may be used to endorse or promote products derived from this
+    software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+Ianaré Sévi
 https://github.com/ianare/exif-py
+
+PyExifTool
+0.5.6
+BSD License; GNU General Public License v3 or later (GPLv3+)
+Kevin M (sylikc), Sven Marnach, various contributors
+http://github.com/sylikc/pyexiftool
+
+contourpy
+1.3.2
+BSD License
+Ian Thomas <ianthomas23@gmail.com>
+https://github.com/contourpy/contourpy
+
+cycler
+0.12.1
+BSD License
+Thomas A Caswell <matplotlib-users@python.org>
+https://matplotlib.org/cycler/
+
+fonttools
+4.61.1
+MIT
+Just van Rossum
+http://github.com/fonttools/fonttools
+
+kiwisolver
+1.4.9
+BSD License
+The Nucleic Development Team <sccolbert@gmail.com>
+https://github.com/nucleic/kiwi
+
+matplotlib
+3.10.8
+Python Software Foundation License
+John D. Hunter, Michael Droettboom
+https://matplotlib.org
+
+numpy
+2.2.6
+BSD License
+Travis E. Oliphant et al.
+https://numpy.org
+
+packaging
+25.0
+Apache Software License; BSD License
+Donald Stufft <donald@stufft.io>
+https://github.com/pypa/packaging
+
+pillow
+12.1.0
+MIT-CMU
+"Jeffrey A. Clark" <aclark@aclark.net>
+https://python-pillow.github.io
+
+pyparsing
+3.3.1
+MIT
+Paul McGuire <ptmcg.gm+pyparsing@gmail.com>
+https://github.com/pyparsing/pyparsing/
+
+python-dateutil
+2.9.0.post0
+Apache Software License; BSD License
+Gustavo Niemeyer
+https://github.com/dateutil/dateutil
+
+six
+1.17.0
+MIT License
+Benjamin Peterson
+https://github.com/benjaminp/six
+
+tqdm
+4.67.1
+MIT License; Mozilla Public License 2.0 (MPL 2.0)
+UNKNOWN
+https://tqdm.github.io
