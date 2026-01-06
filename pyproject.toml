@@ -23,7 +23,8 @@ image-metadata-gui = "image_metadata_analyzer.gui:main"
 dev = [
     "pytest (>=9.0.2,<10.0.0)",
     "flake8 (>=7.3.0,<8.0.0)",
-    "pyinstaller (>=6.17.0,<7.0.0)"
+    "pyinstaller (>=6.17.0,<7.0.0)",
+    "cairosvg (>=2.8.2,<3.0.0)"
 ]
 
 

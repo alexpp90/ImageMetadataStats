@@ -137,6 +137,24 @@ def run_pyinstaller(target):
     ]
 
     if target == "gui":
+        # Add icon file to data
+        icon_src = "assets/logo.png"
+        icon_dst = "."
+        cmd.extend(["--add-data", f"{icon_src}{sep}{icon_dst}"])
+
+        # Set executable icon
+        if platform.system() == "Windows":
+             cmd.extend(["--icon", "assets/logo.ico"])
+        elif platform.system() == "Darwin":
+             # If we had .icns, we would use it. PyInstaller often accepts .png on some platforms or ignores it.
+             # For now, let's try using the ico or png if supported, but typically .icns is best for Mac.
+             # Given we only generated .ico and .png:
+             # cmd.extend(["--icon", "assets/logo.png"]) # Warning: might not work as expected on Mac without .icns
+             pass
+        else:
+             # Linux .desktop files handle icons, but we can set window icon in code.
+             pass
+
         cmd.extend([
             "--windowed",
             "src/image_metadata_analyzer/gui.py"
@@ -147,7 +165,25 @@ def run_pyinstaller(target):
     print(f"Running: {' '.join(cmd)}")
     subprocess.run(cmd, check=True)
 
+def generate_icons_if_possible():
+    # Try importing and running generation script
+    # It might fail if dependencies (cairo) are missing
+    try:
+        sys.path.append(str(Path(__file__).parent))
+        from generate_icons import generate_icons
+        print("Generating icons...")
+        return generate_icons()
+    except (ImportError, OSError) as e:
+        print(f"Warning: Could not run icon generation script: {e}")
+        print("Build will proceed using existing assets if available.")
+        return False
+    except Exception as e:
+        print(f"Warning: Unexpected error during icon generation: {e}")
+        return False
+
 def main():
+    generate_icons_if_possible()
+
     setup_exiftool()
 
     print("Building CLI...")

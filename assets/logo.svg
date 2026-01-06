@@ -1,0 +1,21 @@
+<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <!-- Camera Body -->
+  <rect x="16" y="64" width="224" height="144" rx="24" ry="24" fill="#2c3e50" />
+  <!-- Flash/Viewfinder hump -->
+  <path d="M80 64 L100 40 H156 L176 64 Z" fill="#2c3e50" />
+
+  <!-- Lens Ring -->
+  <circle cx="128" cy="136" r="56" fill="#34495e" stroke="#1a252f" stroke-width="8"/>
+  <!-- Lens Glass -->
+  <circle cx="128" cy="136" r="40" fill="#1a252f" />
+  <!-- Reflection -->
+  <circle cx="116" cy="124" r="10" fill="rgba(255,255,255,0.1)" />
+
+  <!-- Bar Graph Overlay -->
+  <!-- Bar 1 -->
+  <rect x="160" y="160" width="16" height="32" fill="#3498db" stroke="white" stroke-width="2"/>
+  <!-- Bar 2 -->
+  <rect x="180" y="140" width="16" height="52" fill="#3498db" stroke="white" stroke-width="2"/>
+  <!-- Bar 3 -->
+  <rect x="200" y="120" width="16" height="72" fill="#3498db" stroke="white" stroke-width="2"/>
+</svg>

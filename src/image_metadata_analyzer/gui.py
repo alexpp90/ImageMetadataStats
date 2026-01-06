@@ -277,6 +277,22 @@ class MainApp(tk.Tk):
         except Exception:
             pass
 
+        # Set Window Icon
+        try:
+            icon_path = None
+            if hasattr(sys, '_MEIPASS'):
+                # Running from PyInstaller bundle
+                icon_path = Path(sys._MEIPASS) / "logo.png"
+            else:
+                # Running from source
+                icon_path = Path(__file__).parent.parent.parent / "assets" / "logo.png"
+
+            if icon_path and icon_path.exists():
+                icon_image = tk.PhotoImage(file=str(icon_path))
+                self.iconphoto(True, icon_image)
+        except Exception as e:
+            print(f"Failed to load icon: {e}")
+
         # Maximize window
         try:
             # Windows and some Linux window managers
