@@ -28,6 +28,9 @@ def get_shutter_speed_plot(data: List[Dict]) -> Optional[Figure]:
     if not values:
         return None
 
+    # Increase default font size for better readability on high-res screens
+    plt.rcParams.update({'font.size': 12, 'axes.titlesize': 14, 'axes.labelsize': 12})
+
     counter = Counter(values)
     top_shutter_speeds = dict(counter.most_common(25))
 
@@ -46,7 +49,7 @@ def get_shutter_speed_plot(data: List[Dict]) -> Optional[Figure]:
 
     plot_labels = [format_shutter(v) for v in x_vals]
 
-    fig = Figure(figsize=(12, 7))
+    fig = Figure(figsize=(12, 7), dpi=100)
     ax = fig.add_subplot(111)
     ax.bar(range(len(x_vals)), y_vals)
     ax.set_xticks(range(len(x_vals)))
@@ -68,7 +71,7 @@ def get_aperture_plot(data: List[Dict]) -> Optional[Figure]:
     x_vals = [str(x[0]) for x in sorted_items]
     y_vals = [x[1] for x in sorted_items]
 
-    fig = Figure(figsize=(12, 6))
+    fig = Figure(figsize=(12, 6), dpi=100)
     ax = fig.add_subplot(111)
     ax.bar(x_vals, y_vals)
     ax.tick_params(axis='x', rotation=45)
@@ -89,7 +92,7 @@ def get_iso_plot(data: List[Dict]) -> Optional[Figure]:
     x_vals = [str(x[0]) for x in sorted_items]
     y_vals = [x[1] for x in sorted_items]
 
-    fig = Figure(figsize=(12, 6))
+    fig = Figure(figsize=(12, 6), dpi=100)
     ax = fig.add_subplot(111)
     ax.bar(x_vals, y_vals)
     ax.tick_params(axis='x', rotation=45)
@@ -111,7 +114,7 @@ def get_focal_length_plot(data: List[Dict]) -> Optional[Figure]:
     x_vals = [str(x[0]) for x in sorted_items]
     y_vals = [x[1] for x in sorted_items]
 
-    fig = Figure(figsize=(12, 7))
+    fig = Figure(figsize=(12, 7), dpi=100)
     ax = fig.add_subplot(111)
     ax.bar(x_vals, y_vals)
     ax.tick_params(axis='x', rotation=45)
@@ -133,7 +136,7 @@ def get_lens_plot(data: List[Dict]) -> Optional[Figure]:
     labels = [x[0] for x in sorted_items]
     counts = [x[1] for x in sorted_items]
 
-    fig = Figure(figsize=(12, max(6, len(sorted_items) * 0.4)))
+    fig = Figure(figsize=(12, max(6, len(sorted_items) * 0.4)), dpi=100)
     ax = fig.add_subplot(111)
     ax.barh(labels, counts)
     ax.set_title('Lens Usage')
@@ -160,7 +163,7 @@ def get_combination_plot(data: List[Dict]) -> Optional[Figure]:
     labels = [f"f/{ap} @ {int(fl)}mm" for (ap, fl), _ in top_items]
     counts = [c for _, c in top_items]
 
-    fig = Figure(figsize=(12, max(8, len(top_items) * 0.4)))
+    fig = Figure(figsize=(12, max(8, len(top_items) * 0.4)), dpi=100)
     ax = fig.add_subplot(111)
     ax.barh(labels, counts)
     ax.set_title('Top 25 Most Used Aperture & Focal Length Combinations')
