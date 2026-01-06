@@ -7,6 +7,12 @@ if ! poetry run python -c "import tkinter" 2>/dev/null; then
     echo "It is required for building the GUI."
     echo "On Linux, you may need to install it via your package manager."
     echo "Example: sudo apt-get install python3-tk"
+
+    if [[ "$(uname)" == "Darwin" ]]; then
+        echo ""
+        echo "On macOS, you may need to install python-tk:"
+        echo "Example: brew install python-tk"
+    fi
     exit 1
 fi
 

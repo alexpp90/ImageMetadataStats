@@ -20,12 +20,19 @@ This project uses [Poetry](https://python-poetry.org/) for dependency management
 
     *Note: This will also install `pyinstaller`, which is required for building the standalone executable.*
 
-3.  **System Requirements (Linux only)**:
-    If you are on Linux, you may need to install the system Tkinter package for the GUI to work:
+3.  **System Requirements**:
+    The GUI relies on `tkinter`, which acts as a bridge to the Tcl/Tk GUI toolkit. Depending on your operating system and how Python was installed, this might need to be installed separately.
 
-    ```bash
-    sudo apt-get install python3-tk
-    ```
+    *   **Linux**:
+        ```bash
+        sudo apt-get install python3-tk
+        ```
+
+    *   **macOS**:
+        If you encounter an error about missing `tkinter`, you may need to install it via Homebrew:
+        ```bash
+        brew install python-tk
+        ```
 
 ## Building a Standalone Executable
 
