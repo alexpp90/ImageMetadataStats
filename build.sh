@@ -1,9 +1,18 @@
 #!/bin/bash
 set -e
 
-echo "Checking for Tkinter availability..."
-if ! poetry run python -c "import tkinter" 2>/dev/null; then
-    echo "Error: 'tkinter' module not found."
+# Function to check for a python module
+check_module() {
+    local module=$1
+    echo "Checking for $module..."
+    if ! poetry run python -c "import $module" 2>/dev/null; then
+        echo "Error: '$module' module not found in the poetry environment."
+        return 1
+    fi
+}
+
+# Check for Tkinter
+if ! check_module "tkinter"; then
     echo "It is required for building the GUI."
     echo "On Linux, you may need to install it via your package manager."
     echo "Example: sudo apt-get install python3-tk"
@@ -16,13 +25,34 @@ if ! poetry run python -c "import tkinter" 2>/dev/null; then
     exit 1
 fi
 
+# Check for Pandas (and other core deps just in case)
+if ! check_module "pandas"; then
+    echo "Please run 'poetry install' to ensure all dependencies are installed."
+    exit 1
+fi
+
 echo "Cleaning up previous builds..."
 rm -rf build dist *.spec
 
 echo "Building standalone executable..."
-# Add --collect-all pandas to ensure all dependencies and data files for pandas are included
-# This fixes "ModuleNotFoundError: No module named 'pandas'" issues in some environments.
-poetry run pyinstaller --name image-metadata-analyzer --onefile --distpath dist --collect-all pandas src/image_metadata_analyzer/cli.py
-poetry run pyinstaller --name image-metadata-gui --onefile --distpath dist --collect-all pandas src/image_metadata_analyzer/gui.py
+
+# Build CLI
+# We use --collect-all pandas to strictly ensure everything is bundled.
+poetry run pyinstaller --name image-metadata-analyzer \
+    --onefile \
+    --distpath dist \
+    --paths src \
+    --collect-all pandas \
+    src/image_metadata_analyzer/cli.py
+
+# Build GUI
+# We add --hidden-import and --paths to be extra safe for the GUI build
+poetry run pyinstaller --name image-metadata-gui \
+    --onefile \
+    --distpath dist \
+    --paths src \
+    --hidden-import=pandas \
+    --collect-all pandas \
+    src/image_metadata_analyzer/gui.py
 
 echo "Build complete! The executables are located in the dist/ folder."
