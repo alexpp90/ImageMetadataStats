@@ -20,6 +20,13 @@ This project uses [Poetry](https://python-poetry.org/) for dependency management
 
     *Note: This will also install `pyinstaller`, which is required for building the standalone executable.*
 
+3.  **System Requirements (Linux only)**:
+    If you are on Linux, you may need to install the system Tkinter package for the GUI to work:
+
+    ```bash
+    sudo apt-get install python3-tk
+    ```
+
 ## Building a Standalone Executable
 
 This project can be packaged into a single, standalone executable for easier distribution and execution on systems without Python or Poetry installed.
