@@ -1,32 +1,64 @@
-import pandas as pd
+from collections import Counter
+import statistics
 
 
-def analyze_data(df: pd.DataFrame):
+def analyze_data(data: list[dict]):
     """Prints a formatted statistical summary of the metadata."""
     print("\n--- Image Metadata Analysis ---")
-    print(f"Total images with EXIF data analyzed: {len(df)}")
+    print(f"Total images with EXIF data analyzed: {len(data)}")
+
+    if not data:
+        print("No data to analyze.")
+        return
 
     print("\n--- Basic Statistics ---")
-    # Only describe numerical columns
-    print(df[['Shutter Speed', 'Aperture', 'Focal Length', 'ISO']].describe())
+
+    # Helper to extract values
+    def get_values(key):
+        return [d[key] for d in data if d.get(key) is not None]
+
+    for key in ['Shutter Speed', 'Aperture', 'Focal Length', 'ISO']:
+        values = get_values(key)
+        if values:
+            print(f"\n{key}:")
+            print(f"  Count: {len(values)}")
+            print(f"  Mean:  {statistics.mean(values):.2f}")
+            if len(values) > 1:
+                print(f"  Std:   {statistics.stdev(values):.2f}")
+            print(f"  Min:   {min(values)}")
+            print(f"  Max:   {max(values)}")
+        else:
+             print(f"\n{key}: No data")
+
 
     print("\n--- Most Common Settings ---")
+
     print("\nTop 5 Lenses:")
-    print(df['Lens'].value_counts().head(5).to_string())
+    lenses = get_values('Lens')
+    for name, count in Counter(lenses).most_common(5):
+        print(f"  {name}: {count}")
 
     print("\n\nTop 15 Focal Lengths (mm):")
-    print(df['Focal Length'].value_counts().head(15).to_string())
+    focal_lengths = get_values('Focal Length')
+    for fl, count in Counter(focal_lengths).most_common(15):
+        print(f"  {fl}: {count}")
 
     print("\n\nTop 25 Aperture & Focal Length Combinations:")
-    if 'Aperture' in df and 'Focal Length' in df:
-        combo_counts = df.dropna(
-            subset=['Aperture', 'Focal Length']
-        ).groupby(['Aperture', 'Focal Length']).size().nlargest(25)
-        print(combo_counts.to_string())
+    combinations = []
+    for d in data:
+        if d.get('Aperture') is not None and d.get('Focal Length') is not None:
+            combinations.append((d['Aperture'], d['Focal Length']))
+
+    for (ap, fl), count in Counter(combinations).most_common(25):
+        print(f"  f/{ap} @ {fl}mm: {count}")
 
     print("\n\nTop 5 Apertures (f-stop):")
-    print(df['Aperture'].value_counts().head(5).to_string())
+    apertures = get_values('Aperture')
+    for ap, count in Counter(apertures).most_common(5):
+        print(f"  {ap}: {count}")
 
     print("\n\nTop 5 ISOs:")
-    print(df['ISO'].value_counts().head(5).to_string())
+    isos = get_values('ISO')
+    for iso, count in Counter(isos).most_common(5):
+        print(f"  {iso}: {count}")
     print("\n----------------------------")

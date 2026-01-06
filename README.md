@@ -7,114 +7,66 @@ This tool analyzes image metadata (EXIF) from a given root folder, including all
 - Focal Length
 - Lens Model
 
-## Installation
+## Installation & Usage
 
-This project uses [Poetry](https://python-poetry.org/) for dependency management.
+### Option 1: Standalone Executable (Recommended)
+
+Go to the [Actions](https://github.com/OWNER/REPO/actions) tab (or Releases if configured) and download the artifact for your operating system (Linux or macOS).
+
+1.  Extract the downloaded zip file.
+2.  Run the executable:
+    *   **GUI**: Double-click `image-metadata-gui`.
+    *   **CLI**: Run `./image-metadata-analyzer` from the terminal.
+
+The standalone executable comes with `exiftool` bundled, so you don't need to install anything else.
+
+### Option 2: Run from Source
 
 1.  Clone the repository.
-2.  Install dependencies:
+2.  Install dependencies using [Poetry](https://python-poetry.org/):
 
     ```bash
     poetry install
     ```
 
-    *Note: This will also install `pyinstaller`, which is required for building the standalone executable.*
-
 3.  **System Requirements**:
-    The GUI relies on `tkinter`, which acts as a bridge to the Tcl/Tk GUI toolkit. Depending on your operating system and how Python was installed, this might need to be installed separately.
+    *   **Python 3.10+**
+    *   **Tkinter**: Required for the GUI.
+        *   Linux: `sudo apt-get install python3-tk`
+        *   macOS: `brew install python-tk`
+    *   **ExifTool**: Recommended for RAW file support. Install it via your package manager or download from [exiftool.org](https://exiftool.org). The app will automatically find it if it's in your PATH.
 
-    *   **Linux**:
-        ```bash
-        sudo apt-get install python3-tk
-        ```
-
-    *   **macOS**:
-        If you encounter an error about missing `tkinter`, you may need to install it via Homebrew:
-        ```bash
-        brew install python-tk
-        ```
-
-## Building a Standalone Executable
-
-This project can be packaged into a single, standalone executable for easier distribution and execution on systems without Python or Poetry installed.
-
-1.  **Build the executable**:
+4.  Run the application:
 
     ```bash
-    ./build.sh
+    # GUI
+    poetry run image-metadata-gui
+
+    # CLI
+    poetry run image-metadata-analyzer /path/to/photos
     ```
 
-    This script uses `pyinstaller` to create a distributable binary in the `dist/` folder.
+## Features
 
-2.  **Platform-Specific Builds**:
-    *   To create a **Linux** executable, run the script on a Linux machine.
-    *   To create a **macOS** executable, run the script on a Mac.
-
-    The generated executable will be tailored to the operating system it was built on.
-
-## Usage
-
-### Command Line Interface
-
-Once you have built the executable, you can run it directly from your terminal:
-
-```bash
-./dist/image-metadata-analyzer /path/to/your/photos
-```
-
-Alternatively, you can run the tool using `poetry run`:
-
-```bash
-poetry run python -m image_metadata_analyzer.cli /path/to/your/photos
-```
-
-**Options:**
-
--   `-o` or `--output`: Specify the folder to save graphs (default: `analysis_results`).
--   `--debug`: Enable detailed debug output for files that could not be processed.
--   `--show-plots`: Automatically open the generated plots after creation.
-
-**Example:**
-
-```bash
-./dist/image-metadata-analyzer ./my_photos --output ./stats --show-plots
-```
-
-### Graphical User Interface (GUI)
-
-A graphical interface is also available.
-
-**Running via Poetry:**
-
-```bash
-poetry run image-metadata-gui
-```
-
-**Running via Standalone Executable:**
-
-After running `./build.sh`, a second executable named `image-metadata-gui` will be created in the `dist/` folder.
-
-```bash
-./dist/image-metadata-gui
-```
-
-The GUI allows you to:
-1.  Navigate to "Image Library Statistics" via the sidebar.
-2.  Select your image folder and output folder.
-3.  Click "Analyze" to process images.
-4.  View logs and progress in real-time.
-5.  View the generated plots directly within the application tabs.
+*   **No external dependencies** required for the standalone build.
+*   **Cross-platform**: Runs on Linux and macOS.
+*   **RAW Support**: Handles common RAW formats (.ARW, .NEF, .CR2, etc.) using `exiftool` (bundled in the executable).
+*   **Fast Analysis**: Uses optimized metadata extraction.
 
 ## Development
+
+### Building the Executable Locally
+
+You can use the provided Python script to build the standalone executable. This script automatically downloads the correct `exiftool` binary for your platform and bundles it.
+
+```bash
+poetry run python scripts/build.py
+```
+
+The executables will be placed in the `dist/` folder.
 
 ### Running Tests
 
 ```bash
 poetry run pytest
-```
-
-### Linting
-
-```bash
-poetry run flake8 src tests
 ```

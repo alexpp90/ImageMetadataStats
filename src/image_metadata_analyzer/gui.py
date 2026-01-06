@@ -4,7 +4,6 @@ import threading
 import queue
 import sys
 from pathlib import Path
-import pandas as pd
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Use a relative import or absolute based on package structure
@@ -163,7 +162,7 @@ class ImageLibraryStatistics(ttk.Frame):
 
         try:
             root_path = Path(root_folder)
-            output_path = Path(output_folder)
+            # output_path = Path(output_folder) # Not actually used in GUI for display, only passed if we wanted to save there
 
             if not root_path.is_dir():
                 print(f"Error: Folder not found at '{root_path}'")
@@ -199,32 +198,17 @@ class ImageLibraryStatistics(ttk.Frame):
                 print("Could not extract any valid EXIF metadata from the found images.")
                 return
 
-            df = pd.DataFrame(all_metadata)
-            if df.empty:
-                print("Could not extract any valid EXIF metadata.")
-                return
-
-            # Data Cleaning (same as CLI)
-            df['Shutter Speed'] = pd.to_numeric(df['Shutter Speed'], errors='coerce')
-            df['Aperture'] = pd.to_numeric(df['Aperture'], errors='coerce').round(1)
-            focal_length_series = pd.to_numeric(df['Focal Length'], errors='coerce')
-            not_na_mask = focal_length_series.notna()
-            integer_series = pd.Series(pd.NA, index=df.index, dtype='Int64')
-            integer_series[not_na_mask] = focal_length_series[not_na_mask].round().astype(int)
-            df['Focal Length'] = integer_series
-            df['ISO'] = pd.to_numeric(df['ISO'], errors='coerce').astype('Int64')
-
-            analyze_data(df)
+            analyze_data(all_metadata)
 
             # Generate Plots for GUI
             print("Generating plots...")
             plots = {
-                "Shutter Speed": get_shutter_speed_plot(df),
-                "Aperture": get_aperture_plot(df),
-                "ISO": get_iso_plot(df),
-                "Focal Length": get_focal_length_plot(df),
-                "Lens": get_lens_plot(df),
-                "Combinations": get_combination_plot(df)
+                "Shutter Speed": get_shutter_speed_plot(all_metadata),
+                "Aperture": get_aperture_plot(all_metadata),
+                "ISO": get_iso_plot(all_metadata),
+                "Focal Length": get_focal_length_plot(all_metadata),
+                "Lens": get_lens_plot(all_metadata),
+                "Combinations": get_combination_plot(all_metadata)
             }
 
             # Schedule GUI update to show plots
