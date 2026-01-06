@@ -20,9 +20,81 @@ def get_exif_data(image_path: Path, debug: bool = False) -> dict | None:
         A dictionary containing the desired metadata, or None if data is
         missing or corrupt.
     """
-    # For raw files, Pillow is often unreliable. Try exifread first.
+    # For raw files, Pillow is often unreliable. Try exiftool first, then exifread.
     raw_extensions = {'.arw', '.nef', '.cr2', '.dng', '.raw'}
     if image_path.suffix.lower() in raw_extensions:
+        # Try exiftool first
+        try:
+            import exiftool
+            with exiftool.ExifToolHelper() as et:
+                # We fetch specific tags to avoid fetching everything
+                tags_to_fetch = [
+                    "Composite:ShutterSpeed", "Composite:Aperture",
+                    "Composite:ISO", "EXIF:ISO",
+                    "Composite:FocalLength", "EXIF:FocalLength",
+                    "Composite:LensID", "LensModel", "LensType"
+                ]
+                metadata = et.get_tags(str(image_path), tags=tags_to_fetch)
+
+                if metadata:
+                    data = metadata[0]  # get_tags returns a list
+
+                    # Helper to convert ExifTool strings to floats
+                    def parse_val(val):
+                        if val is None:
+                            return None
+                        if isinstance(val, (int, float)):
+                            return float(val)
+                        if isinstance(val, str):
+                            # Handle things like "21.8 mm"
+                            val = val.split(' ')[0]
+                            # Handle fractions like "1/320"
+                            if '/' in val:
+                                try:
+                                    n, d = val.split('/')
+                                    return float(n) / float(d)
+                                except ValueError:
+                                    pass
+                            try:
+                                return float(val)
+                            except ValueError:
+                                return None
+                        return None
+
+                    # Prioritize Composite tags as they are usually calculated/normalized
+                    shutter_speed = parse_val(data.get("Composite:ShutterSpeed"))
+                    aperture = parse_val(data.get("Composite:Aperture"))
+
+                    # ISO might be in different places
+                    iso_val = data.get("Composite:ISO") or data.get("EXIF:ISO")
+                    iso = parse_val(iso_val)
+
+                    # Focal Length
+                    fl_val = data.get("Composite:FocalLength") or data.get("EXIF:FocalLength")
+                    focal_length = parse_val(fl_val)
+
+                    # Lens Model
+                    lens_model = data.get("Composite:LensID") or data.get("LensModel") or data.get("LensType") or "Unknown"
+
+                    if all(v is not None for v in [shutter_speed, aperture, focal_length, iso]):
+                        if debug:
+                            print(f"Successfully processed {image_path.name} with exiftool.")
+                        return {
+                            'Shutter Speed': shutter_speed,
+                            'Aperture': aperture,
+                            'Focal Length': focal_length,
+                            'ISO': iso,
+                            'Lens': lens_model,
+                        }
+
+        except ImportError:
+            if debug:
+                print("PyExifTool not installed or found.")
+        except Exception as e:
+            if debug:
+                print(f"exiftool failed on {image_path.name}: {e}")
+
+        # Fallback to exifread
         try:
             import exifread
 
