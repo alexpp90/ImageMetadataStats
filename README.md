@@ -18,6 +18,8 @@ This project uses [Poetry](https://python-poetry.org/) for dependency management
     poetry install
     ```
 
+    *Note: This will also install `pyinstaller`, which is required for building the standalone executable.*
+
 ## Building a Standalone Executable
 
 This project can be packaged into a single, standalone executable for easier distribution and execution on systems without Python or Poetry installed.
