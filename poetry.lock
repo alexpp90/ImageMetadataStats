@@ -1085,6 +1085,23 @@ files = [
 ]
 
 [[package]]
+name = "send2trash"
+version = "2.0.0"
+description = "Send file to trash natively under Mac OS X, Windows and Linux"
+optional = false
+python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,!=3.6.*,!=3.7.*"
+groups = ["main"]
+files = [
+    {file = "send2trash-2.0.0-py3-none-any.whl", hash = "sha256:e70d5ce41dbb890882cc78bc25d137478330b39a391e756fadf82e34da4d85b8"},
+    {file = "send2trash-2.0.0.tar.gz", hash = "sha256:1761421da3f9930bfe51ed7c45343948573383ad4c27e3acebc91be324e7770d"},
+]
+
+[package.extras]
+nativelib = ["pyobjc-framework-Cocoa ; sys_platform == \"darwin\"", "pywin32 ; sys_platform == \"win32\""]
+objc = ["pyobjc-framework-Cocoa ; sys_platform == \"darwin\""]
+win32 = ["pywin32 ; sys_platform == \"win32\""]
+
+[[package]]
 name = "setuptools"
 version = "80.9.0"
 description = "Easily download, build, install, upgrade, and uninstall Python packages"
@@ -1251,4 +1268,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<3.15"
-content-hash = "9d8bc99e0775ee4a49bb6ce58ded8e8797ac0611c7a36be4859036847d69ef24"
+content-hash = "8467914683b0b3876bb01a31ae23f708a1808e34f1dc01f090910b40a2e92784"
