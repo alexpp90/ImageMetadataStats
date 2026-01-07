@@ -21,6 +21,7 @@ from image_metadata_analyzer.visualizer import (
     get_lens_plot,
     get_shutter_speed_plot,
 )
+from image_metadata_analyzer.sharpness_gui import SharpnessTool
 
 
 class RedirectText(object):
