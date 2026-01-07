@@ -8,6 +8,8 @@ from collections import Counter
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 
+from image_metadata_analyzer.utils import aggregate_focal_lengths
+
 
 def _open_file_for_user(filepath: Path):
     """Opens a file in the default application in a cross-platform way."""
@@ -108,6 +110,34 @@ def get_focal_length_plot(data: List[Dict]) -> Optional[Figure]:
     if not values:
         return None
 
+    # Use aggregation logic
+    aggregated_fls = aggregate_focal_lengths(values)
+
+    # Sort by the representative value (sort_key) to ensure X-axis is ordered
+    aggregated_fls.sort(key=lambda x: x[2])
+
+    x_vals = [x[0] for x in aggregated_fls]
+    y_vals = [x[1] for x in aggregated_fls]
+
+    fig = Figure(figsize=(12, 7), dpi=100)
+    ax = fig.add_subplot(111)
+    ax.bar(x_vals, y_vals)
+    ax.tick_params(axis='x', rotation=45)
+    ax.set_title('Focal Length Distribution')
+    ax.set_xlabel('Focal Length (mm)')
+    ax.set_ylabel('Count')
+    fig.tight_layout()
+    return fig
+
+
+def get_equivalent_focal_length_plot(data: List[Dict]) -> Optional[Figure]:
+    values = [d['Focal Length (35mm)'] for d in data if d.get('Focal Length (35mm)') is not None]
+    if not values:
+        return None
+
+    # Round to nearest integer for cleaner plotting
+    values = [int(round(v)) for v in values]
+
     counter = Counter(values)
     top_items = dict(counter.most_common(25))
     sorted_items = sorted(top_items.items()) # Sort by focal length value
@@ -118,8 +148,39 @@ def get_focal_length_plot(data: List[Dict]) -> Optional[Figure]:
     ax = fig.add_subplot(111)
     ax.bar(x_vals, y_vals)
     ax.tick_params(axis='x', rotation=45)
-    ax.set_title('Top 25 Most Used Focal Lengths')
-    ax.set_xlabel('Focal Length (mm)')
+    ax.set_title('Top 25 Most Used Equivalent Focal Lengths (35mm)')
+    ax.set_xlabel('Equivalent Focal Length (mm)')
+    ax.set_ylabel('Count')
+    fig.tight_layout()
+    return fig
+
+
+def get_apsc_equivalent_focal_length_plot(data: List[Dict]) -> Optional[Figure]:
+    # Calculate APS-C equivalent: 35mm_eq / 1.5
+    values = []
+    for d in data:
+        val_35 = d.get('Focal Length (35mm)')
+        if val_35 is not None:
+             values.append(val_35 / 1.5)
+
+    if not values:
+        return None
+
+    # Round to nearest integer
+    values = [int(round(v)) for v in values]
+
+    counter = Counter(values)
+    top_items = dict(counter.most_common(25))
+    sorted_items = sorted(top_items.items()) # Sort by focal length value
+    x_vals = [str(x[0]) for x in sorted_items]
+    y_vals = [x[1] for x in sorted_items]
+
+    fig = Figure(figsize=(12, 7), dpi=100)
+    ax = fig.add_subplot(111)
+    ax.bar(x_vals, y_vals)
+    ax.tick_params(axis='x', rotation=45)
+    ax.set_title('Top 25 Most Used Equivalent Focal Lengths (APS-C)')
+    ax.set_xlabel('Equivalent Focal Length (mm)')
     ax.set_ylabel('Count')
     fig.tight_layout()
     return fig
@@ -213,6 +274,26 @@ def create_plots(data: List[Dict], output_dir: Path, show_plots: bool = False):
             _open_file_for_user(focal_length_path)
     else:
         print("Skipping Focal Length plot: No data available.")
+
+    # Equivalent Focal Length (35mm)
+    fig = get_equivalent_focal_length_plot(data)
+    if fig:
+        eq_fl_path = output_dir / 'equivalent_focal_length_35mm_distribution.png'
+        fig.savefig(eq_fl_path)
+        if show_plots:
+            _open_file_for_user(eq_fl_path)
+    else:
+        print("Skipping Equivalent Focal Length (35mm) plot: No data available.")
+
+    # Equivalent Focal Length (APS-C)
+    fig = get_apsc_equivalent_focal_length_plot(data)
+    if fig:
+        apsc_fl_path = output_dir / 'equivalent_focal_length_apsc_distribution.png'
+        fig.savefig(apsc_fl_path)
+        if show_plots:
+            _open_file_for_user(apsc_fl_path)
+    else:
+        print("Skipping Equivalent Focal Length (APS-C) plot: No data available.")
 
     # Lens
     fig = get_lens_plot(data)

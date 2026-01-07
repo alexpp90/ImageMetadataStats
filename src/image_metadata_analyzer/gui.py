@@ -9,12 +9,13 @@ from PIL import Image, ImageTk
 
 # Use a relative import or absolute based on package structure
 # Assuming this runs as a module
-from image_metadata_analyzer.reader import get_exif_data
+from image_metadata_analyzer.reader import get_exif_data, SUPPORTED_EXTENSIONS
 from image_metadata_analyzer.analyzer import analyze_data
 from image_metadata_analyzer.utils import resolve_path
 from image_metadata_analyzer.visualizer import (
     get_shutter_speed_plot, get_aperture_plot, get_iso_plot,
-    get_focal_length_plot, get_lens_plot, get_combination_plot
+    get_focal_length_plot, get_lens_plot, get_combination_plot,
+    get_equivalent_focal_length_plot, get_apsc_equivalent_focal_length_plot
 )
 from image_metadata_analyzer.duplicates import find_duplicates, move_to_trash
 
@@ -166,18 +167,22 @@ class ImageLibraryStatistics(ttk.Frame):
         try:
             # Resolve potential network paths (smb://) to local paths
             root_path = resolve_path(root_folder)
-            # output_path = Path(output_folder) # Not actually used in GUI for display, only passed if we wanted to save there
+            # output_path = Path(output_folder) # Not actually used in GUI for display,
+            # only passed if we wanted to save there
 
             if not root_path.is_dir():
                 print(f"Error: Folder not found at '{root_path}'")
                 if root_folder.startswith("smb://"):
-                    print("Tip: For network locations, ensure the share is mounted in your file manager first.")
+                    msg = ("Tip: For network locations, ensure "
+                           "the share is mounted in your file manager first.")
+                    print(msg)
                 return
 
-            image_extensions = {'.jpg', '.jpeg', '.tif', '.tiff', '.nef', '.cr2', '.arw', '.dng', '.raw'}
             print(f"Scanning for images in '{root_path}'...")
 
-            image_files = [f for f in root_path.rglob('*') if f.suffix.lower() in image_extensions]
+            image_files = [
+                f for f in root_path.rglob('*') if f.suffix.lower() in SUPPORTED_EXTENSIONS
+            ]
 
             if not image_files:
                 print("No supported image files found.")
@@ -213,6 +218,8 @@ class ImageLibraryStatistics(ttk.Frame):
                 "Aperture": get_aperture_plot(all_metadata),
                 "ISO": get_iso_plot(all_metadata),
                 "Focal Length": get_focal_length_plot(all_metadata),
+                "Equiv Focal Length (35mm)": get_equivalent_focal_length_plot(all_metadata),
+                "Equiv Focal Length (APS-C)": get_apsc_equivalent_focal_length_plot(all_metadata),
                 "Lens": get_lens_plot(all_metadata),
                 "Combinations": get_combination_plot(all_metadata)
             }
@@ -464,8 +471,14 @@ class Sidebar(ttk.Frame):
 
         ttk.Label(self, text="Tools", font=("Helvetica", 12, "bold")).pack(pady=10)
 
-        ttk.Button(self, text="Image Library Statistics",
-                   command=lambda: controller.show_frame("ImageLibraryStatistics")).pack(fill="x", pady=5)
+        ttk.Button(
+            self,
+            text="Image Library Statistics",
+            command=lambda: controller.show_frame("ImageLibraryStatistics")
+        ).pack(fill="x", pady=5)
+
+        ttk.Button(self, text="Blurry Image Finder",
+                   command=lambda: controller.show_frame("SharpnessTool")).pack(fill="x", pady=5)
 
         ttk.Button(self, text="Duplicate Finder",
                    command=lambda: controller.show_frame("DuplicateFinder")).pack(fill="x", pady=5)
@@ -542,6 +555,7 @@ class MainApp(tk.Tk):
 def main():
     app = MainApp()
     app.mainloop()
+
 
 if __name__ == "__main__":
     main()
