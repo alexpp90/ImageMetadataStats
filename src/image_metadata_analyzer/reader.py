@@ -1,6 +1,8 @@
 import warnings
 from pathlib import Path
-from PIL import Image, ExifTags
+
+from PIL import ExifTags, Image
+
 from image_metadata_analyzer.utils import get_exiftool_path
 
 # Suppress specific warnings from Pillow about potentially corrupt EXIF data
@@ -22,23 +24,29 @@ def get_exif_data(image_path: Path, debug: bool = False) -> dict | None:
         missing or corrupt.
     """
     # For raw files, Pillow is often unreliable. Try exiftool first, then exifread.
-    raw_extensions = {'.arw', '.nef', '.cr2', '.dng', '.raw'}
+    raw_extensions = {".arw", ".nef", ".cr2", ".dng", ".raw"}
     if image_path.suffix.lower() in raw_extensions:
         # Try exiftool first
         try:
             import exiftool
+
             exiftool_path = get_exiftool_path()
 
             # Configure ExifToolHelper with the custom path if found
-            kwargs = {'executable': exiftool_path} if exiftool_path else {}
+            kwargs = {"executable": exiftool_path} if exiftool_path else {}
 
             with exiftool.ExifToolHelper(**kwargs) as et:
                 # We fetch specific tags to avoid fetching everything
                 tags_to_fetch = [
-                    "Composite:ShutterSpeed", "Composite:Aperture",
-                    "Composite:ISO", "EXIF:ISO",
-                    "Composite:FocalLength", "EXIF:FocalLength",
-                    "Composite:LensID", "LensModel", "LensType"
+                    "Composite:ShutterSpeed",
+                    "Composite:Aperture",
+                    "Composite:ISO",
+                    "EXIF:ISO",
+                    "Composite:FocalLength",
+                    "EXIF:FocalLength",
+                    "Composite:LensID",
+                    "LensModel",
+                    "LensType",
                 ]
                 metadata = et.get_tags(str(image_path), tags=tags_to_fetch)
 
@@ -53,11 +61,11 @@ def get_exif_data(image_path: Path, debug: bool = False) -> dict | None:
                             return float(val)
                         if isinstance(val, str):
                             # Handle things like "21.8 mm"
-                            val = val.split(' ')[0]
+                            val = val.split(" ")[0]
                             # Handle fractions like "1/320"
-                            if '/' in val:
+                            if "/" in val:
                                 try:
-                                    n, d = val.split('/')
+                                    n, d = val.split("/")
                                     return float(n) / float(d)
                                 except ValueError:
                                     pass
@@ -80,17 +88,19 @@ def get_exif_data(image_path: Path, debug: bool = False) -> dict | None:
                     focal_length = parse_val(fl_val)
 
                     # Lens Model
-                    lens_model = data.get("Composite:LensID") or data.get("LensModel") or data.get("LensType") or "Unknown"
+                    lens_model = (
+                        data.get("Composite:LensID") or data.get("LensModel") or data.get("LensType") or "Unknown"
+                    )
 
                     if all(v is not None for v in [shutter_speed, aperture, focal_length, iso]):
                         if debug:
                             print(f"Successfully processed {image_path.name} with exiftool.")
                         return {
-                            'Shutter Speed': shutter_speed,
-                            'Aperture': aperture,
-                            'Focal Length': focal_length,
-                            'ISO': iso,
-                            'Lens': lens_model,
+                            "Shutter Speed": shutter_speed,
+                            "Aperture": aperture,
+                            "Focal Length": focal_length,
+                            "ISO": iso,
+                            "Lens": lens_model,
                         }
 
         except ImportError:
@@ -104,7 +114,7 @@ def get_exif_data(image_path: Path, debug: bool = False) -> dict | None:
         try:
             import exifread
 
-            with open(image_path, 'rb') as f:
+            with open(image_path, "rb") as f:
                 tags = exifread.process_file(f, details=False)
 
             if tags:
@@ -114,7 +124,7 @@ def get_exif_data(image_path: Path, debug: bool = False) -> dict | None:
                     if not tag or not tag.values:
                         return None
                     val = tag.values[0]
-                    if hasattr(val, 'num'):  # It's a Ratio object
+                    if hasattr(val, "num"):  # It's a Ratio object
                         if val.den == 0:
                             return None
                         return float(val.num) / float(val.den)
@@ -123,30 +133,32 @@ def get_exif_data(image_path: Path, debug: bool = False) -> dict | None:
                     except (TypeError, ValueError):
                         return None
 
-                shutter_speed = get_tag_float('EXIF ExposureTime')
-                aperture = get_tag_float('EXIF FNumber')
-                focal_length = get_tag_float('EXIF FocalLength')
-                iso_tag = tags.get('EXIF ISOSpeedRatings')
+                shutter_speed = get_tag_float("EXIF ExposureTime")
+                aperture = get_tag_float("EXIF FNumber")
+                focal_length = get_tag_float("EXIF FocalLength")
+                iso_tag = tags.get("EXIF ISOSpeedRatings")
                 iso = iso_tag.values[0] if iso_tag and iso_tag.values else None
 
-                lens_model_tag = tags.get('EXIF LensModel') or tags.get('MakerNote LensModel')
+                lens_model_tag = tags.get("EXIF LensModel") or tags.get("MakerNote LensModel")
                 lens_model = str(lens_model_tag.values).strip() if lens_model_tag else "Unknown"
 
                 if all(v is not None for v in [shutter_speed, aperture, focal_length, iso]):
                     if debug:
                         print(f"Successfully processed {image_path.name} with exifread.")
                     return {
-                        'Shutter Speed': shutter_speed,
-                        'Aperture': aperture,
-                        'Focal Length': focal_length,
-                        'ISO': iso,
-                        'Lens': lens_model,
+                        "Shutter Speed": shutter_speed,
+                        "Aperture": aperture,
+                        "Focal Length": focal_length,
+                        "ISO": iso,
+                        "Lens": lens_model,
                     }
         except ImportError:
             if debug:
-                print("\nWarning: `exifread` library not found. "
-                      "Falling back to Pillow for raw files. "
-                      "For better raw file support, `pip install exifread`")
+                print(
+                    "\nWarning: `exifread` library not found. "
+                    "Falling back to Pillow for raw files. "
+                    "For better raw file support, `pip install exifread`"
+                )
         except Exception as e:
             if debug:
                 print(f"\nexifread failed on {image_path.name}: {e}")
@@ -159,7 +171,8 @@ def get_exif_data(image_path: Path, debug: bool = False) -> dict | None:
             exif_data_raw = img.getexif()
         except AttributeError:
             # Fallback for older Pillow versions that use the private method
-            exif_data_raw = img._getexif()
+            # mypy: ignore
+            exif_data_raw = img._getexif()  # type: ignore
 
         if not exif_data_raw:
             if debug:
@@ -197,7 +210,7 @@ def get_exif_data(image_path: Path, debug: bool = False) -> dict | None:
             if value is None:
                 return None
             # Handle PIL's IFDRational type which has numerator/denominator
-            if hasattr(value, 'numerator') and hasattr(value, 'denominator'):
+            if hasattr(value, "numerator") and hasattr(value, "denominator"):
                 if value.denominator == 0:
                     return None
                 return float(value.numerator) / float(value.denominator)
@@ -210,7 +223,7 @@ def get_exif_data(image_path: Path, debug: bool = False) -> dict | None:
             # Handle byte strings which might be null-terminated
             if isinstance(value, bytes):
                 try:
-                    return float(value.strip(b'\x00').decode('utf-8', errors='ignore'))
+                    return float(value.strip(b"\x00").decode("utf-8", errors="ignore"))
                 except (ValueError, UnicodeDecodeError):
                     return None
             # Handle simple numeric types
@@ -219,12 +232,12 @@ def get_exif_data(image_path: Path, debug: bool = False) -> dict | None:
             except (TypeError, ValueError):
                 return None
 
-        shutter_speed_raw = exif_data.get('ExposureTime')
-        aperture_raw = exif_data.get('FNumber')
-        focal_length_raw = exif_data.get('FocalLength')
+        shutter_speed_raw = exif_data.get("ExposureTime")
+        aperture_raw = exif_data.get("FNumber")
+        focal_length_raw = exif_data.get("FocalLength")
         # ISO can sometimes be a tuple (e.g., (100, 0)), take the first element
-        iso_raw = exif_data.get('ISOSpeedRatings')
-        lens_model_raw = exif_data.get('LensModel')
+        iso_raw = exif_data.get("ISOSpeedRatings")
+        lens_model_raw = exif_data.get("LensModel")
 
         shutter_speed = get_float(shutter_speed_raw)
         aperture = get_float(aperture_raw)
@@ -236,18 +249,25 @@ def get_exif_data(image_path: Path, debug: bool = False) -> dict | None:
         if all(v is None for v in [shutter_speed, aperture, focal_length, iso, lens_model_raw]):
             if debug:
                 print(f"\n--- Debugging (Pillow) failed extraction for: {image_path.name} ---")
-                print(f"  Raw Shutter Speed: {shutter_speed_raw!r} (Type: {type(shutter_speed_raw).__name__}) -> "
-                      f"Parsed: {shutter_speed}")
-                print(f"  Raw Aperture:      {aperture_raw!r} (Type: {type(aperture_raw).__name__}) -> "
-                      f"Parsed: {aperture}")
-                print(f"  Raw Focal Length:  {focal_length_raw!r} (Type: {type(focal_length_raw).__name__}) -> "
-                      f"Parsed: {focal_length}")
+                print(
+                    f"  Raw Shutter Speed: {shutter_speed_raw!r} (Type: {type(shutter_speed_raw).__name__}) -> "
+                    f"Parsed: {shutter_speed}"
+                )
+                print(
+                    f"  Raw Aperture:      {aperture_raw!r} (Type: {type(aperture_raw).__name__}) -> "
+                    f"Parsed: {aperture}"
+                )
+                print(
+                    f"  Raw Focal Length:  {focal_length_raw!r} (Type: {type(focal_length_raw).__name__}) -> "
+                    f"Parsed: {focal_length}"
+                )
                 print(f"  Raw ISO:           {iso_raw!r} (Type: {type(iso_raw).__name__}) -> Parsed: {iso}")
                 print(f"  Lens Model:        {lens_model!r}")
                 print("  Reason: None of the essential metadata fields could be found or parsed.")
                 # Add this new part to show all available keys
                 if exif_data:
                     import textwrap
+
                     # Show all keys from the merged dictionary
                     available_keys = ", ".join(sorted([str(k) for k in exif_data.keys()]))
                     print("\n  Available EXIF keys found in this file (merged):")
@@ -259,11 +279,11 @@ def get_exif_data(image_path: Path, debug: bool = False) -> dict | None:
             return None
 
         return {
-            'Shutter Speed': shutter_speed,
-            'Aperture': aperture,
-            'Focal Length': focal_length,
-            'ISO': iso,
-            'Lens': lens_model,
+            "Shutter Speed": shutter_speed,
+            "Aperture": aperture,
+            "Focal Length": focal_length,
+            "ISO": iso,
+            "Lens": lens_model,
         }
     except Exception as e:
         # Catch all other exceptions from opening/reading files (e.g., not an image, corrupt file)

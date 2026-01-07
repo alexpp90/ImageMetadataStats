@@ -1,24 +1,31 @@
-import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
-import threading
 import queue
 import sys
+import threading
+import tkinter as tk
 from pathlib import Path
+from tkinter import filedialog, messagebox, ttk
+
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+
+from image_metadata_analyzer.analyzer import analyze_data
 
 # Use a relative import or absolute based on package structure
 # Assuming this runs as a module
 from image_metadata_analyzer.reader import get_exif_data
-from image_metadata_analyzer.analyzer import analyze_data
 from image_metadata_analyzer.utils import resolve_path
 from image_metadata_analyzer.visualizer import (
-    get_shutter_speed_plot, get_aperture_plot, get_iso_plot,
-    get_focal_length_plot, get_lens_plot, get_combination_plot
+    get_aperture_plot,
+    get_combination_plot,
+    get_focal_length_plot,
+    get_iso_plot,
+    get_lens_plot,
+    get_shutter_speed_plot,
 )
 
 
 class RedirectText(object):
     """Redirects stdout to a tkinter text widget via a queue."""
+
     def __init__(self, text_queue):
         self.text_queue = text_queue
 
@@ -86,7 +93,7 @@ class ImageLibraryStatistics(ttk.Frame):
         # Scrollbar for logs
         scrollbar = ttk.Scrollbar(self.logs_frame, orient="vertical", command=self.log_text.yview)
         scrollbar.pack(side="right", fill="y")
-        self.log_text['yscrollcommand'] = scrollbar.set
+        self.log_text["yscrollcommand"] = scrollbar.set
         self.log_text.pack(side="left", fill="both", expand=True)
 
         # Plots Tabs (Placeholders for now)
@@ -164,7 +171,8 @@ class ImageLibraryStatistics(ttk.Frame):
         try:
             # Resolve potential network paths (smb://) to local paths
             root_path = resolve_path(root_folder)
-            # output_path = Path(output_folder) # Not actually used in GUI for display, only passed if we wanted to save there
+            # output_path = Path(output_folder)
+            # Not actually used in GUI for display, only passed if we wanted to save there
 
             if not root_path.is_dir():
                 print(f"Error: Folder not found at '{root_path}'")
@@ -172,10 +180,10 @@ class ImageLibraryStatistics(ttk.Frame):
                     print("Tip: For network locations, ensure the share is mounted in your file manager first.")
                 return
 
-            image_extensions = {'.jpg', '.jpeg', '.tif', '.tiff', '.nef', '.cr2', '.arw', '.dng', '.raw'}
+            image_extensions = {".jpg", ".jpeg", ".tif", ".tiff", ".nef", ".cr2", ".arw", ".dng", ".raw"}
             print(f"Scanning for images in '{root_path}'...")
 
-            image_files = [f for f in root_path.rglob('*') if f.suffix.lower() in image_extensions]
+            image_files = [f for f in root_path.rglob("*") if f.suffix.lower() in image_extensions]
 
             if not image_files:
                 print("No supported image files found.")
@@ -212,7 +220,7 @@ class ImageLibraryStatistics(ttk.Frame):
                 "ISO": get_iso_plot(all_metadata),
                 "Focal Length": get_focal_length_plot(all_metadata),
                 "Lens": get_lens_plot(all_metadata),
-                "Combinations": get_combination_plot(all_metadata)
+                "Combinations": get_combination_plot(all_metadata),
             }
 
             # Schedule GUI update to show plots
@@ -223,6 +231,7 @@ class ImageLibraryStatistics(ttk.Frame):
         except Exception as e:
             print(f"An error occurred: {e}")
             import traceback
+
             traceback.print_exc()
         finally:
             sys.stdout = old_stdout
@@ -261,8 +270,9 @@ class Sidebar(ttk.Frame):
 
         ttk.Label(self, text="Tools", font=("Helvetica", 12, "bold")).pack(pady=10)
 
-        ttk.Button(self, text="Image Library Statistics",
-                   command=lambda: controller.show_frame("ImageLibraryStatistics")).pack(fill="x", pady=5)
+        ttk.Button(
+            self, text="Image Library Statistics", command=lambda: controller.show_frame("ImageLibraryStatistics")
+        ).pack(fill="x", pady=5)
 
         # Add more buttons here for future features
 
@@ -277,14 +287,14 @@ class MainApp(tk.Tk):
         # Attempt to improve DPI awareness on Windows/Linux
         try:
             # Unix/Linux often needs this for proper scaling if not handled by window manager
-            self.call('tk', 'scaling', self.winfo_fpixels('1i')/72.0)
+            self.call("tk", "scaling", self.winfo_fpixels("1i") / 72.0)
         except Exception:
             pass
 
         # Set Window Icon
         try:
             icon_path = None
-            if hasattr(sys, '_MEIPASS'):
+            if hasattr(sys, "_MEIPASS"):
                 # Running from PyInstaller bundle
                 icon_path = Path(sys._MEIPASS) / "logo.png"
             else:
@@ -300,11 +310,11 @@ class MainApp(tk.Tk):
         # Maximize window
         try:
             # Windows and some Linux window managers
-            self.state('zoomed')
+            self.state("zoomed")
         except tk.TclError:
             try:
                 # Linux (X11)
-                self.attributes('-zoomed', True)
+                self.attributes("-zoomed", True)
             except tk.TclError:
                 # Fallback: simple geometry set to screen size
                 width = self.winfo_screenwidth()
@@ -338,6 +348,7 @@ class MainApp(tk.Tk):
 def main():
     app = MainApp()
     app.mainloop()
+
 
 if __name__ == "__main__":
     main()

@@ -3,8 +3,8 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from image_metadata_analyzer.reader import get_exif_data
 from image_metadata_analyzer.analyzer import analyze_data
+from image_metadata_analyzer.reader import get_exif_data
 from image_metadata_analyzer.visualizer import create_plots
 
 
@@ -32,10 +32,10 @@ def main():
         print(f"Error: Folder not found at '{root_path}'")
         return
 
-    image_extensions = {'.jpg', '.jpeg', '.tif', '.tiff', '.nef', '.cr2', '.arw', '.dng', '.raw'}
+    image_extensions = {".jpg", ".jpeg", ".tif", ".tiff", ".nef", ".cr2", ".arw", ".dng", ".raw"}
     print(f"Scanning for images in '{root_path}'...")
 
-    image_files = [f for f in root_path.rglob('*') if f.suffix.lower() in image_extensions]
+    image_files = [f for f in root_path.rglob("*") if f.suffix.lower() in image_extensions]
 
     if not image_files:
         print("No supported image files found.")
@@ -44,8 +44,7 @@ def main():
     print(f"Found {len(image_files)} image files. Extracting metadata...")
 
     all_metadata = [
-        data for f in tqdm(image_files, desc="Processing images")
-        if (data := get_exif_data(f, debug=args.debug))
+        data for f in tqdm(image_files, desc="Processing images") if (data := get_exif_data(f, debug=args.debug))
     ]
 
     if not all_metadata:
