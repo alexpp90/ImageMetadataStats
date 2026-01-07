@@ -16,6 +16,7 @@ from image_metadata_analyzer.visualizer import (
     get_focal_length_plot, get_lens_plot, get_combination_plot,
     get_equivalent_focal_length_plot, get_apsc_equivalent_focal_length_plot
 )
+from image_metadata_analyzer.sharpness_gui import SharpnessTool
 
 
 class RedirectText(object):
@@ -274,6 +275,9 @@ class Sidebar(ttk.Frame):
             command=lambda: controller.show_frame("ImageLibraryStatistics")
         ).pack(fill="x", pady=5)
 
+        ttk.Button(self, text="Blurry Image Finder",
+                   command=lambda: controller.show_frame("SharpnessTool")).pack(fill="x", pady=5)
+
         # Add more buttons here for future features
 
         self.pack(side="left", fill="y")
@@ -329,7 +333,7 @@ class MainApp(tk.Tk):
         self.frames = {}
 
         # Initialize frames
-        for F in (ImageLibraryStatistics,):
+        for F in (ImageLibraryStatistics, SharpnessTool):
             page_name = F.__name__
             frame = F(self.content_area)
             self.frames[page_name] = frame
