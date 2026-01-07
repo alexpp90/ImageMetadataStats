@@ -8,14 +8,14 @@ from tkinter import filedialog, messagebox, ttk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 from image_metadata_analyzer.analyzer import analyze_data
-
-# Use a relative import or absolute based on package structure
-# Assuming this runs as a module
-from image_metadata_analyzer.reader import get_exif_data
+from image_metadata_analyzer.reader import SUPPORTED_EXTENSIONS, get_exif_data
+from image_metadata_analyzer.sharpness_gui import SharpnessTool
 from image_metadata_analyzer.utils import resolve_path
 from image_metadata_analyzer.visualizer import (
     get_aperture_plot,
+    get_apsc_equivalent_focal_length_plot,
     get_combination_plot,
+    get_equivalent_focal_length_plot,
     get_focal_length_plot,
     get_iso_plot,
     get_lens_plot,
@@ -177,13 +177,13 @@ class ImageLibraryStatistics(ttk.Frame):
             if not root_path.is_dir():
                 print(f"Error: Folder not found at '{root_path}'")
                 if root_folder.startswith("smb://"):
-                    print("Tip: For network locations, ensure the share is mounted in your file manager first.")
+                    msg = "Tip: For network locations, ensure the share is mounted in your file manager first."
+                    print(msg)
                 return
 
-            image_extensions = {".jpg", ".jpeg", ".tif", ".tiff", ".nef", ".cr2", ".arw", ".dng", ".raw"}
             print(f"Scanning for images in '{root_path}'...")
 
-            image_files = [f for f in root_path.rglob("*") if f.suffix.lower() in image_extensions]
+            image_files = [f for f in root_path.rglob("*") if f.suffix.lower() in SUPPORTED_EXTENSIONS]
 
             if not image_files:
                 print("No supported image files found.")
@@ -219,6 +219,8 @@ class ImageLibraryStatistics(ttk.Frame):
                 "Aperture": get_aperture_plot(all_metadata),
                 "ISO": get_iso_plot(all_metadata),
                 "Focal Length": get_focal_length_plot(all_metadata),
+                "Equiv Focal Length (35mm)": get_equivalent_focal_length_plot(all_metadata),
+                "Equiv Focal Length (APS-C)": get_apsc_equivalent_focal_length_plot(all_metadata),
                 "Lens": get_lens_plot(all_metadata),
                 "Combinations": get_combination_plot(all_metadata),
             }
@@ -273,6 +275,10 @@ class Sidebar(ttk.Frame):
         ttk.Button(
             self, text="Image Library Statistics", command=lambda: controller.show_frame("ImageLibraryStatistics")
         ).pack(fill="x", pady=5)
+
+        ttk.Button(self, text="Blurry Image Finder", command=lambda: controller.show_frame("SharpnessTool")).pack(
+            fill="x", pady=5
+        )
 
         # Add more buttons here for future features
 
@@ -329,7 +335,7 @@ class MainApp(tk.Tk):
         self.frames = {}
 
         # Initialize frames
-        for F in (ImageLibraryStatistics,):
+        for F in (ImageLibraryStatistics, SharpnessTool):
             page_name = F.__name__
             frame = F(self.content_area)
             self.frames[page_name] = frame
