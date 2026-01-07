@@ -13,7 +13,8 @@ from image_metadata_analyzer.analyzer import analyze_data
 from image_metadata_analyzer.utils import resolve_path
 from image_metadata_analyzer.visualizer import (
     get_shutter_speed_plot, get_aperture_plot, get_iso_plot,
-    get_focal_length_plot, get_lens_plot, get_combination_plot
+    get_focal_length_plot, get_lens_plot, get_combination_plot,
+    get_equivalent_focal_length_plot, get_apsc_equivalent_focal_length_plot
 )
 
 
@@ -215,6 +216,8 @@ class ImageLibraryStatistics(ttk.Frame):
                 "Aperture": get_aperture_plot(all_metadata),
                 "ISO": get_iso_plot(all_metadata),
                 "Focal Length": get_focal_length_plot(all_metadata),
+                "Equiv Focal Length (35mm)": get_equivalent_focal_length_plot(all_metadata),
+                "Equiv Focal Length (APS-C)": get_apsc_equivalent_focal_length_plot(all_metadata),
                 "Lens": get_lens_plot(all_metadata),
                 "Combinations": get_combination_plot(all_metadata)
             }

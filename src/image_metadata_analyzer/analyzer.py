@@ -12,6 +12,14 @@ def analyze_data(data: list[dict]):
         print("No data to analyze.")
         return
 
+    # Calculate fallback statistics
+    fallback_count = sum(1 for d in data if d.get('Is Fallback'))
+    fallback_percent = (fallback_count / len(data)) * 100
+    if fallback_count > 0:
+        print(f"Images using fallback focal length (original): {fallback_count} ({fallback_percent:.1f}%)")
+    else:
+        print("All images had valid 35mm equivalent focal length metadata.")
+
     print("\n--- Basic Statistics ---")
 
     # Helper to extract values
@@ -48,6 +56,19 @@ def analyze_data(data: list[dict]):
     # Display top 15 of the aggregated buckets
     for label, count, _ in aggregated_fls[:15]:
         print(f"  {label}: {count}")
+
+    print("\n\nTop 15 Equivalent Focal Lengths (35mm):")
+    focal_lengths_35 = get_values('Focal Length (35mm)')
+    # Round to nearest integer for cleaner display
+    focal_lengths_35_rounded = [int(round(fl)) for fl in focal_lengths_35]
+    for fl, count in Counter(focal_lengths_35_rounded).most_common(15):
+        print(f"  {fl}mm: {count}")
+
+    print("\n\nTop 15 Equivalent Focal Lengths (APS-C):")
+    # APS-C is 35mm / 1.5
+    focal_lengths_apsc = [int(round(fl / 1.5)) for fl in focal_lengths_35]
+    for fl, count in Counter(focal_lengths_apsc).most_common(15):
+        print(f"  {fl}mm: {count}")
 
     print("\n\nTop 25 Aperture & Focal Length Combinations:")
     combinations = []
