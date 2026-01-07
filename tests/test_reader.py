@@ -18,7 +18,7 @@ def test_get_exif_data_no_file(image_dir):
 
 def test_get_exif_data_no_exif(image_dir):
     p = image_dir / "no_exif.jpg"
-    img = Image.new('RGB', (100, 100), color='red')
+    img = Image.new("RGB", (100, 100), color="red")
     img.save(p)
 
     # Pillow created image has no EXIF data
@@ -31,7 +31,7 @@ def test_get_exif_data_with_exif(image_dir):
     # so we will trust that if we cannot find EXIF, it returns None.
     # However, we can test that it handles a file that IS an image but has no exif nicely.
     p = image_dir / "test.jpg"
-    img = Image.new('RGB', (100, 100), color='blue')
+    img = Image.new("RGB", (100, 100), color="blue")
     img.save(p)
     result = get_exif_data(p)
     assert result is None

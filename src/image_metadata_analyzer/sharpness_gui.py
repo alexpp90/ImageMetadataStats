@@ -1,22 +1,26 @@
-import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
-import threading
-import queue
 import logging
+import queue
+import threading
+import tkinter as tk
 from pathlib import Path
-from PIL import Image, ImageTk
-import send2trash
+from tkinter import filedialog, messagebox, ttk
+
 import rawpy
-import numpy as np
+import send2trash
+from PIL import Image, ImageTk
+
+from image_metadata_analyzer.reader import get_exif_data
 
 # Local imports
 from image_metadata_analyzer.sharpness import (
-    calculate_sharpness, categorize_sharpness, SharpnessCategories,
-    find_related_files
+    SharpnessCategories,
+    calculate_sharpness,
+    categorize_sharpness,
+    find_related_files,
 )
-from image_metadata_analyzer.reader import get_exif_data
 
 logger = logging.getLogger(__name__)
+
 
 class SharpnessTool(ttk.Frame):
     def __init__(self, parent):
@@ -27,10 +31,10 @@ class SharpnessTool(ttk.Frame):
         self.stop_event = threading.Event()
 
         # State
-        self.scan_results = [] # List of dicts: {path, score, category, exif}
-        self.files_map = {} # path -> result dict
-        self.sorted_files = [] # List of paths sorted by filename
-        self.candidates = [] # List of paths that are category 2 or 3
+        self.scan_results = []  # List of dicts: {path, score, category, exif}
+        self.files_map = {}  # path -> result dict
+        self.sorted_files = []  # List of paths sorted by filename
+        self.candidates = []  # List of paths that are category 2 or 3
 
         # Defaults
         self.default_blur_threshold = 100.0
@@ -91,7 +95,9 @@ class SharpnessTool(ttk.Frame):
         scale_sharp.grid(row=1, column=1, padx=5)
         ttk.Entry(group, textvariable=self.sharp_thresh_var, width=8).grid(row=1, column=2, padx=5)
 
-        ttk.Label(group, text="(Scores depend on image resolution. Default values are estimates.)").grid(row=2, column=0, columnspan=3, pady=5)
+        ttk.Label(group, text="(Scores depend on image resolution. Default values are estimates.)").grid(
+            row=2, column=0, columnspan=3, pady=5
+        )
 
         # Start Button
         self.start_btn = ttk.Button(container, text="Start Sharpness Scan", command=self.start_scan)
@@ -190,8 +196,8 @@ class SharpnessTool(ttk.Frame):
         details = ttk.Label(frame, text="", font=("Helvetica", 9))
         details.pack(fill="x")
 
-        frame.img_lbl = lbl # Store ref
-        frame.details_lbl = details # Store ref
+        frame.img_lbl = lbl  # Store ref
+        frame.details_lbl = details  # Store ref
         return frame
 
     def browse_folder(self):
@@ -252,8 +258,8 @@ class SharpnessTool(ttk.Frame):
         try:
             p = Path(folder_path)
             # Recursive scan
-            extensions = {'.jpg', '.jpeg', '.tif', '.tiff', '.nef', '.cr2', '.arw', '.dng', '.raw'}
-            files = [f for f in p.rglob('*') if f.suffix.lower() in extensions]
+            extensions = {".jpg", ".jpeg", ".tif", ".tiff", ".nef", ".cr2", ".arw", ".dng", ".raw"}
+            files = [f for f in p.rglob("*") if f.suffix.lower() in extensions]
 
             if not files:
                 self.log("No supported images found.")
@@ -284,12 +290,7 @@ class SharpnessTool(ttk.Frame):
                 # Exif (basic)
                 exif = get_exif_data(f) or {}
 
-                res = {
-                    "path": f,
-                    "score": score,
-                    "category": cat,
-                    "exif": exif
-                }
+                res = {"path": f, "score": score, "category": cat, "exif": exif}
 
                 self.scan_results.append(res)
                 self.files_map[f] = res
@@ -303,6 +304,7 @@ class SharpnessTool(ttk.Frame):
         except Exception as e:
             self.log(f"Error during scan: {e}")
             import traceback
+
             traceback.print_exc()
 
         self.parent.after(0, self.scan_finished)
@@ -313,7 +315,8 @@ class SharpnessTool(ttk.Frame):
 
         # Filter candidates
         self.candidates = [
-            res["path"] for res in self.scan_results
+            res["path"]
+            for res in self.scan_results
             if res["category"] in [SharpnessCategories.BLURRY, SharpnessCategories.ACCEPTABLE]
         ]
 
@@ -336,7 +339,7 @@ class SharpnessTool(ttk.Frame):
             # Color code
             color = SharpnessCategories.get_color(res["category"])
             idx = self.candidate_listbox.size() - 1
-            self.candidate_listbox.itemconfig(idx, {'fg': color})
+            self.candidate_listbox.itemconfig(idx, {"fg": color})
 
         if self.candidates:
             self.candidate_listbox.selection_set(0)
@@ -371,16 +374,16 @@ class SharpnessTool(ttk.Frame):
         self.update_metadata_label(current_path)
 
         # Start background thread for loading images
-        threading.Thread(target=self.load_images_background,
-                         args=(prev_path, current_path, next_path),
-                         daemon=True).start()
+        threading.Thread(
+            target=self.load_images_background, args=(prev_path, current_path, next_path), daemon=True
+        ).start()
 
     def set_placeholder(self, panel, path):
         lbl = panel.img_lbl
         details = panel.details_lbl
 
         if path is None:
-            lbl.config(image='', text="No Image")
+            lbl.config(image="", text="No Image")
             details.config(text="")
             return
 
@@ -395,30 +398,33 @@ class SharpnessTool(ttk.Frame):
             cat_name = SharpnessCategories.get_name(res["category"])
 
         details.config(text=f"{path.name}\n{cat_name} ({score_txt})", foreground=cat_color)
-        lbl.config(image='', text="Loading...")
+        lbl.config(image="", text="Loading...")
 
     def update_metadata_label(self, current_path):
         res = self.files_map.get(current_path)
         if res:
             exif = res["exif"]
             score = res["score"]
-            aperture = exif.get('FNumber', 'N/A')
-            shutter = exif.get('ExposureTime', 'N/A')
+            aperture = exif.get("FNumber", "N/A")
+            shutter = exif.get("ExposureTime", "N/A")
             cat_name = SharpnessCategories.get_name(res["category"])
 
-            txt = (f"File: {current_path.name}\n"
-                   f"Category: {cat_name} (Score: {score:.1f})\n"
-                   f"Aperture: {aperture}, Shutter: {shutter}")
+            txt = (
+                f"File: {current_path.name}\n"
+                f"Category: {cat_name} (Score: {score:.1f})\n"
+                f"Aperture: {aperture}, Shutter: {shutter}"
+            )
             self.meta_lbl.config(text=txt)
 
     def load_images_background(self, prev_path, curr_path, next_path):
         # Helper to load one image
         def load_one(path):
-            if path is None: return None
+            if path is None:
+                return None
             try:
                 # Try RAW first if applicable
                 ext = path.suffix.lower()
-                raw_exts = {'.arw', '.nef', '.cr2', '.dng', '.orf', '.rw2', '.raf'}
+                raw_exts = {".arw", ".nef", ".cr2", ".dng", ".orf", ".rw2", ".raf"}
 
                 img = None
                 if ext in raw_exts:
@@ -454,7 +460,7 @@ class SharpnessTool(ttk.Frame):
                 lbl.config(image=img, text="")
                 lbl.image = img
             elif lbl.cget("text") == "Loading...":
-                lbl.config(image='', text="Preview\nUnavailable")
+                lbl.config(image="", text="Preview\nUnavailable")
 
         set_img(self.panel_prev, p_img)
         set_img(self.panel_curr, c_img)
@@ -484,7 +490,9 @@ class SharpnessTool(ttk.Frame):
         idx = sel[0]
         path = self.candidates[idx]
 
-        if messagebox.askyesno("Confirm Delete", f"Are you sure you want to move '{path.name}' and related files to trash?"):
+        if messagebox.askyesno(
+            "Confirm Delete", f"Are you sure you want to move '{path.name}' and related files to trash?"
+        ):
             related = find_related_files(path)
             success = True
             for f in related:
@@ -510,6 +518,6 @@ class SharpnessTool(ttk.Frame):
                     self.candidate_listbox.selection_set(new_idx)
                     self.on_candidate_select(None)
                 else:
-                    self.panel_curr.img_lbl.config(image='', text="No Candidates")
-                    self.panel_prev.img_lbl.config(image='', text="")
-                    self.panel_next.img_lbl.config(image='', text="")
+                    self.panel_curr.img_lbl.config(image="", text="No Candidates")
+                    self.panel_prev.img_lbl.config(image="", text="")
+                    self.panel_next.img_lbl.config(image="", text="")
