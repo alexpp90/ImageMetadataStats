@@ -11,12 +11,20 @@ jobs:
   build:
     name: Build on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        # ubuntu-latest is x64.
-        # macos-latest is currently macos-14 (ARM64/M1).
-        # We can add windows-latest if desired.
+        include:
+          - os: ubuntu-latest
+            artifact_name: image-metadata-analyzer-linux-x64
+          - os: macos-latest
+            artifact_name: image-metadata-analyzer-macos-apple-silicon
+          - os: macos-15
+            artifact_name: image-metadata-analyzer-macos-15
+          - os: windows-latest
+            artifact_name: image-metadata-analyzer-windows-x64
 
     steps:
     - uses: actions/checkout@v4
@@ -33,10 +41,10 @@ jobs:
         sudo apt-get install -y python3-tk libcairo2-dev
 
     - name: Install Poetry
-      uses: snok/install-poetry@v1
-      with:
-        virtualenvs-create: true
-        virtualenvs-in-project: true
+      run: |
+        pip install poetry
+        poetry config virtualenvs.create true
+        poetry config virtualenvs.in-project true
 
     - name: Install dependencies
       run: poetry install --no-interaction --no-root
@@ -47,6 +55,6 @@ jobs:
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: image-metadata-analyzer-${{ matrix.os }}
+        name: ${{ matrix.artifact_name }}
         path: dist/image-metadata-*
         if-no-files-found: error
