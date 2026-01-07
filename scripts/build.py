@@ -167,6 +167,12 @@ def run_pyinstaller(target):
     subprocess.run(cmd, check=True)
 
 def generate_icons_if_possible():
+    # Only try generating icons on Linux, or if explicit env var is set.
+    # On Windows/Mac, installing Cairo is tricky, so we rely on pre-generated assets.
+    if platform.system() != "Linux" and os.environ.get("FORCE_ICON_GEN") != "1":
+        print("Skipping icon generation on non-Linux platform (using existing assets).")
+        return True
+
     # Try importing and running generation script
     # It might fail if dependencies (cairo) are missing
     try:
