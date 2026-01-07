@@ -11,7 +11,7 @@ from PIL import Image, ImageTk
 # Assuming this runs as a module
 from image_metadata_analyzer.reader import get_exif_data, SUPPORTED_EXTENSIONS
 from image_metadata_analyzer.analyzer import analyze_data
-from image_metadata_analyzer.utils import resolve_path
+from image_metadata_analyzer.utils import resolve_path, load_image_preview
 from image_metadata_analyzer.visualizer import (
     get_shutter_speed_plot, get_aperture_plot, get_iso_plot,
     get_focal_length_plot, get_lens_plot, get_combination_plot,
@@ -371,11 +371,7 @@ class DuplicateFinder(ttk.Frame):
                 thumb = None
                 if group['files']:
                     try:
-                        # Resize here (expensive op)
-                        img = Image.open(group['files'][0])
-                        img.thumbnail((150, 150))
-                        # We cannot convert to ImageTk here, must pass the PIL Image
-                        thumb = img
+                        thumb = load_image_preview(group['files'][0], max_size=(150, 150))
                     except Exception:
                         pass
                 thumbnails.append(thumb)
