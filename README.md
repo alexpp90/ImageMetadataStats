@@ -11,9 +11,23 @@ This tool analyzes image metadata (EXIF) from a given root folder, including all
 
 ### Option 1: Standalone Executable (Recommended)
 
-Go to the [Actions](https://github.com/OWNER/REPO/actions) tab (or Releases if configured) and download the artifact for your operating system (Windows, Linux, or macOS).
+#### Stable Release
+Go to the [Releases](https://github.com/alexpp90/ImageMetadataStats/releases) page to download the latest stable version.
 
-1.  Extract the downloaded zip file.
+#### Nightly Build (Latest Features)
+For the absolute latest version built automatically from the `main` branch:
+
+[![Build Date](https://img.shields.io/github/release-date/alexpp90/ImageMetadataStats/nightly?label=Last%20Build)](https://github.com/alexpp90/ImageMetadataStats/releases/tag/nightly)
+
+**Download:**
+*   **Windows (x64)**: [Download ZIP](https://github.com/alexpp90/ImageMetadataStats/releases/download/nightly/image-metadata-analyzer-windows-x64.zip)
+*   **macOS (Apple Silicon)**: [Download ZIP](https://github.com/alexpp90/ImageMetadataStats/releases/download/nightly/image-metadata-analyzer-macos-apple-silicon.zip)
+*   **macOS (Intel)**: [Download ZIP](https://github.com/alexpp90/ImageMetadataStats/releases/download/nightly/image-metadata-analyzer-macos-intel.zip)
+*   **macOS (v15+)**: [Download ZIP](https://github.com/alexpp90/ImageMetadataStats/releases/download/nightly/image-metadata-analyzer-macos-15.zip)
+*   **Linux (x64)**: [Download ZIP](https://github.com/alexpp90/ImageMetadataStats/releases/download/nightly/image-metadata-analyzer-linux-x64.zip)
+
+**Instructions:**
+1.  Download and extract the ZIP file.
 2.  Run the executable:
     *   **GUI**: Double-click `image-metadata-gui`.
     *   **CLI**: Run `./image-metadata-analyzer` from the terminal.
@@ -52,6 +66,8 @@ The standalone executable comes with `exiftool` bundled, so you don't need to in
 *   **Cross-platform**: Runs on Windows, Linux, and macOS.
 *   **RAW Support**: Handles common RAW formats (.ARW, .NEF, .CR2, etc.) using `exiftool` (bundled in the executable).
 *   **Fast Analysis**: Uses optimized metadata extraction.
+*   **Blurry Image Finder**: Automatically detects blurry images using Laplacian Variance analysis, helping you cull low-quality shots.
+*   **Duplicate Finder**: Identifies duplicate images by file size and content (MD5 hash), with safety features to prevent accidental deletion of all copies.
 
 ## Development
 
