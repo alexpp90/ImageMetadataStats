@@ -3,6 +3,8 @@ import sys
 import os
 import urllib.parse
 from pathlib import Path
+from collections import Counter
+from typing import List, Tuple
 
 def resolve_path(path_str: str) -> Path:
     """
@@ -102,3 +104,92 @@ def get_exiftool_path() -> str | None:
         return str(potential_path_no_ext)
 
     return None
+
+def aggregate_focal_lengths(focal_lengths: List[float], max_buckets: int = 25) -> List[Tuple[str, int, float]]:
+    """
+    Aggregates focal lengths into buckets based on percentage difference.
+
+    Args:
+        focal_lengths: List of focal length values.
+        max_buckets: Maximum number of buckets to create.
+
+    Returns:
+        List of tuples (label, count, sort_key).
+        - label: String representation (e.g., "50 mm" or "24-28 mm").
+        - count: Number of items in this bucket.
+        - sort_key: The representative value for sorting (e.g., min value of the bucket).
+    """
+    if not focal_lengths:
+        return []
+
+    # Count exact values first
+    counts = Counter(focal_lengths)
+
+    unique_fls = sorted(counts.keys())
+
+    if len(unique_fls) <= max_buckets:
+        # No aggregation needed
+        # Return exact matches, format as integer if possible
+        result = []
+        for fl in unique_fls:
+            label = f"{int(fl)} mm" if fl.is_integer() else f"{fl:.1f} mm"
+            result.append((label, counts[fl], fl))
+        return result
+
+    def get_groups(threshold):
+        groups = []
+        if not unique_fls:
+            return groups
+
+        current_group = [unique_fls[0]]
+
+        for fl in unique_fls[1:]:
+            # Check if current value is within threshold of the group start
+            # logic: (fl - start) / start <= threshold
+            if (fl - current_group[0]) / current_group[0] <= threshold:
+                current_group.append(fl)
+            else:
+                groups.append(current_group)
+                current_group = [fl]
+        groups.append(current_group)
+        return groups
+
+    # Binary search for the smallest threshold that yields <= max_buckets
+    low = 0.0
+    high = 2.0 # Allow up to 200% difference
+    best_threshold = high
+
+    # We do a fixed number of iterations for precision
+    for _ in range(20):
+        mid = (low + high) / 2
+        groups = get_groups(mid)
+        if len(groups) <= max_buckets:
+            best_threshold = mid
+            high = mid
+        else:
+            low = mid
+
+    # Generate final groups with best_threshold
+    final_groups = get_groups(best_threshold)
+
+    result = []
+    for group in final_groups:
+        group_count = sum(counts[fl] for fl in group)
+        min_fl = min(group)
+        max_fl = max(group)
+
+        def fmt(v):
+            return f"{int(v)}" if v.is_integer() else f"{v:.1f}".rstrip('0').rstrip('.')
+
+        if len(group) == 1:
+            label = f"{fmt(min_fl)} mm"
+        else:
+            # If min and max round to same int, show one
+            if fmt(min_fl) == fmt(max_fl):
+                label = f"{fmt(min_fl)} mm"
+            else:
+                label = f"{fmt(min_fl)}-{fmt(max_fl)} mm"
+
+        result.append((label, group_count, min_fl))
+
+    return result
