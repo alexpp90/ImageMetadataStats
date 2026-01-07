@@ -130,6 +130,7 @@ def run_pyinstaller(target):
     cmd = [
         "poetry", "run", "pyinstaller",
         "--name", f"image-metadata-{target}",
+        "--paths", "src",
         "--onefile",
         "--distpath", "dist",
         "--add-data", add_data_arg,
