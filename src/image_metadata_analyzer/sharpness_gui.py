@@ -15,6 +15,7 @@ from image_metadata_analyzer.sharpness import (
     find_related_files
 )
 from image_metadata_analyzer.reader import get_exif_data
+from image_metadata_analyzer.utils import load_image_preview
 
 logger = logging.getLogger(__name__)
 
@@ -416,26 +417,10 @@ class SharpnessTool(ttk.Frame):
         def load_one(path):
             if path is None: return None
             try:
-                # Try RAW first if applicable
-                ext = path.suffix.lower()
-                raw_exts = {'.arw', '.nef', '.cr2', '.dng', '.orf', '.rw2', '.raf'}
-
-                img = None
-                if ext in raw_exts:
-                    try:
-                        with rawpy.imread(str(path)) as raw:
-                            # Fast processing for preview: half size, auto bright
-                            rgb = raw.postprocess(use_camera_wb=True, bright=1.0, half_size=True)
-                            img = Image.fromarray(rgb)
-                    except Exception as e:
-                        logger.warning(f"Rawpy failed for {path}: {e}")
-
-                # Fallback to PIL
-                if img is None:
-                    img = Image.open(path)
-
-                img.thumbnail((300, 300))
-                return ImageTk.PhotoImage(img)
+                img = load_image_preview(path, max_size=(300, 300))
+                if img:
+                    return ImageTk.PhotoImage(img)
+                return None
             except Exception as e:
                 logger.error(f"Failed to load thumbnail for {path}: {e}")
                 return None
