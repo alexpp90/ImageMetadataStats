@@ -18,6 +18,7 @@ from image_metadata_analyzer.visualizer import (
     get_equivalent_focal_length_plot, get_apsc_equivalent_focal_length_plot
 )
 from image_metadata_analyzer.duplicates import find_duplicates, move_to_trash
+from image_metadata_analyzer.sharpness_gui import SharpnessTool
 
 
 class RedirectText(object):
@@ -536,7 +537,7 @@ class MainApp(tk.Tk):
         self.frames = {}
 
         # Initialize frames
-        for F in (ImageLibraryStatistics, DuplicateFinder):
+        for F in (ImageLibraryStatistics, DuplicateFinder, SharpnessTool):
             page_name = F.__name__
             frame = F(self.content_area)
             self.frames[page_name] = frame
