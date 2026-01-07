@@ -18,12 +18,19 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
+            architecture: x64
             artifact_name: image-metadata-analyzer-linux-x64
           - os: macos-latest
+            architecture: arm64
             artifact_name: image-metadata-analyzer-macos-apple-silicon
           - os: macos-15
+            architecture: arm64
             artifact_name: image-metadata-analyzer-macos-15
+          - os: macos-latest
+            architecture: x64
+            artifact_name: image-metadata-analyzer-macos-intel
           - os: windows-latest
+            architecture: x64
             artifact_name: image-metadata-analyzer-windows-x64
 
     steps:
@@ -33,6 +40,7 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: "3.12"
+        architecture: ${{ matrix.architecture }}
 
     - name: Install system dependencies (Linux)
       if: runner.os == 'Linux'
