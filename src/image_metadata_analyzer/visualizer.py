@@ -8,6 +8,8 @@ from collections import Counter
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 
+from image_metadata_analyzer.utils import aggregate_focal_lengths
+
 
 def _open_file_for_user(filepath: Path):
     """Opens a file in the default application in a cross-platform way."""
@@ -108,17 +110,20 @@ def get_focal_length_plot(data: List[Dict]) -> Optional[Figure]:
     if not values:
         return None
 
-    counter = Counter(values)
-    top_items = dict(counter.most_common(25))
-    sorted_items = sorted(top_items.items()) # Sort by focal length value
-    x_vals = [str(x[0]) for x in sorted_items]
-    y_vals = [x[1] for x in sorted_items]
+    # Use aggregation logic
+    aggregated_fls = aggregate_focal_lengths(values)
+
+    # Sort by the representative value (sort_key) to ensure X-axis is ordered
+    aggregated_fls.sort(key=lambda x: x[2])
+
+    x_vals = [x[0] for x in aggregated_fls]
+    y_vals = [x[1] for x in aggregated_fls]
 
     fig = Figure(figsize=(12, 7), dpi=100)
     ax = fig.add_subplot(111)
     ax.bar(x_vals, y_vals)
     ax.tick_params(axis='x', rotation=45)
-    ax.set_title('Top 25 Most Used Focal Lengths')
+    ax.set_title('Focal Length Distribution')
     ax.set_xlabel('Focal Length (mm)')
     ax.set_ylabel('Count')
     fig.tight_layout()

@@ -1,5 +1,6 @@
 from collections import Counter
 import statistics
+from image_metadata_analyzer.utils import aggregate_focal_lengths
 
 
 def analyze_data(data: list[dict]):
@@ -38,10 +39,15 @@ def analyze_data(data: list[dict]):
     for name, count in Counter(lenses).most_common(5):
         print(f"  {name}: {count}")
 
-    print("\n\nTop 15 Focal Lengths (mm):")
+    print("\n\nTop Focal Lengths (mm):")
     focal_lengths = get_values('Focal Length')
-    for fl, count in Counter(focal_lengths).most_common(15):
-        print(f"  {fl}: {count}")
+    # Use aggregation logic
+    aggregated_fls = aggregate_focal_lengths(focal_lengths)
+    # Sort by count descending
+    aggregated_fls.sort(key=lambda x: x[1], reverse=True)
+    # Display top 15 of the aggregated buckets
+    for label, count, _ in aggregated_fls[:15]:
+        print(f"  {label}: {count}")
 
     print("\n\nTop 25 Aperture & Focal Length Combinations:")
     combinations = []
