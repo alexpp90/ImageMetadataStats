@@ -8,7 +8,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Use a relative import or absolute based on package structure
 # Assuming this runs as a module
-from image_metadata_analyzer.reader import get_exif_data
+from image_metadata_analyzer.reader import get_exif_data, SUPPORTED_EXTENSIONS
 from image_metadata_analyzer.analyzer import analyze_data
 from image_metadata_analyzer.utils import resolve_path
 from image_metadata_analyzer.visualizer import (
@@ -164,18 +164,22 @@ class ImageLibraryStatistics(ttk.Frame):
         try:
             # Resolve potential network paths (smb://) to local paths
             root_path = resolve_path(root_folder)
-            # output_path = Path(output_folder) # Not actually used in GUI for display, only passed if we wanted to save there
+            # output_path = Path(output_folder) # Not actually used in GUI for display,
+            # only passed if we wanted to save there
 
             if not root_path.is_dir():
                 print(f"Error: Folder not found at '{root_path}'")
                 if root_folder.startswith("smb://"):
-                    print("Tip: For network locations, ensure the share is mounted in your file manager first.")
+                    msg = ("Tip: For network locations, ensure "
+                           "the share is mounted in your file manager first.")
+                    print(msg)
                 return
 
-            image_extensions = {'.jpg', '.jpeg', '.tif', '.tiff', '.nef', '.cr2', '.arw', '.dng', '.raw'}
             print(f"Scanning for images in '{root_path}'...")
 
-            image_files = [f for f in root_path.rglob('*') if f.suffix.lower() in image_extensions]
+            image_files = [
+                f for f in root_path.rglob('*') if f.suffix.lower() in SUPPORTED_EXTENSIONS
+            ]
 
             if not image_files:
                 print("No supported image files found.")
@@ -261,8 +265,11 @@ class Sidebar(ttk.Frame):
 
         ttk.Label(self, text="Tools", font=("Helvetica", 12, "bold")).pack(pady=10)
 
-        ttk.Button(self, text="Image Library Statistics",
-                   command=lambda: controller.show_frame("ImageLibraryStatistics")).pack(fill="x", pady=5)
+        ttk.Button(
+            self,
+            text="Image Library Statistics",
+            command=lambda: controller.show_frame("ImageLibraryStatistics")
+        ).pack(fill="x", pady=5)
 
         # Add more buttons here for future features
 
@@ -338,6 +345,7 @@ class MainApp(tk.Tk):
 def main():
     app = MainApp()
     app.mainloop()
+
 
 if __name__ == "__main__":
     main()

@@ -7,6 +7,22 @@ from image_metadata_analyzer.utils import get_exiftool_path
 # which it often handles gracefully anyway.
 warnings.filterwarnings("ignore", "(Possibly )?corrupt EXIF data", UserWarning)
 
+# Extensions that should be processed with ExifTool if available, as they often contain
+# complex metadata or are not well-supported by Pillow/exifread.
+FORCE_EXIFTOOL_EXTENSIONS = {
+    # Existing RAW formats
+    '.arw', '.nef', '.cr2', '.dng', '.raw',
+    # New RAW formats
+    '.cr3', '.raf', '.orf', '.rw2', '.pef', '.srw', '.sr2',
+    # High Efficiency formats
+    '.heic', '.heif',
+    # Web/Lossless formats (better metadata support in ExifTool)
+    '.png', '.webp'
+}
+
+# All supported extensions. Includes the above plus standard formats handled well by Pillow.
+SUPPORTED_EXTENSIONS = FORCE_EXIFTOOL_EXTENSIONS | {'.jpg', '.jpeg', '.tif', '.tiff'}
+
 
 def get_exif_data(image_path: Path, debug: bool = False) -> dict | None:
     """
@@ -21,9 +37,8 @@ def get_exif_data(image_path: Path, debug: bool = False) -> dict | None:
         A dictionary containing the desired metadata, or None if data is
         missing or corrupt.
     """
-    # For raw files, Pillow is often unreliable. Try exiftool first, then exifread.
-    raw_extensions = {'.arw', '.nef', '.cr2', '.dng', '.raw'}
-    if image_path.suffix.lower() in raw_extensions:
+    # For raw/complex files, Pillow is often unreliable. Try exiftool first, then exifread.
+    if image_path.suffix.lower() in FORCE_EXIFTOOL_EXTENSIONS:
         # Try exiftool first
         try:
             import exiftool
@@ -80,7 +95,10 @@ def get_exif_data(image_path: Path, debug: bool = False) -> dict | None:
                     focal_length = parse_val(fl_val)
 
                     # Lens Model
-                    lens_model = data.get("Composite:LensID") or data.get("LensModel") or data.get("LensType") or "Unknown"
+                    lens_model = (data.get("Composite:LensID") or
+                                  data.get("LensModel") or
+                                  data.get("LensType") or
+                                  "Unknown")
 
                     if all(v is not None for v in [shutter_speed, aperture, focal_length, iso]):
                         if debug:
