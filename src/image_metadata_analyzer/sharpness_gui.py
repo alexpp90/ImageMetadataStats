@@ -1,37 +1,37 @@
-import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
-import threading
-import queue
 import logging
+import queue
+import threading
+import tkinter as tk
 from pathlib import Path
-from PIL import Image, ImageTk
-import send2trash
-import rawpy
-import numpy as np
+from tkinter import filedialog, messagebox, ttk
 
-# Local imports
-from image_metadata_analyzer.sharpness import (
-    calculate_sharpness, categorize_sharpness, SharpnessCategories,
-    find_related_files
-)
+import send2trash
+from PIL import ImageTk
+
 from image_metadata_analyzer.reader import get_exif_data
+# Local imports
+from image_metadata_analyzer.sharpness import (SharpnessCategories,
+                                               calculate_sharpness,
+                                               categorize_sharpness,
+                                               find_related_files)
 from image_metadata_analyzer.utils import load_image_preview
 
 logger = logging.getLogger(__name__)
+
 
 class SharpnessTool(ttk.Frame):
     def __init__(self, parent):
         super().__init__(parent)
         self.parent = parent
-        self.log_queue = queue.Queue()
+        self.log_queue: queue.Queue = queue.Queue()
         self.is_scanning = False
         self.stop_event = threading.Event()
 
         # State
-        self.scan_results = [] # List of dicts: {path, score, category, exif}
-        self.files_map = {} # path -> result dict
-        self.sorted_files = [] # List of paths sorted by filename
-        self.candidates = [] # List of paths that are category 2 or 3
+        self.scan_results = []  # List of dicts: {path, score, category, exif}
+        self.files_map = {}  # path -> result dict
+        self.sorted_files = []  # List of paths sorted by filename
+        self.candidates = []  # List of paths that are category 2 or 3
 
         # Defaults
         self.default_blur_threshold = 100.0
@@ -69,10 +69,16 @@ class SharpnessTool(ttk.Frame):
         container.pack(fill="x")
 
         # Folder Selection
-        ttk.Label(container, text="Images Folder:").grid(row=0, column=0, sticky="w", pady=5)
+        ttk.Label(container, text="Images Folder:").grid(
+            row=0, column=0, sticky="w", pady=5
+        )
         self.folder_var = tk.StringVar()
-        ttk.Entry(container, textvariable=self.folder_var, width=50).grid(row=0, column=1, padx=5, pady=5)
-        ttk.Button(container, text="Browse...", command=self.browse_folder).grid(row=0, column=2, pady=5)
+        ttk.Entry(container, textvariable=self.folder_var, width=50).grid(
+            row=0, column=1, padx=5, pady=5
+        )
+        ttk.Button(container, text="Browse...", command=self.browse_folder).grid(
+            row=0, column=2, pady=5
+        )
 
         # Thresholds
         group = ttk.LabelFrame(container, text="Sharpness Thresholds", padding=10)
@@ -81,21 +87,44 @@ class SharpnessTool(ttk.Frame):
         # Blur Threshold
         ttk.Label(group, text="Blurry Limit (<):").grid(row=0, column=0, padx=5)
         self.blur_thresh_var = tk.DoubleVar(value=self.default_blur_threshold)
-        scale_blur = tk.Scale(group, variable=self.blur_thresh_var, from_=0, to=2000, orient="horizontal", length=200)
+        scale_blur = tk.Scale(
+            group,
+            variable=self.blur_thresh_var,
+            from_=0,
+            to=2000,
+            orient="horizontal",
+            length=200,
+        )
         scale_blur.grid(row=0, column=1, padx=5)
-        ttk.Entry(group, textvariable=self.blur_thresh_var, width=8).grid(row=0, column=2, padx=5)
+        ttk.Entry(group, textvariable=self.blur_thresh_var, width=8).grid(
+            row=0, column=2, padx=5
+        )
 
         # Sharp Threshold
         ttk.Label(group, text="Sharp Limit (>):").grid(row=1, column=0, padx=5)
         self.sharp_thresh_var = tk.DoubleVar(value=self.default_sharp_threshold)
-        scale_sharp = tk.Scale(group, variable=self.sharp_thresh_var, from_=0, to=5000, orient="horizontal", length=200)
+        scale_sharp = tk.Scale(
+            group,
+            variable=self.sharp_thresh_var,
+            from_=0,
+            to=5000,
+            orient="horizontal",
+            length=200,
+        )
         scale_sharp.grid(row=1, column=1, padx=5)
-        ttk.Entry(group, textvariable=self.sharp_thresh_var, width=8).grid(row=1, column=2, padx=5)
+        ttk.Entry(group, textvariable=self.sharp_thresh_var, width=8).grid(
+            row=1, column=2, padx=5
+        )
 
-        ttk.Label(group, text="(Scores depend on image resolution. Default values are estimates.)").grid(row=2, column=0, columnspan=3, pady=5)
+        ttk.Label(
+            group,
+            text="(Scores depend on image resolution. Default values are estimates.)",
+        ).grid(row=2, column=0, columnspan=3, pady=5)
 
         # Start Button
-        self.start_btn = ttk.Button(container, text="Start Sharpness Scan", command=self.start_scan)
+        self.start_btn = ttk.Button(
+            container, text="Start Sharpness Scan", command=self.start_scan
+        )
         self.start_btn.grid(row=2, column=0, columnspan=3, pady=20)
 
     def setup_scan_ui(self):
@@ -103,7 +132,9 @@ class SharpnessTool(ttk.Frame):
         container.pack(fill="both", expand=True)
 
         self.progress_var = tk.DoubleVar()
-        self.progress_bar = ttk.Progressbar(container, variable=self.progress_var, maximum=100)
+        self.progress_bar = ttk.Progressbar(
+            container, variable=self.progress_var, maximum=100
+        )
         self.progress_bar.pack(fill="x", pady=20)
 
         self.scan_status_lbl = ttk.Label(container, text="Ready...")
@@ -113,7 +144,9 @@ class SharpnessTool(ttk.Frame):
         self.log_text = tk.Text(container, height=15, state="disabled")
         self.log_text.pack(fill="both", expand=True, pady=10)
 
-        self.cancel_btn = ttk.Button(container, text="Cancel Scan", command=self.cancel_scan)
+        self.cancel_btn = ttk.Button(
+            container, text="Cancel Scan", command=self.cancel_scan
+        )
         self.cancel_btn.pack(pady=10)
 
     def setup_review_ui(self):
@@ -131,7 +164,9 @@ class SharpnessTool(ttk.Frame):
         sb = ttk.Scrollbar(self.sidebar)
         sb.pack(side="right", fill="y")
 
-        self.candidate_listbox = tk.Listbox(self.sidebar, yscrollcommand=sb.set, selectmode="single")
+        self.candidate_listbox = tk.Listbox(
+            self.sidebar, yscrollcommand=sb.set, selectmode="single"
+        )
         self.candidate_listbox.pack(fill="both", expand=True)
         sb.config(command=self.candidate_listbox.yview)
 
@@ -175,10 +210,18 @@ class SharpnessTool(ttk.Frame):
         btn_frame = ttk.Frame(self.info_frame)
         btn_frame.pack(pady=10)
 
-        ttk.Button(btn_frame, text="< Prev Candidate", command=self.prev_candidate).pack(side="left", padx=5)
-        self.del_btn = ttk.Button(btn_frame, text="Delete Candidate (Trash)", command=self.delete_current_candidate)
+        ttk.Button(
+            btn_frame, text="< Prev Candidate", command=self.prev_candidate
+        ).pack(side="left", padx=5)
+        self.del_btn = ttk.Button(
+            btn_frame,
+            text="Delete Candidate (Trash)",
+            command=self.delete_current_candidate,
+        )
         self.del_btn.pack(side="left", padx=20)
-        ttk.Button(btn_frame, text="Next Candidate >", command=self.next_candidate).pack(side="left", padx=5)
+        ttk.Button(
+            btn_frame, text="Next Candidate >", command=self.next_candidate
+        ).pack(side="left", padx=5)
 
     def create_image_panel(self, parent, title):
         frame = ttk.LabelFrame(parent, text=title)
@@ -191,8 +234,9 @@ class SharpnessTool(ttk.Frame):
         details = ttk.Label(frame, text="", font=("Helvetica", 9))
         details.pack(fill="x")
 
-        frame.img_lbl = lbl # Store ref
-        frame.details_lbl = details # Store ref
+        # Store refs dynamically
+        setattr(frame, "img_lbl", lbl)
+        setattr(frame, "details_lbl", details)
         return frame
 
     def browse_folder(self):
@@ -239,7 +283,9 @@ class SharpnessTool(ttk.Frame):
         self.scan_results = []
         self.files_map = {}
 
-        threading.Thread(target=self.run_scan_thread, args=(folder,), daemon=True).start()
+        threading.Thread(
+            target=self.run_scan_thread, args=(folder,), daemon=True
+        ).start()
         self.after(100, self.update_log_view)
 
     def cancel_scan(self):
@@ -253,8 +299,18 @@ class SharpnessTool(ttk.Frame):
         try:
             p = Path(folder_path)
             # Recursive scan
-            extensions = {'.jpg', '.jpeg', '.tif', '.tiff', '.nef', '.cr2', '.arw', '.dng', '.raw'}
-            files = [f for f in p.rglob('*') if f.suffix.lower() in extensions]
+            extensions = {
+                ".jpg",
+                ".jpeg",
+                ".tif",
+                ".tiff",
+                ".nef",
+                ".cr2",
+                ".arw",
+                ".dng",
+                ".raw",
+            }
+            files = [f for f in p.rglob("*") if f.suffix.lower() in extensions]
 
             if not files:
                 self.log("No supported images found.")
@@ -285,12 +341,7 @@ class SharpnessTool(ttk.Frame):
                 # Exif (basic)
                 exif = get_exif_data(f) or {}
 
-                res = {
-                    "path": f,
-                    "score": score,
-                    "category": cat,
-                    "exif": exif
-                }
+                res = {"path": f, "score": score, "category": cat, "exif": exif}
 
                 self.scan_results.append(res)
                 self.files_map[f] = res
@@ -304,6 +355,7 @@ class SharpnessTool(ttk.Frame):
         except Exception as e:
             self.log(f"Error during scan: {e}")
             import traceback
+
             traceback.print_exc()
 
         self.parent.after(0, self.scan_finished)
@@ -314,8 +366,10 @@ class SharpnessTool(ttk.Frame):
 
         # Filter candidates
         self.candidates = [
-            res["path"] for res in self.scan_results
-            if res["category"] in [SharpnessCategories.BLURRY, SharpnessCategories.ACCEPTABLE]
+            res["path"]
+            for res in self.scan_results
+            if res["category"]
+            in [SharpnessCategories.BLURRY, SharpnessCategories.ACCEPTABLE]
         ]
 
         if self.candidates:
@@ -324,7 +378,10 @@ class SharpnessTool(ttk.Frame):
             self.populate_candidates()
             self.log(f"Found {len(self.candidates)} candidates for review.")
         else:
-            messagebox.showinfo("Result", "No blurry or 'acceptable' images found based on current thresholds.")
+            messagebox.showinfo(
+                "Result",
+                "No blurry or 'acceptable' images found based on current thresholds.",
+            )
             self.notebook.select(0)
 
     def populate_candidates(self):
@@ -337,7 +394,7 @@ class SharpnessTool(ttk.Frame):
             # Color code
             color = SharpnessCategories.get_color(res["category"])
             idx = self.candidate_listbox.size() - 1
-            self.candidate_listbox.itemconfig(idx, {'fg': color})
+            self.candidate_listbox.itemconfig(idx, {"fg": color})
 
         if self.candidates:
             self.candidate_listbox.selection_set(0)
@@ -360,7 +417,11 @@ class SharpnessTool(ttk.Frame):
         full_idx = self.sorted_files.index(current_path)
 
         prev_path = self.sorted_files[full_idx - 1] if full_idx > 0 else None
-        next_path = self.sorted_files[full_idx + 1] if full_idx < len(self.sorted_files) - 1 else None
+        next_path = (
+            self.sorted_files[full_idx + 1]
+            if full_idx < len(self.sorted_files) - 1
+            else None
+        )
 
         # Load Images in background to prevent UI freeze
         # Set placeholders first
@@ -372,16 +433,18 @@ class SharpnessTool(ttk.Frame):
         self.update_metadata_label(current_path)
 
         # Start background thread for loading images
-        threading.Thread(target=self.load_images_background,
-                         args=(prev_path, current_path, next_path),
-                         daemon=True).start()
+        threading.Thread(
+            target=self.load_images_background,
+            args=(prev_path, current_path, next_path),
+            daemon=True,
+        ).start()
 
     def set_placeholder(self, panel, path):
-        lbl = panel.img_lbl
-        details = panel.details_lbl
+        lbl = getattr(panel, "img_lbl")
+        details = getattr(panel, "details_lbl")
 
         if path is None:
-            lbl.config(image='', text="No Image")
+            lbl.config(image="", text="No Image")
             details.config(text="")
             return
 
@@ -395,27 +458,32 @@ class SharpnessTool(ttk.Frame):
             score_txt = f"{res['score']:.1f}"
             cat_name = SharpnessCategories.get_name(res["category"])
 
-        details.config(text=f"{path.name}\n{cat_name} ({score_txt})", foreground=cat_color)
-        lbl.config(image='', text="Loading...")
+        details.config(
+            text=f"{path.name}\n{cat_name} ({score_txt})", foreground=cat_color
+        )
+        lbl.config(image="", text="Loading...")
 
     def update_metadata_label(self, current_path):
         res = self.files_map.get(current_path)
         if res:
             exif = res["exif"]
             score = res["score"]
-            aperture = exif.get('FNumber', 'N/A')
-            shutter = exif.get('ExposureTime', 'N/A')
+            aperture = exif.get("FNumber", "N/A")
+            shutter = exif.get("ExposureTime", "N/A")
             cat_name = SharpnessCategories.get_name(res["category"])
 
-            txt = (f"File: {current_path.name}\n"
-                   f"Category: {cat_name} (Score: {score:.1f})\n"
-                   f"Aperture: {aperture}, Shutter: {shutter}")
+            txt = (
+                f"File: {current_path.name}\n"
+                f"Category: {cat_name} (Score: {score:.1f})\n"
+                f"Aperture: {aperture}, Shutter: {shutter}"
+            )
             self.meta_lbl.config(text=txt)
 
     def load_images_background(self, prev_path, curr_path, next_path):
         # Helper to load one image
         def load_one(path):
-            if path is None: return None
+            if path is None:
+                return None
             try:
                 img = load_image_preview(path, max_size=(300, 300))
                 if img:
@@ -434,12 +502,12 @@ class SharpnessTool(ttk.Frame):
 
     def update_panels_final(self, p_img, c_img, n_img):
         def set_img(panel, img):
-            lbl = panel.img_lbl
+            lbl = getattr(panel, "img_lbl")
             if img:
                 lbl.config(image=img, text="")
                 lbl.image = img
             elif lbl.cget("text") == "Loading...":
-                lbl.config(image='', text="Preview\nUnavailable")
+                lbl.config(image="", text="Preview\nUnavailable")
 
         set_img(self.panel_prev, p_img)
         set_img(self.panel_curr, c_img)
@@ -469,7 +537,10 @@ class SharpnessTool(ttk.Frame):
         idx = sel[0]
         path = self.candidates[idx]
 
-        if messagebox.askyesno("Confirm Delete", f"Are you sure you want to move '{path.name}' and related files to trash?"):
+        if messagebox.askyesno(
+            "Confirm Delete",
+            f"Are you sure you want to move '{path.name}' and related files to trash?",
+        ):
             related = find_related_files(path)
             success = True
             for f in related:
@@ -495,6 +566,6 @@ class SharpnessTool(ttk.Frame):
                     self.candidate_listbox.selection_set(new_idx)
                     self.on_candidate_select(None)
                 else:
-                    self.panel_curr.img_lbl.config(image='', text="No Candidates")
-                    self.panel_prev.img_lbl.config(image='', text="")
-                    self.panel_next.img_lbl.config(image='', text="")
+                    getattr(self.panel_curr, "img_lbl").config(image="", text="No Candidates")
+                    getattr(self.panel_prev, "img_lbl").config(image="", text="")
+                    getattr(self.panel_next, "img_lbl").config(image="", text="")

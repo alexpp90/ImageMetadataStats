@@ -1,28 +1,29 @@
-import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
-import threading
 import queue
 import sys
+import threading
+import tkinter as tk
 from pathlib import Path
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from PIL import Image, ImageTk
+from tkinter import filedialog, messagebox, ttk
 
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from PIL import ImageTk
+
+from image_metadata_analyzer.analyzer import analyze_data
+from image_metadata_analyzer.duplicates import find_duplicates, move_to_trash
 # Use a relative import or absolute based on package structure
 # Assuming this runs as a module
-from image_metadata_analyzer.reader import get_exif_data, SUPPORTED_EXTENSIONS
-from image_metadata_analyzer.analyzer import analyze_data
-from image_metadata_analyzer.utils import resolve_path, load_image_preview
-from image_metadata_analyzer.visualizer import (
-    get_shutter_speed_plot, get_aperture_plot, get_iso_plot,
-    get_focal_length_plot, get_lens_plot, get_combination_plot,
-    get_equivalent_focal_length_plot, get_apsc_equivalent_focal_length_plot
-)
-from image_metadata_analyzer.duplicates import find_duplicates, move_to_trash
+from image_metadata_analyzer.reader import SUPPORTED_EXTENSIONS, get_exif_data
 from image_metadata_analyzer.sharpness_gui import SharpnessTool
+from image_metadata_analyzer.utils import load_image_preview, resolve_path
+from image_metadata_analyzer.visualizer import (
+    get_aperture_plot, get_apsc_equivalent_focal_length_plot,
+    get_combination_plot, get_equivalent_focal_length_plot,
+    get_focal_length_plot, get_iso_plot, get_lens_plot, get_shutter_speed_plot)
 
 
 class RedirectText(object):
     """Redirects stdout to a tkinter text widget via a queue."""
+
     def __init__(self, text_queue):
         self.text_queue = text_queue
 
@@ -38,7 +39,7 @@ class ImageLibraryStatistics(ttk.Frame):
         super().__init__(parent)
         self.parent = parent
         self.setup_ui()
-        self.log_queue = queue.Queue()
+        self.log_queue: queue.Queue = queue.Queue()
         self.is_analyzing = False
         self.stop_event = threading.Event()
 
@@ -48,32 +49,50 @@ class ImageLibraryStatistics(ttk.Frame):
         controls_frame.pack(fill="x", padx=10, pady=5)
 
         # Root Folder
-        ttk.Label(controls_frame, text="Images Folder:").grid(row=0, column=0, sticky="w")
+        ttk.Label(controls_frame, text="Images Folder:").grid(
+            row=0, column=0, sticky="w"
+        )
         self.root_folder_var = tk.StringVar()
-        ttk.Entry(controls_frame, textvariable=self.root_folder_var, width=50).grid(row=0, column=1, padx=5)
-        ttk.Button(controls_frame, text="Browse...", command=self.browse_root_folder).grid(row=0, column=2)
+        ttk.Entry(controls_frame, textvariable=self.root_folder_var, width=50).grid(
+            row=0, column=1, padx=5
+        )
+        ttk.Button(
+            controls_frame, text="Browse...", command=self.browse_root_folder
+        ).grid(row=0, column=2)
 
         # Output Folder
-        ttk.Label(controls_frame, text="Output Folder:").grid(row=1, column=0, sticky="w")
+        ttk.Label(controls_frame, text="Output Folder:").grid(
+            row=1, column=0, sticky="w"
+        )
         self.output_folder_var = tk.StringVar(value="analysis_results")
-        ttk.Entry(controls_frame, textvariable=self.output_folder_var, width=50).grid(row=1, column=1, padx=5)
-        ttk.Button(controls_frame, text="Browse...", command=self.browse_output_folder).grid(row=1, column=2)
+        ttk.Entry(controls_frame, textvariable=self.output_folder_var, width=50).grid(
+            row=1, column=1, padx=5
+        )
+        ttk.Button(
+            controls_frame, text="Browse...", command=self.browse_output_folder
+        ).grid(row=1, column=2)
 
         # Buttons Frame
         btn_frame = ttk.Frame(controls_frame)
         btn_frame.grid(row=2, column=0, columnspan=3, pady=10)
 
         # Analyze Button
-        self.analyze_btn = ttk.Button(btn_frame, text="Analyze", command=self.start_analysis)
+        self.analyze_btn = ttk.Button(
+            btn_frame, text="Analyze", command=self.start_analysis
+        )
         self.analyze_btn.pack(side="left", padx=5)
 
         # Cancel Button
-        self.cancel_btn = ttk.Button(btn_frame, text="Cancel", command=self.cancel_analysis, state="disabled")
+        self.cancel_btn = ttk.Button(
+            btn_frame, text="Cancel", command=self.cancel_analysis, state="disabled"
+        )
         self.cancel_btn.pack(side="left", padx=5)
 
         # Progress Bar
         self.progress_var = tk.DoubleVar()
-        self.progress_bar = ttk.Progressbar(controls_frame, variable=self.progress_var, maximum=100)
+        self.progress_bar = ttk.Progressbar(
+            controls_frame, variable=self.progress_var, maximum=100
+        )
         self.progress_bar.grid(row=3, column=0, columnspan=3, sticky="ew", pady=5)
 
         # Output / Results Area
@@ -88,9 +107,11 @@ class ImageLibraryStatistics(ttk.Frame):
         self.log_text.pack(fill="both", expand=True)
 
         # Scrollbar for logs
-        scrollbar = ttk.Scrollbar(self.logs_frame, orient="vertical", command=self.log_text.yview)
+        scrollbar = ttk.Scrollbar(
+            self.logs_frame, orient="vertical", command=self.log_text.yview
+        )
         scrollbar.pack(side="right", fill="y")
-        self.log_text['yscrollcommand'] = scrollbar.set
+        self.log_text["yscrollcommand"] = scrollbar.set
         self.log_text.pack(side="left", fill="both", expand=True)
 
         # Plots Tabs (Placeholders for now)
@@ -154,7 +175,9 @@ class ImageLibraryStatistics(ttk.Frame):
         self.plot_tabs = {}
 
         # Start thread
-        threading.Thread(target=self.run_analysis, args=(root_path, output_path), daemon=True).start()
+        threading.Thread(
+            target=self.run_analysis, args=(root_path, output_path), daemon=True
+        ).start()
         self.after(100, self.update_logs)
 
     def update_progress(self, value):
@@ -174,15 +197,19 @@ class ImageLibraryStatistics(ttk.Frame):
             if not root_path.is_dir():
                 print(f"Error: Folder not found at '{root_path}'")
                 if root_folder.startswith("smb://"):
-                    msg = ("Tip: For network locations, ensure "
-                           "the share is mounted in your file manager first.")
+                    msg = (
+                        "Tip: For network locations, ensure "
+                        "the share is mounted in your file manager first."
+                    )
                     print(msg)
                 return
 
             print(f"Scanning for images in '{root_path}'...")
 
             image_files = [
-                f for f in root_path.rglob('*') if f.suffix.lower() in SUPPORTED_EXTENSIONS
+                f
+                for f in root_path.rglob("*")
+                if f.suffix.lower() in SUPPORTED_EXTENSIONS
             ]
 
             if not image_files:
@@ -207,7 +234,9 @@ class ImageLibraryStatistics(ttk.Frame):
                 self.parent.after(0, self.update_progress, progress)
 
             if not all_metadata:
-                print("Could not extract any valid EXIF metadata from the found images.")
+                print(
+                    "Could not extract any valid EXIF metadata from the found images."
+                )
                 return
 
             analyze_data(all_metadata)
@@ -219,10 +248,14 @@ class ImageLibraryStatistics(ttk.Frame):
                 "Aperture": get_aperture_plot(all_metadata),
                 "ISO": get_iso_plot(all_metadata),
                 "Focal Length": get_focal_length_plot(all_metadata),
-                "Equiv Focal Length (35mm)": get_equivalent_focal_length_plot(all_metadata),
-                "Equiv Focal Length (APS-C)": get_apsc_equivalent_focal_length_plot(all_metadata),
+                "Equiv Focal Length (35mm)": get_equivalent_focal_length_plot(
+                    all_metadata
+                ),
+                "Equiv Focal Length (APS-C)": get_apsc_equivalent_focal_length_plot(
+                    all_metadata
+                ),
                 "Lens": get_lens_plot(all_metadata),
-                "Combinations": get_combination_plot(all_metadata)
+                "Combinations": get_combination_plot(all_metadata),
             }
 
             # Schedule GUI update to show plots
@@ -233,6 +266,7 @@ class ImageLibraryStatistics(ttk.Frame):
         except Exception as e:
             print(f"An error occurred: {e}")
             import traceback
+
             traceback.print_exc()
         finally:
             sys.stdout = old_stdout
@@ -272,7 +306,7 @@ class DuplicateFinder(ttk.Frame):
         self.is_scanning = False
         self.found_duplicates = []
         self.photo_refs = []  # Keep references to images
-        self.check_vars = {} # Maps path to BooleanVar
+        self.check_vars = {}  # Maps path to BooleanVar
 
     def setup_ui(self):
         # Top controls
@@ -280,16 +314,24 @@ class DuplicateFinder(ttk.Frame):
         controls_frame.pack(fill="x", padx=10, pady=5)
 
         # Root Folder
-        ttk.Label(controls_frame, text="Images Folder:").grid(row=0, column=0, sticky="w")
+        ttk.Label(controls_frame, text="Images Folder:").grid(
+            row=0, column=0, sticky="w"
+        )
         self.root_folder_var = tk.StringVar()
-        ttk.Entry(controls_frame, textvariable=self.root_folder_var, width=50).grid(row=0, column=1, padx=5)
-        ttk.Button(controls_frame, text="Browse...", command=self.browse_root_folder).grid(row=0, column=2)
+        ttk.Entry(controls_frame, textvariable=self.root_folder_var, width=50).grid(
+            row=0, column=1, padx=5
+        )
+        ttk.Button(
+            controls_frame, text="Browse...", command=self.browse_root_folder
+        ).grid(row=0, column=2)
 
         # Buttons
         btn_frame = ttk.Frame(controls_frame)
         btn_frame.grid(row=1, column=0, columnspan=3, pady=10)
 
-        self.scan_btn = ttk.Button(btn_frame, text="Find Duplicates", command=self.start_scan)
+        self.scan_btn = ttk.Button(
+            btn_frame, text="Find Duplicates", command=self.start_scan
+        )
         self.scan_btn.pack(side="left", padx=5)
 
         self.status_lbl = ttk.Label(btn_frame, text="")
@@ -297,7 +339,9 @@ class DuplicateFinder(ttk.Frame):
 
         # Progress Bar
         self.progress_var = tk.DoubleVar()
-        self.progress_bar = ttk.Progressbar(controls_frame, variable=self.progress_var, maximum=100)
+        self.progress_bar = ttk.Progressbar(
+            controls_frame, variable=self.progress_var, maximum=100
+        )
         self.progress_bar.grid(row=2, column=0, columnspan=3, sticky="ew", pady=5)
 
         # Results Area (Scrollable)
@@ -306,12 +350,14 @@ class DuplicateFinder(ttk.Frame):
 
         # Canvas for scrolling
         self.canvas = tk.Canvas(results_container)
-        scrollbar = ttk.Scrollbar(results_container, orient="vertical", command=self.canvas.yview)
+        scrollbar = ttk.Scrollbar(
+            results_container, orient="vertical", command=self.canvas.yview
+        )
 
         self.scrollable_frame = ttk.Frame(self.canvas)
         self.scrollable_frame.bind(
             "<Configure>",
-            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")),
         )
 
         self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
@@ -324,7 +370,11 @@ class DuplicateFinder(ttk.Frame):
         actions_frame = ttk.Frame(self, padding=10)
         actions_frame.pack(fill="x")
 
-        ttk.Button(actions_frame, text="Delete Selected (Move to Trash)", command=self.delete_selected).pack(side="right")
+        ttk.Button(
+            actions_frame,
+            text="Delete Selected (Move to Trash)",
+            command=self.delete_selected,
+        ).pack(side="right")
 
     def browse_root_folder(self):
         folder = filedialog.askdirectory()
@@ -359,19 +409,28 @@ class DuplicateFinder(ttk.Frame):
                 if total > 0:
                     val = (current / total) * 100
                     self.parent.after(0, lambda: self.progress_var.set(val))
-                    self.parent.after(0, lambda: self.status_lbl.config(text=f"Processed {current}/{total}"))
+                    self.parent.after(
+                        0,
+                        lambda: self.status_lbl.config(
+                            text=f"Processed {current}/{total}"
+                        ),
+                    )
 
             results = find_duplicates(resolved_path, callback=progress_cb)
 
             # Pre-load thumbnails in background to avoid blocking GUI
-            self.parent.after(0, lambda: self.status_lbl.config(text="Generating previews..."))
+            self.parent.after(
+                0, lambda: self.status_lbl.config(text="Generating previews...")
+            )
 
             thumbnails = []
             for group in results:
                 thumb = None
-                if group['files']:
+                if group["files"]:
                     try:
-                        thumb = load_image_preview(group['files'][0], max_size=(150, 150))
+                        thumb = load_image_preview(
+                            group["files"][0], max_size=(150, 150)
+                        )
                     except Exception:
                         pass
                 thumbnails.append(thumb)
@@ -380,6 +439,7 @@ class DuplicateFinder(ttk.Frame):
         except Exception as e:
             print(f"Error scanning: {e}")
             import traceback
+
             traceback.print_exc()
             self.parent.after(0, lambda: messagebox.showerror("Error", str(e)))
         finally:
@@ -399,7 +459,11 @@ class DuplicateFinder(ttk.Frame):
         self.found_duplicates = duplicates
 
         for i, (group, thumb_img) in enumerate(zip(duplicates, thumbnails)):
-            group_frame = ttk.LabelFrame(self.scrollable_frame, text=f"Group {i+1} (Size: {group['size']} bytes)", padding=5)
+            group_frame = ttk.LabelFrame(
+                self.scrollable_frame,
+                text=f"Group {i+1} (Size: {group['size']} bytes)",
+                padding=5,
+            )
             group_frame.pack(fill="x", pady=5, padx=5)
 
             # Content layout: Image on left, Files on right
@@ -410,19 +474,23 @@ class DuplicateFinder(ttk.Frame):
             if thumb_img:
                 try:
                     photo = ImageTk.PhotoImage(thumb_img)
-                    self.photo_refs.append(photo) # Keep ref
+                    self.photo_refs.append(photo)  # Keep ref
                     lbl_img = ttk.Label(content_frame, image=photo)
                     lbl_img.pack(side="left", padx=10, anchor="n")
                 except Exception:
-                     ttk.Label(content_frame, text="[Preview Error]").pack(side="left", padx=10, anchor="n")
+                    ttk.Label(content_frame, text="[Preview Error]").pack(
+                        side="left", padx=10, anchor="n"
+                    )
             else:
-                ttk.Label(content_frame, text="[No Preview]").pack(side="left", padx=10, anchor="n")
+                ttk.Label(content_frame, text="[No Preview]").pack(
+                    side="left", padx=10, anchor="n"
+                )
 
             # File List
             files_frame = ttk.Frame(content_frame)
             files_frame.pack(side="left", fill="both", expand=True)
 
-            for fpath in group['files']:
+            for fpath in group["files"]:
                 var = tk.BooleanVar(value=False)
                 self.check_vars[fpath] = var
                 chk = ttk.Checkbutton(files_frame, text=str(fpath), variable=var)
@@ -433,11 +501,16 @@ class DuplicateFinder(ttk.Frame):
 
         # Validation: check groups
         for group in self.found_duplicates:
-            files = group['files']
-            selected_count = sum(1 for f in files if self.check_vars.get(f) and self.check_vars[f].get())
+            files = group["files"]
+            selected_count = sum(
+                1 for f in files if self.check_vars.get(f) and self.check_vars[f].get()
+            )
 
             if selected_count == len(files):
-                messagebox.showerror("Error", f"Cannot delete all copies in Group (Size: {group['size']}). Please keep at least one.")
+                messagebox.showerror(
+                    "Error",
+                    f"Cannot delete all copies in Group (Size: {group['size']}). Please keep at least one.",
+                )
                 return
 
             for f in files:
@@ -471,14 +544,20 @@ class Sidebar(ttk.Frame):
         ttk.Button(
             self,
             text="Image Library Statistics",
-            command=lambda: controller.show_frame("ImageLibraryStatistics")
+            command=lambda: controller.show_frame("ImageLibraryStatistics"),
         ).pack(fill="x", pady=5)
 
-        ttk.Button(self, text="Blurry Image Finder",
-                   command=lambda: controller.show_frame("SharpnessTool")).pack(fill="x", pady=5)
+        ttk.Button(
+            self,
+            text="Blurry Image Finder",
+            command=lambda: controller.show_frame("SharpnessTool"),
+        ).pack(fill="x", pady=5)
 
-        ttk.Button(self, text="Duplicate Finder",
-                   command=lambda: controller.show_frame("DuplicateFinder")).pack(fill="x", pady=5)
+        ttk.Button(
+            self,
+            text="Duplicate Finder",
+            command=lambda: controller.show_frame("DuplicateFinder"),
+        ).pack(fill="x", pady=5)
 
         self.pack(side="left", fill="y")
 
@@ -491,14 +570,14 @@ class MainApp(tk.Tk):
         # Attempt to improve DPI awareness on Windows/Linux
         try:
             # Unix/Linux often needs this for proper scaling if not handled by window manager
-            self.call('tk', 'scaling', self.winfo_fpixels('1i')/72.0)
+            self.call("tk", "scaling", self.winfo_fpixels("1i") / 72.0)
         except Exception:
             pass
 
         # Set Window Icon
         try:
             icon_path = None
-            if hasattr(sys, '_MEIPASS'):
+            if hasattr(sys, "_MEIPASS"):
                 # Running from PyInstaller bundle
                 icon_path = Path(sys._MEIPASS) / "logo.png"
             else:
@@ -514,11 +593,11 @@ class MainApp(tk.Tk):
         # Maximize window
         try:
             # Windows and some Linux window managers
-            self.state('zoomed')
+            self.state("zoomed")
         except tk.TclError:
             try:
                 # Linux (X11)
-                self.attributes('-zoomed', True)
+                self.attributes("-zoomed", True)
             except tk.TclError:
                 # Fallback: simple geometry set to screen size
                 width = self.winfo_screenwidth()

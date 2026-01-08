@@ -3,16 +3,26 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from image_metadata_analyzer.reader import get_exif_data, SUPPORTED_EXTENSIONS
 from image_metadata_analyzer.analyzer import analyze_data
+from image_metadata_analyzer.reader import SUPPORTED_EXTENSIONS, get_exif_data
 from image_metadata_analyzer.visualizer import create_plots
 
 
 def main():
     """Main function to orchestrate the script execution."""
-    parser = argparse.ArgumentParser(description="Analyze image metadata from a folder.")
-    parser.add_argument("root_folder", type=str, help="The root folder to search for images.")
-    parser.add_argument("-o", "--output", type=str, default="analysis_results", help="The folder to save graphs.")
+    parser = argparse.ArgumentParser(
+        description="Analyze image metadata from a folder."
+    )
+    parser.add_argument(
+        "root_folder", type=str, help="The root folder to search for images."
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        type=str,
+        default="analysis_results",
+        help="The folder to save graphs.",
+    )
     parser.add_argument(
         "--debug",
         action="store_true",
@@ -34,7 +44,9 @@ def main():
 
     print(f"Scanning for images in '{root_path}'...")
 
-    image_files = [f for f in root_path.rglob('*') if f.suffix.lower() in SUPPORTED_EXTENSIONS]
+    image_files = [
+        f for f in root_path.rglob("*") if f.suffix.lower() in SUPPORTED_EXTENSIONS
+    ]
 
     if not image_files:
         print("No supported image files found.")
@@ -43,7 +55,8 @@ def main():
     print(f"Found {len(image_files)} image files. Extracting metadata...")
 
     all_metadata = [
-        data for f in tqdm(image_files, desc="Processing images")
+        data
+        for f in tqdm(image_files, desc="Processing images")
         if (data := get_exif_data(f, debug=args.debug))
     ]
 

@@ -1,5 +1,4 @@
 import subprocess
-import sys
 from pathlib import Path
 
 # Static content for the header and non-Python dependencies
@@ -24,6 +23,7 @@ This application uses ExifTool under the terms of the Artistic License.
 The Artistic License 1.0 can be found at: http://dev.perl.org/licenses/artistic.html
 """
 
+
 def get_production_packages():
     """
     Returns a set of package names that are in the 'main' dependency group.
@@ -35,7 +35,7 @@ def get_production_packages():
             ["poetry", "show", "--only", "main"],
             capture_output=True,
             text=True,
-            check=True
+            check=True,
         )
         packages = set()
         for line in result.stdout.splitlines():
@@ -49,6 +49,7 @@ def get_production_packages():
         print(f"Error running poetry show: {e}")
         return set()
 
+
 def generate_notices():
     output_file = Path("THIRDPARTY_NOTICES.txt")
 
@@ -57,24 +58,31 @@ def generate_notices():
     # 1. Get the list of production packages
     prod_packages = get_production_packages()
     if not prod_packages:
-        print("Warning: Could not determine production packages. detailed python licenses might include dev tools.")
+        print(
+            "Warning: Could not determine production packages. "
+            "Detailed python licenses might include dev tools."
+        )
 
     # 2. Run pip-licenses
     # We use --format=plain-vertical to get readable text
     # We use --with-authors and --with-urls for better credit
     cmd = [
-        "poetry", "run", "pip-licenses",
+        "poetry",
+        "run",
+        "pip-licenses",
         "--format=plain-vertical",
         "--with-authors",
         "--with-urls",
-        "--ignore", "image-metadata-analyzer" # Ignore self
+        "--ignore",
+        "image-metadata-analyzer",  # Ignore self
     ]
 
     # If we successfully identified prod packages, we can try to filter.
     # However, pip-licenses lists *installed* packages.
     # If we pass specific packages to pip-licenses via arguments, it limits the output.
     # But pip-licenses --packages PKG only shows those specific ones, not transitive deps?
-    # Actually, pip-licenses doesn't have a simple "only these and their deps" flag easily accessible without graph analysis.
+    # Actually, pip-licenses doesn't have a simple "only these and their deps" flag easily accessible without
+    # graph analysis.
     # BUT, `poetry show --only main` DOES include transitive dependencies by default (flat list) unless --tree is used?
     # Let's verify: `poetry show --only main` output usually includes transitive deps?
     # In the previous turn, `poetry show --only main` output:
@@ -101,6 +109,7 @@ def generate_notices():
         f.write(content)
 
     print(f"Successfully generated {output_file}")
+
 
 if __name__ == "__main__":
     generate_notices()
