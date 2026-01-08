@@ -124,8 +124,13 @@ def aggregate_focal_lengths(focal_lengths: List[float], max_buckets: int = 25) -
     if not focal_lengths:
         return []
 
+    # Filter out focal lengths <= 0
+    valid_focal_lengths = [fl for fl in focal_lengths if fl > 0]
+    if not valid_focal_lengths:
+        return []
+
     # Count exact values first
-    counts = Counter(focal_lengths)
+    counts = Counter(valid_focal_lengths)
 
     unique_fls = sorted(counts.keys())
 
