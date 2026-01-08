@@ -231,9 +231,15 @@ def load_image_preview(path: Path, max_size: Tuple[int, int] = (150, 150)) -> Op
 
         # Resize (thumbnail modifies in-place)
         img.thumbnail(max_size)
+
+        # Ensure the image is in a mode compatible with Tkinter (RGB/RGBA)
+        # Pillow might open RAW files as 'I;16' (16-bit unsigned integer) which crashes ImageTk.
+        if img.mode not in ('RGB', 'RGBA', 'L', '1'):
+            img = img.convert('RGB')
+
         return img
 
     except Exception as e:
         # In a real app we might want to log this
-        # print(f"Failed to load image preview for {path}: {e}")
+        print(f"Failed to load image preview for {path}: {e}")
         return None

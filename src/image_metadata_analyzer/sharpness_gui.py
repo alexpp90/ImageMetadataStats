@@ -413,37 +413,42 @@ class SharpnessTool(ttk.Frame):
             self.meta_lbl.config(text=txt)
 
     def load_images_background(self, prev_path, curr_path, next_path):
-        # Helper to load one image
+        # Helper to load one image. Returns PIL Image, not ImageTk.
+        # ImageTk objects must be created in the main thread.
         def load_one(path):
             if path is None: return None
             try:
                 img = load_image_preview(path, max_size=(300, 300))
-                if img:
-                    return ImageTk.PhotoImage(img)
-                return None
+                return img
             except Exception as e:
                 logger.error(f"Failed to load thumbnail for {path}: {e}")
                 return None
 
-        p_img = load_one(prev_path)
-        c_img = load_one(curr_path)
-        n_img = load_one(next_path)
+        p_img_pil = load_one(prev_path)
+        c_img_pil = load_one(curr_path)
+        n_img_pil = load_one(next_path)
 
-        # Update UI in main thread
-        self.parent.after(0, lambda: self.update_panels_final(p_img, c_img, n_img))
+        # Update UI in main thread, where we convert PIL Image to ImageTk
+        self.parent.after(0, lambda: self.update_panels_final(p_img_pil, c_img_pil, n_img_pil))
 
-    def update_panels_final(self, p_img, c_img, n_img):
-        def set_img(panel, img):
+    def update_panels_final(self, p_img_pil, c_img_pil, n_img_pil):
+        def set_img(panel, img_pil):
             lbl = panel.img_lbl
-            if img:
-                lbl.config(image=img, text="")
-                lbl.image = img
+
+            if img_pil:
+                try:
+                    tk_img = ImageTk.PhotoImage(img_pil)
+                    lbl.config(image=tk_img, text="")
+                    lbl.image = tk_img # Keep reference
+                except Exception as e:
+                    logger.error(f"Failed to create PhotoImage: {e}")
+                    lbl.config(image='', text="Preview\nError")
             elif lbl.cget("text") == "Loading...":
                 lbl.config(image='', text="Preview\nUnavailable")
 
-        set_img(self.panel_prev, p_img)
-        set_img(self.panel_curr, c_img)
-        set_img(self.panel_next, n_img)
+        set_img(self.panel_prev, p_img_pil)
+        set_img(self.panel_curr, c_img_pil)
+        set_img(self.panel_next, n_img_pil)
 
     def prev_candidate(self):
         sel = self.candidate_listbox.curselection()
