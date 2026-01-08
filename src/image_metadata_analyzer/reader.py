@@ -1,6 +1,8 @@
 import warnings
 from pathlib import Path
-from PIL import Image, ExifTags
+
+from PIL import ExifTags, Image
+
 from image_metadata_analyzer.utils import get_exiftool_path
 
 # Suppress specific warnings from Pillow about potentially corrupt EXIF data
@@ -11,17 +13,29 @@ warnings.filterwarnings("ignore", "(Possibly )?corrupt EXIF data", UserWarning)
 # complex metadata or are not well-supported by Pillow/exifread.
 FORCE_EXIFTOOL_EXTENSIONS = {
     # Existing RAW formats
-    '.arw', '.nef', '.cr2', '.dng', '.raw',
+    ".arw",
+    ".nef",
+    ".cr2",
+    ".dng",
+    ".raw",
     # New RAW formats
-    '.cr3', '.raf', '.orf', '.rw2', '.pef', '.srw', '.sr2',
+    ".cr3",
+    ".raf",
+    ".orf",
+    ".rw2",
+    ".pef",
+    ".srw",
+    ".sr2",
     # High Efficiency formats
-    '.heic', '.heif',
+    ".heic",
+    ".heif",
     # Web/Lossless formats (better metadata support in ExifTool)
-    '.png', '.webp'
+    ".png",
+    ".webp",
 }
 
 # All supported extensions. Includes the above plus standard formats handled well by Pillow.
-SUPPORTED_EXTENSIONS = FORCE_EXIFTOOL_EXTENSIONS | {'.jpg', '.jpeg', '.tif', '.tiff'}
+SUPPORTED_EXTENSIONS = FORCE_EXIFTOOL_EXTENSIONS | {".jpg", ".jpeg", ".tif", ".tiff"}
 
 
 def get_exif_data(image_path: Path, debug: bool = False) -> dict | None:
@@ -42,19 +56,26 @@ def get_exif_data(image_path: Path, debug: bool = False) -> dict | None:
         # Try exiftool first
         try:
             import exiftool
+
             exiftool_path = get_exiftool_path()
 
             # Configure ExifToolHelper with the custom path if found
-            kwargs = {'executable': exiftool_path} if exiftool_path else {}
+            kwargs = {"executable": exiftool_path} if exiftool_path else {}
 
             with exiftool.ExifToolHelper(**kwargs) as et:
                 # We fetch specific tags to avoid fetching everything
                 tags_to_fetch = [
-                    "Composite:ShutterSpeed", "Composite:Aperture",
-                    "Composite:ISO", "EXIF:ISO",
-                    "Composite:FocalLength", "EXIF:FocalLength",
-                    "Composite:FocalLength35efl", "EXIF:FocalLengthIn35mmFormat",
-                    "Composite:LensID", "LensModel", "LensType"
+                    "Composite:ShutterSpeed",
+                    "Composite:Aperture",
+                    "Composite:ISO",
+                    "EXIF:ISO",
+                    "Composite:FocalLength",
+                    "EXIF:FocalLength",
+                    "Composite:FocalLength35efl",
+                    "EXIF:FocalLengthIn35mmFormat",
+                    "Composite:LensID",
+                    "LensModel",
+                    "LensType",
                 ]
                 metadata = et.get_tags(str(image_path), tags=tags_to_fetch)
 
@@ -69,11 +90,11 @@ def get_exif_data(image_path: Path, debug: bool = False) -> dict | None:
                             return float(val)
                         if isinstance(val, str):
                             # Handle things like "21.8 mm"
-                            val = val.split(' ')[0]
+                            val = val.split(" ")[0]
                             # Handle fractions like "1/320"
-                            if '/' in val:
+                            if "/" in val:
                                 try:
-                                    n, d = val.split('/')
+                                    n, d = val.split("/")
                                     return float(n) / float(d)
                                 except ValueError:
                                     pass
@@ -92,11 +113,15 @@ def get_exif_data(image_path: Path, debug: bool = False) -> dict | None:
                     iso = parse_val(iso_val)
 
                     # Focal Length
-                    fl_val = data.get("Composite:FocalLength") or data.get("EXIF:FocalLength")
+                    fl_val = data.get("Composite:FocalLength") or data.get(
+                        "EXIF:FocalLength"
+                    )
                     focal_length = parse_val(fl_val)
 
                     # 35mm Equivalent Focal Length
-                    fl35_val = data.get("Composite:FocalLength35efl") or data.get("EXIF:FocalLengthIn35mmFormat")
+                    fl35_val = data.get("Composite:FocalLength35efl") or data.get(
+                        "EXIF:FocalLengthIn35mmFormat"
+                    )
                     focal_length_35 = parse_val(fl35_val)
 
                     is_fallback = False
@@ -105,22 +130,29 @@ def get_exif_data(image_path: Path, debug: bool = False) -> dict | None:
                         is_fallback = True
 
                     # Lens Model
-                    lens_model = (data.get("Composite:LensID") or
-                                  data.get("LensModel") or
-                                  data.get("LensType") or
-                                  "Unknown")
+                    lens_model = (
+                        data.get("Composite:LensID")
+                        or data.get("LensModel")
+                        or data.get("LensType")
+                        or "Unknown"
+                    )
 
-                    if all(v is not None for v in [shutter_speed, aperture, focal_length, iso]):
+                    if all(
+                        v is not None
+                        for v in [shutter_speed, aperture, focal_length, iso]
+                    ):
                         if debug:
-                            print(f"Successfully processed {image_path.name} with exiftool.")
+                            print(
+                                f"Successfully processed {image_path.name} with exiftool."
+                            )
                         return {
-                            'Shutter Speed': shutter_speed,
-                            'Aperture': aperture,
-                            'Focal Length': focal_length,
-                            'Focal Length (35mm)': focal_length_35,
-                            'Is Fallback': is_fallback,
-                            'ISO': iso,
-                            'Lens': lens_model,
+                            "Shutter Speed": shutter_speed,
+                            "Aperture": aperture,
+                            "Focal Length": focal_length,
+                            "Focal Length (35mm)": focal_length_35,
+                            "Is Fallback": is_fallback,
+                            "ISO": iso,
+                            "Lens": lens_model,
                         }
 
         except ImportError:
@@ -134,7 +166,7 @@ def get_exif_data(image_path: Path, debug: bool = False) -> dict | None:
         try:
             import exifread
 
-            with open(image_path, 'rb') as f:
+            with open(image_path, "rb") as f:
                 tags = exifread.process_file(f, details=False)
 
             if tags:
@@ -144,7 +176,7 @@ def get_exif_data(image_path: Path, debug: bool = False) -> dict | None:
                     if not tag or not tag.values:
                         return None
                     val = tag.values[0]
-                    if hasattr(val, 'num'):  # It's a Ratio object
+                    if hasattr(val, "num"):  # It's a Ratio object
                         if val.den == 0:
                             return None
                         return float(val.num) / float(val.den)
@@ -153,39 +185,49 @@ def get_exif_data(image_path: Path, debug: bool = False) -> dict | None:
                     except (TypeError, ValueError):
                         return None
 
-                shutter_speed = get_tag_float('EXIF ExposureTime')
-                aperture = get_tag_float('EXIF FNumber')
-                focal_length = get_tag_float('EXIF FocalLength')
-                focal_length_35 = get_tag_float('EXIF FocalLengthIn35mmFilm')
+                shutter_speed = get_tag_float("EXIF ExposureTime")
+                aperture = get_tag_float("EXIF FNumber")
+                focal_length = get_tag_float("EXIF FocalLength")
+                focal_length_35 = get_tag_float("EXIF FocalLengthIn35mmFilm")
 
                 is_fallback = False
                 if focal_length_35 is None and focal_length is not None:
                     focal_length_35 = focal_length
                     is_fallback = True
 
-                iso_tag = tags.get('EXIF ISOSpeedRatings')
+                iso_tag = tags.get("EXIF ISOSpeedRatings")
                 iso = iso_tag.values[0] if iso_tag and iso_tag.values else None
 
-                lens_model_tag = tags.get('EXIF LensModel') or tags.get('MakerNote LensModel')
-                lens_model = str(lens_model_tag.values).strip() if lens_model_tag else "Unknown"
+                lens_model_tag = tags.get("EXIF LensModel") or tags.get(
+                    "MakerNote LensModel"
+                )
+                lens_model = (
+                    str(lens_model_tag.values).strip() if lens_model_tag else "Unknown"
+                )
 
-                if all(v is not None for v in [shutter_speed, aperture, focal_length, iso]):
+                if all(
+                    v is not None for v in [shutter_speed, aperture, focal_length, iso]
+                ):
                     if debug:
-                        print(f"Successfully processed {image_path.name} with exifread.")
+                        print(
+                            f"Successfully processed {image_path.name} with exifread."
+                        )
                     return {
-                        'Shutter Speed': shutter_speed,
-                        'Aperture': aperture,
-                        'Focal Length': focal_length,
-                        'Focal Length (35mm)': focal_length_35,
-                        'Is Fallback': is_fallback,
-                        'ISO': iso,
-                        'Lens': lens_model,
+                        "Shutter Speed": shutter_speed,
+                        "Aperture": aperture,
+                        "Focal Length": focal_length,
+                        "Focal Length (35mm)": focal_length_35,
+                        "Is Fallback": is_fallback,
+                        "ISO": iso,
+                        "Lens": lens_model,
                     }
         except ImportError:
             if debug:
-                print("\nWarning: `exifread` library not found. "
-                      "Falling back to Pillow for raw files. "
-                      "For better raw file support, `pip install exifread`")
+                print(
+                    "\nWarning: `exifread` library not found. "
+                    "Falling back to Pillow for raw files. "
+                    "For better raw file support, `pip install exifread`"
+                )
         except Exception as e:
             if debug:
                 print(f"\nexifread failed on {image_path.name}: {e}")
@@ -198,7 +240,12 @@ def get_exif_data(image_path: Path, debug: bool = False) -> dict | None:
             exif_data_raw = img.getexif()
         except AttributeError:
             # Fallback for older Pillow versions that use the private method
-            exif_data_raw = img._getexif()
+            # Cast to ImageFile to access _getexif if mypy complains, though
+            # runtime check handles AttributeError.
+            if hasattr(img, "_getexif"):
+                exif_data_raw = img._getexif()  # type: ignore[attr-defined]
+            else:
+                exif_data_raw = None
 
         if not exif_data_raw:
             if debug:
@@ -226,8 +273,12 @@ def get_exif_data(image_path: Path, debug: bool = False) -> dict | None:
 
         if not exif_data:
             if debug:
-                print(f"\n--- Debugging (Pillow) failed extraction for: {image_path.name} ---")
-                print("  Reason: EXIF data was found, but it contains no known tags after merging.")
+                print(
+                    f"\n--- Debugging (Pillow) failed extraction for: {image_path.name} ---"
+                )
+                print(
+                    "  Reason: EXIF data was found, but it contains no known tags after merging."
+                )
                 print("----------------------------------------------------")
             return None
 
@@ -236,7 +287,7 @@ def get_exif_data(image_path: Path, debug: bool = False) -> dict | None:
             if value is None:
                 return None
             # Handle PIL's IFDRational type which has numerator/denominator
-            if hasattr(value, 'numerator') and hasattr(value, 'denominator'):
+            if hasattr(value, "numerator") and hasattr(value, "denominator"):
                 if value.denominator == 0:
                     return None
                 return float(value.numerator) / float(value.denominator)
@@ -249,7 +300,7 @@ def get_exif_data(image_path: Path, debug: bool = False) -> dict | None:
             # Handle byte strings which might be null-terminated
             if isinstance(value, bytes):
                 try:
-                    return float(value.strip(b'\x00').decode('utf-8', errors='ignore'))
+                    return float(value.strip(b"\x00").decode("utf-8", errors="ignore"))
                 except (ValueError, UnicodeDecodeError):
                     return None
             # Handle simple numeric types
@@ -258,19 +309,19 @@ def get_exif_data(image_path: Path, debug: bool = False) -> dict | None:
             except (TypeError, ValueError):
                 return None
 
-        shutter_speed_raw = exif_data.get('ExposureTime')
-        aperture_raw = exif_data.get('FNumber')
-        focal_length_raw = exif_data.get('FocalLength')
+        shutter_speed_raw = exif_data.get("ExposureTime")
+        aperture_raw = exif_data.get("FNumber")
+        focal_length_raw = exif_data.get("FocalLength")
         # ISO can sometimes be a tuple (e.g., (100, 0)), take the first element
-        iso_raw = exif_data.get('ISOSpeedRatings')
-        lens_model_raw = exif_data.get('LensModel')
+        iso_raw = exif_data.get("ISOSpeedRatings")
+        lens_model_raw = exif_data.get("LensModel")
 
         shutter_speed = get_float(shutter_speed_raw)
         aperture = get_float(aperture_raw)
         focal_length = get_float(focal_length_raw)
 
         # Pillow fallback for 35mm equivalent
-        focal_length_35_raw = exif_data.get('FocalLengthIn35mmFilm')
+        focal_length_35_raw = exif_data.get("FocalLengthIn35mmFilm")
         focal_length_35 = get_float(focal_length_35_raw)
 
         is_fallback = False
@@ -282,25 +333,50 @@ def get_exif_data(image_path: Path, debug: bool = False) -> dict | None:
         lens_model = lens_model_raw or "Unknown"
 
         # We will accept the file if at least one piece of essential metadata is found.
-        if all(v is None for v in [shutter_speed, aperture, focal_length, iso, lens_model_raw]):
+        if all(
+            v is None
+            for v in [shutter_speed, aperture, focal_length, iso, lens_model_raw]
+        ):
             if debug:
-                print(f"\n--- Debugging (Pillow) failed extraction for: {image_path.name} ---")
-                print(f"  Raw Shutter Speed: {shutter_speed_raw!r} (Type: {type(shutter_speed_raw).__name__}) -> "
-                      f"Parsed: {shutter_speed}")
-                print(f"  Raw Aperture:      {aperture_raw!r} (Type: {type(aperture_raw).__name__}) -> "
-                      f"Parsed: {aperture}")
-                print(f"  Raw Focal Length:  {focal_length_raw!r} (Type: {type(focal_length_raw).__name__}) -> "
-                      f"Parsed: {focal_length}")
-                print(f"  Raw ISO:           {iso_raw!r} (Type: {type(iso_raw).__name__}) -> Parsed: {iso}")
+                print(
+                    f"\n--- Debugging (Pillow) failed extraction for: {image_path.name} ---"
+                )
+                print(
+                    f"  Raw Shutter Speed: {shutter_speed_raw!r} (Type: {type(shutter_speed_raw).__name__}) -> "
+                    f"Parsed: {shutter_speed}"
+                )
+                print(
+                    f"  Raw Aperture:      {aperture_raw!r} (Type: {type(aperture_raw).__name__}) -> "
+                    f"Parsed: {aperture}"
+                )
+                print(
+                    f"  Raw Focal Length:  {focal_length_raw!r} (Type: {type(focal_length_raw).__name__}) -> "
+                    f"Parsed: {focal_length}"
+                )
+                print(
+                    f"  Raw ISO:           {iso_raw!r} (Type: {type(iso_raw).__name__}) -> Parsed: {iso}"
+                )
                 print(f"  Lens Model:        {lens_model!r}")
-                print("  Reason: None of the essential metadata fields could be found or parsed.")
+                print(
+                    "  Reason: None of the essential metadata fields could be found or parsed."
+                )
                 # Add this new part to show all available keys
                 if exif_data:
                     import textwrap
+
                     # Show all keys from the merged dictionary
-                    available_keys = ", ".join(sorted([str(k) for k in exif_data.keys()]))
+                    available_keys = ", ".join(
+                        sorted([str(k) for k in exif_data.keys()])
+                    )
                     print("\n  Available EXIF keys found in this file (merged):")
-                    print(textwrap.fill(available_keys, width=80, initial_indent="    ", subsequent_indent="    "))
+                    print(
+                        textwrap.fill(
+                            available_keys,
+                            width=80,
+                            initial_indent="    ",
+                            subsequent_indent="    ",
+                        )
+                    )
                 else:
                     # This case is already handled above, but for safety.
                     print("\n  No known EXIF keys were found in this file.")
@@ -308,18 +384,20 @@ def get_exif_data(image_path: Path, debug: bool = False) -> dict | None:
             return None
 
         return {
-            'Shutter Speed': shutter_speed,
-            'Aperture': aperture,
-            'Focal Length': focal_length,
-            'Focal Length (35mm)': focal_length_35,
-            'Is Fallback': is_fallback,
-            'ISO': iso,
-            'Lens': lens_model,
+            "Shutter Speed": shutter_speed,
+            "Aperture": aperture,
+            "Focal Length": focal_length,
+            "Focal Length (35mm)": focal_length_35,
+            "Is Fallback": is_fallback,
+            "ISO": iso,
+            "Lens": lens_model,
         }
     except Exception as e:
         # Catch all other exceptions from opening/reading files (e.g., not an image, corrupt file)
         if debug:
-            print(f"\n--- Debugging (Pillow) failed extraction for: {image_path.name} ---")
+            print(
+                f"\n--- Debugging (Pillow) failed extraction for: {image_path.name} ---"
+            )
             print(f"  An unexpected error occurred: {e}")
             print("----------------------------------------------------")
         return None
