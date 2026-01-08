@@ -7,6 +7,9 @@ on:
     branches: [ "main" ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build on ${{ matrix.os }}
@@ -60,9 +63,39 @@ jobs:
     - name: Build Executables
       run: poetry run python scripts/build.py
 
+    - name: Create Archive
+      run: |
+        # Create a zip archive of the dist directory
+        # shutil.make_archive adds the .zip extension automatically
+        python -c "import shutil; shutil.make_archive('${{ matrix.artifact_name }}', 'zip', 'dist')"
+
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.artifact_name }}
-        path: dist/image-metadata-*
+        path: ${{ matrix.artifact_name }}.zip
         if-no-files-found: error
+
+  release:
+    name: Update Nightly Release
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Display Downloaded Artifacts
+        run: ls -R artifacts
+
+      - name: Update Nightly Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Nightly Build
+          tag_name: nightly
+          prerelease: true
+          files: artifacts/*.zip
+          make_latest: true
