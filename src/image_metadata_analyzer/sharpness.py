@@ -71,10 +71,14 @@ def get_image_data(filepath: Path) -> Optional[np.ndarray]:
         return None
 
 
-def calculate_sharpness(filepath: Path) -> float:
+def calculate_sharpness(filepath: Path, grid_size: int = 1) -> float:
     """
     Calculates the sharpness score of an image using the Laplacian Variance method.
     The image is converted to grayscale and cropped to the center 50% before analysis.
+
+    If grid_size > 1, the cropped area is split into grid_size x grid_size blocks,
+    and the maximum score among the blocks is returned.
+
     Returns a float score (higher is sharper).
     Returns 0.0 if image cannot be read.
     """
@@ -104,9 +108,35 @@ def calculate_sharpness(filepath: Path) -> float:
         else:
             cropped = gray[h_start:h_end, w_start:w_end]
 
-        # Calculate Laplacian Variance
-        score = cv2.Laplacian(cropped, cv2.CV_64F).var()
-        return score
+        if grid_size <= 1:
+            # Original behavior: Calculate Laplacian Variance for the whole crop
+            score = cv2.Laplacian(cropped, cv2.CV_64F).var()
+            return score
+        else:
+            # Grid-based analysis: find the maximum sharpness among blocks
+            ch, cw = cropped.shape
+            block_h = ch // grid_size
+            block_w = cw // grid_size
+
+            # If blocks are too small, fallback to global
+            if block_h < 10 or block_w < 10:
+                 return cv2.Laplacian(cropped, cv2.CV_64F).var()
+
+            max_score = 0.0
+
+            for r in range(grid_size):
+                for c in range(grid_size):
+                    y0 = r * block_h
+                    y1 = y0 + block_h
+                    x0 = c * block_w
+                    x1 = x0 + block_w
+
+                    block = cropped[y0:y1, x0:x1]
+                    score = cv2.Laplacian(block, cv2.CV_64F).var()
+                    if score > max_score:
+                        max_score = score
+
+            return max_score
 
     except Exception as e:
         logger.error(f"Error calculating sharpness for {filepath}: {e}")
