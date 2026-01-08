@@ -1,12 +1,13 @@
+import logging
+from pathlib import Path
+from typing import List, Optional
+
 import cv2
 import numpy as np
 import rawpy
-from pathlib import Path
-from typing import Tuple, List, Optional
-import os
-import logging
 
 logger = logging.getLogger(__name__)
+
 
 class SharpnessCategories:
     CRISP = 1
@@ -33,6 +34,7 @@ class SharpnessCategories:
             return "red"
         return "black"
 
+
 def get_image_data(filepath: Path) -> Optional[np.ndarray]:
     """
     Reads an image file and returns a numpy array (BGR or Grayscale).
@@ -43,7 +45,7 @@ def get_image_data(filepath: Path) -> Optional[np.ndarray]:
 
     try:
         # List of common raw extensions
-        raw_exts = {'.arw', '.nef', '.cr2', '.dng', '.orf', '.rw2', '.raf'}
+        raw_exts = {".arw", ".nef", ".cr2", ".dng", ".orf", ".rw2", ".raf"}
 
         if ext in raw_exts:
             try:
@@ -52,7 +54,9 @@ def get_image_data(filepath: Path) -> Optional[np.ndarray]:
                     # use_camera_wb=True uses the camera's white balance
                     # no_auto_bright=True keeps original brightness
                     # bright=1.0 scales brightness
-                    rgb = raw.postprocess(use_camera_wb=True, no_auto_bright=True, bright=1.0)
+                    rgb = raw.postprocess(
+                        use_camera_wb=True, no_auto_bright=True, bright=1.0
+                    )
                     # Convert RGB (rawpy) to BGR (opencv)
                     return cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
             except Exception as e:
@@ -65,6 +69,7 @@ def get_image_data(filepath: Path) -> Optional[np.ndarray]:
     except Exception as e:
         logger.error(f"Error reading image {path_str}: {e}")
         return None
+
 
 def calculate_sharpness(filepath: Path) -> float:
     """
@@ -94,10 +99,10 @@ def calculate_sharpness(filepath: Path) -> float:
 
         # Ensure we have a valid crop
         if h_start >= h_end or w_start >= w_end:
-             # Fallback to full image if too small
-             cropped = gray
+            # Fallback to full image if too small
+            cropped = gray
         else:
-             cropped = gray[h_start:h_end, w_start:w_end]
+            cropped = gray[h_start:h_end, w_start:w_end]
 
         # Calculate Laplacian Variance
         score = cv2.Laplacian(cropped, cv2.CV_64F).var()
@@ -107,7 +112,10 @@ def calculate_sharpness(filepath: Path) -> float:
         logger.error(f"Error calculating sharpness for {filepath}: {e}")
         return 0.0
 
-def categorize_sharpness(score: float, threshold_blur: float, threshold_sharp: float) -> int:
+
+def categorize_sharpness(
+    score: float, threshold_blur: float, threshold_sharp: float
+) -> int:
     """
     Categorizes the sharpness score.
     < threshold_blur -> Blurry (3)
@@ -121,13 +129,14 @@ def categorize_sharpness(score: float, threshold_blur: float, threshold_sharp: f
     else:
         return SharpnessCategories.CRISP
 
+
 def find_related_files(filepath: Path) -> List[Path]:
     """
     Finds files related to the given filepath (same name, different extension)
     in the same directory.
     Example: DSC001.ARW -> [DSC001.ARW, DSC001.JPG, DSC001.xmp]
     """
-    related = []
+    related: List[Path] = []
     if not filepath.exists():
         return related
 

@@ -2,23 +2,37 @@ import hashlib
 import os
 from collections import defaultdict
 from pathlib import Path
+
 from send2trash import send2trash
 
 IMAGE_EXTENSIONS = {
-    '.jpg', '.jpeg', '.tif', '.tiff', '.nef', '.cr2', '.arw',
-    '.dng', '.raw', '.png', '.webp', '.bmp', '.gif'
+    ".jpg",
+    ".jpeg",
+    ".tif",
+    ".tiff",
+    ".nef",
+    ".cr2",
+    ".arw",
+    ".dng",
+    ".raw",
+    ".png",
+    ".webp",
+    ".bmp",
+    ".gif",
 }
+
 
 def get_file_hash(filepath, block_size=65536):
     """Calculates the MD5 hash of a file."""
     md5 = hashlib.md5()
     try:
-        with open(filepath, 'rb') as f:
-            for block in iter(lambda: f.read(block_size), b''):
+        with open(filepath, "rb") as f:
+            for block in iter(lambda: f.read(block_size), b""):
                 md5.update(block)
         return md5.hexdigest()
     except OSError:
         return None
+
 
 def find_duplicates(root_folder, callback=None):
     """
@@ -47,8 +61,6 @@ def find_duplicates(root_folder, callback=None):
 
     # Using a list to store all image paths first is fast enough for typical library sizes.
     # But checking size is also stat().
-
-    all_images = []
 
     # Initial scan
     for root, _, files in os.walk(root_path):
@@ -86,13 +98,18 @@ def find_duplicates(root_folder, callback=None):
         # Add confirmed duplicates
         for h, paths in hash_groups.items():
             if len(paths) > 1:
-                duplicates.append({
-                    'hash': h,
-                    'size': os.path.getsize(paths[0]), # Should be same as key of size_groups
-                    'files': sorted(paths) # Sort for consistent display
-                })
+                duplicates.append(
+                    {
+                        "hash": h,
+                        "size": os.path.getsize(
+                            paths[0]
+                        ),  # Should be same as key of size_groups
+                        "files": sorted(paths),  # Sort for consistent display
+                    }
+                )
 
     return duplicates
+
 
 def move_to_trash(filepath):
     """Moves a file to the trash/recycle bin."""

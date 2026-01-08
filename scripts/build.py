@@ -1,12 +1,13 @@
 import os
-import sys
-import shutil
-import tarfile
-import zipfile
-import urllib.request
 import platform
+import shutil
 import subprocess
+import sys
+import tarfile
+import urllib.request
+import zipfile
 from pathlib import Path
+
 from generate_notices import generate_notices
 
 # Constants
@@ -16,6 +17,7 @@ SF_BASE_URL = "https://sourceforge.net/projects/exiftool/files"
 PROJECT_ROOT = Path(__file__).parent.parent
 BIN_DIR = PROJECT_ROOT / "src" / "image_metadata_analyzer" / "bin"
 
+
 def download_file(url, dest_path):
     print(f"Downloading {url}...")
     try:
@@ -23,10 +25,11 @@ def download_file(url, dest_path):
     except Exception as e:
         print(f"Error downloading with urllib: {e}")
         try:
-             subprocess.run(["wget", url, "-O", str(dest_path)], check=True)
+            subprocess.run(["wget", url, "-O", str(dest_path)], check=True)
         except Exception as e2:
-             print(f"Download failed with wget too: {e2}")
-             sys.exit(1)
+            print(f"Download failed with wget too: {e2}")
+            sys.exit(1)
+
 
 def setup_exiftool():
     # Clean bin dir first
@@ -44,7 +47,7 @@ def setup_exiftool():
         download_file(url, dest)
 
         print("Extracting...")
-        with zipfile.ZipFile(dest, 'r') as zip_ref:
+        with zipfile.ZipFile(dest, "r") as zip_ref:
             zip_ref.extractall(BIN_DIR)
 
         found_exe = False
@@ -121,6 +124,7 @@ def setup_exiftool():
 
     print(f"Exiftool setup complete in {BIN_DIR}")
 
+
 def run_pyinstaller(target):
     sep = ";" if platform.system() == "Windows" else ":"
     src_data = "src/image_metadata_analyzer/bin"
@@ -128,12 +132,18 @@ def run_pyinstaller(target):
     add_data_arg = f"{src_data}{sep}{dst_data}"
 
     cmd = [
-        "poetry", "run", "pyinstaller",
-        "--name", f"image-metadata-{target}",
-        "--paths", "src",
+        "poetry",
+        "run",
+        "pyinstaller",
+        "--name",
+        f"image-metadata-{target}",
+        "--paths",
+        "src",
         "--onefile",
-        "--distpath", "dist",
-        "--add-data", add_data_arg,
+        "--distpath",
+        "dist",
+        "--add-data",
+        add_data_arg,
         "--clean",
         "--noconfirm",
     ]
@@ -146,26 +156,24 @@ def run_pyinstaller(target):
 
         # Set executable icon
         if platform.system() == "Windows":
-             cmd.extend(["--icon", "assets/logo.ico"])
+            cmd.extend(["--icon", "assets/logo.ico"])
         elif platform.system() == "Darwin":
-             # If we had .icns, we would use it. PyInstaller often accepts .png on some platforms or ignores it.
-             # For now, let's try using the ico or png if supported, but typically .icns is best for Mac.
-             # Given we only generated .ico and .png:
-             # cmd.extend(["--icon", "assets/logo.png"]) # Warning: might not work as expected on Mac without .icns
-             pass
+            # If we had .icns, we would use it. PyInstaller often accepts .png on some platforms or ignores it.
+            # For now, let's try using the ico or png if supported, but typically .icns is best for Mac.
+            # Given we only generated .ico and .png:
+            # cmd.extend(["--icon", "assets/logo.png"]) # Warning: might not work as expected on Mac without .icns
+            pass
         else:
-             # Linux .desktop files handle icons, but we can set window icon in code.
-             pass
+            # Linux .desktop files handle icons, but we can set window icon in code.
+            pass
 
-        cmd.extend([
-            "--windowed",
-            "src/image_metadata_analyzer/gui.py"
-        ])
+        cmd.extend(["--windowed", "src/image_metadata_analyzer/gui.py"])
     else:
         cmd.append("src/image_metadata_analyzer/cli.py")
 
     print(f"Running: {' '.join(cmd)}")
     subprocess.run(cmd, check=True)
+
 
 def generate_icons_if_possible():
     # Only try generating icons on Linux, or if explicit env var is set.
@@ -179,6 +187,7 @@ def generate_icons_if_possible():
     try:
         sys.path.append(str(Path(__file__).parent))
         from generate_icons import generate_icons
+
         print("Generating icons...")
         return generate_icons()
     except (ImportError, OSError) as e:
@@ -188,6 +197,7 @@ def generate_icons_if_possible():
     except Exception as e:
         print(f"Warning: Unexpected error during icon generation: {e}")
         return False
+
 
 def main():
     generate_icons_if_possible()
@@ -214,6 +224,7 @@ def main():
         print("Licenses copied.")
     else:
         print("Warning: dist/ directory not found. Licenses were not copied.")
+
 
 if __name__ == "__main__":
     main()

@@ -56,6 +56,12 @@ BSD License; GNU General Public License v3 or later (GPLv3+)
 Kevin M (sylikc), Sven Marnach, various contributors
 http://github.com/sylikc/pyexiftool
 
+Send2Trash
+2.0.0
+BSD License
+Andrew Senetar
+https://github.com/arsenetar/send2trash
+
 contourpy
 1.3.2
 BSD License
@@ -92,6 +98,12 @@ BSD License
 Travis E. Oliphant et al.
 https://numpy.org
 
+opencv-python
+4.12.0.88
+Apache Software License
+UNKNOWN
+https://github.com/opencv/opencv-python
+
 packaging
 25.0
 Apache Software License; BSD License
@@ -115,6 +127,12 @@ python-dateutil
 Apache Software License; BSD License
 Gustavo Niemeyer
 https://github.com/dateutil/dateutil
+
+rawpy
+0.25.1
+MIT License
+Maik Riechert
+https://github.com/letmaik/rawpy
 
 six
 1.17.0
