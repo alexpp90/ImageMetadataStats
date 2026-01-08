@@ -1,16 +1,18 @@
-
 def test_analyzer_no_data(capsys):
     from image_metadata_analyzer.analyzer import analyze_data
+
     analyze_data([])
     captured = capsys.readouterr()
     assert "No data to analyze" in captured.out
 
+
 def test_analyzer_basic_stats(capsys):
     from image_metadata_analyzer.analyzer import analyze_data
+
     data = [
-        {'Shutter Speed': 0.01, 'Aperture': 2.8, 'Focal Length': 50, 'ISO': 100, 'Lens': 'Lens A'},
-        {'Shutter Speed': 0.02, 'Aperture': 4.0, 'Focal Length': 50, 'ISO': 200, 'Lens': 'Lens A'},
-        {'Shutter Speed': 0.01, 'Aperture': 2.8, 'Focal Length': 85, 'ISO': 100, 'Lens': 'Lens B'},
+        {"Shutter Speed": 0.01, "Aperture": 2.8, "Focal Length": 50, "ISO": 100, "Lens": "Lens A"},
+        {"Shutter Speed": 0.02, "Aperture": 4.0, "Focal Length": 50, "ISO": 200, "Lens": "Lens A"},
+        {"Shutter Speed": 0.01, "Aperture": 2.8, "Focal Length": 85, "ISO": 100, "Lens": "Lens B"},
     ]
     analyze_data(data)
     captured = capsys.readouterr()

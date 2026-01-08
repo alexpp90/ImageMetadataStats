@@ -1,5 +1,7 @@
 import unittest
+
 from image_metadata_analyzer.utils import aggregate_focal_lengths
+
 
 class TestAggregation(unittest.TestCase):
     def test_empty(self):
@@ -53,8 +55,8 @@ class TestAggregation(unittest.TestCase):
 
         # Verify 300-304 merged
         last = result[-1]
-        self.assertEqual(last[1], 2) # count 2
-        self.assertEqual(last[2], 300.0) # sort key 300
+        self.assertEqual(last[1], 2)  # count 2
+        self.assertEqual(last[2], 300.0)  # sort key 300
         self.assertEqual(last[0], "300-304 mm")
 
     def test_formatting(self):
@@ -68,6 +70,7 @@ class TestAggregation(unittest.TestCase):
         data = [50.0, 50.0]
         result = aggregate_focal_lengths(data, max_buckets=10)
         self.assertEqual(result[0][0], "50 mm")
+
 
 if __name__ == "__main__":
     unittest.main()
