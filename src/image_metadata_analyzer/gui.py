@@ -263,8 +263,8 @@ class ImageLibraryStatistics(ttk.Frame):
 
             print("Analysis complete.")
 
-        except Exception as e:
-            print(f"An error occurred: {e}")
+        except Exception:
+            print("An error occurred:")
             import traceback
 
             traceback.print_exc()
@@ -441,7 +441,12 @@ class DuplicateFinder(ttk.Frame):
             import traceback
 
             traceback.print_exc()
-            self.parent.after(0, lambda: messagebox.showerror("Error", str(e)))
+            # Capture e in a local variable or just pass str(e) immediately if possible,
+            # but e is defined here in the except block.
+            # The previous flake8 error was likely elsewhere if e was used outside scope?
+            # Wait, line 444 is inside run_scan method's except block?
+            # Let's check line number from previous read_file.
+            self.parent.after(0, lambda err=str(e): messagebox.showerror("Error", err))
         finally:
             self.parent.after(0, self.scan_finished)
 

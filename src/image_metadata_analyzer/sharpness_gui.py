@@ -566,6 +566,8 @@ class SharpnessTool(ttk.Frame):
                     self.candidate_listbox.selection_set(new_idx)
                     self.on_candidate_select(None)
                 else:
-                    getattr(self.panel_curr, "img_lbl").config(image="", text="No Candidates")
+                    getattr(self.panel_curr, "img_lbl").config(
+                        image="", text="No Candidates"
+                    )
                     getattr(self.panel_prev, "img_lbl").config(image="", text="")
                     getattr(self.panel_next, "img_lbl").config(image="", text="")

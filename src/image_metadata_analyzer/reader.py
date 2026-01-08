@@ -240,7 +240,8 @@ def get_exif_data(image_path: Path, debug: bool = False) -> dict | None:
             exif_data_raw = img.getexif()
         except AttributeError:
             # Fallback for older Pillow versions that use the private method
-            exif_data_raw = img._getexif()
+            # Mypy complains because ImageFile doesn't advertise _getexif
+            exif_data_raw = getattr(img, "_getexif", lambda: None)()  # type: ignore[assignment]
 
         if not exif_data_raw:
             if debug:

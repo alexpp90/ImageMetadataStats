@@ -242,7 +242,7 @@ def load_image_preview(
                         use_camera_wb=True, bright=1.0, half_size=True
                     )
                     img = Image.fromarray(rgb)
-            except Exception as e:
+            except Exception:
                 # Log or just fall through to Pillow
                 pass
 
