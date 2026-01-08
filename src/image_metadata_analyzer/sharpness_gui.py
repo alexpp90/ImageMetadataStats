@@ -36,6 +36,7 @@ class SharpnessTool(ttk.Frame):
         # Defaults
         self.default_blur_threshold = 100.0
         self.default_sharp_threshold = 500.0
+        self.default_grid_size = "4x4"
 
         self.setup_ui()
 
@@ -94,9 +95,21 @@ class SharpnessTool(ttk.Frame):
 
         ttk.Label(group, text="(Scores depend on image resolution. Default values are estimates.)").grid(row=2, column=0, columnspan=3, pady=5)
 
+        # Grid Size Selection
+        frame_grid = ttk.Frame(container)
+        frame_grid.grid(row=2, column=0, columnspan=3, pady=10, sticky="ew")
+
+        ttk.Label(frame_grid, text="Grid Analysis Size:").pack(side="left", padx=5)
+        self.grid_size_var = tk.StringVar(value=self.default_grid_size)
+        grid_combo = ttk.Combobox(frame_grid, textvariable=self.grid_size_var,
+                                  values=["1x1 (Global)", "2x2", "3x3", "4x4", "5x5", "8x8"],
+                                  state="readonly", width=12)
+        grid_combo.pack(side="left", padx=5)
+        ttk.Label(frame_grid, text="(Higher grid size helps find small sharp subjects in blurry backgrounds)").pack(side="left", padx=5)
+
         # Start Button
         self.start_btn = ttk.Button(container, text="Start Sharpness Scan", command=self.start_scan)
-        self.start_btn.grid(row=2, column=0, columnspan=3, pady=20)
+        self.start_btn.grid(row=3, column=0, columnspan=3, pady=20)
 
     def setup_scan_ui(self):
         container = ttk.Frame(self.scan_frame, padding=20)
@@ -271,6 +284,15 @@ class SharpnessTool(ttk.Frame):
             blur_t = self.blur_thresh_var.get()
             sharp_t = self.sharp_thresh_var.get()
 
+            # Parse grid size
+            grid_str = self.grid_size_var.get()
+            try:
+                # Extract first digit from "4x4" -> 4
+                grid_size = int(grid_str.split('x')[0])
+            except:
+                grid_size = 1
+                self.log(f"Warning: Invalid grid size '{grid_str}', defaulting to 1x1")
+
             for i, f in enumerate(files):
                 if self.stop_event.is_set():
                     self.log("Scan cancelled.")
@@ -279,7 +301,7 @@ class SharpnessTool(ttk.Frame):
                 self.log(f"Analyzing {f.name}...")
 
                 # Sharpness
-                score = calculate_sharpness(f)
+                score = calculate_sharpness(f, grid_size=grid_size)
                 cat = categorize_sharpness(score, blur_t, sharp_t)
 
                 # Exif (basic)
