@@ -1,8 +1,10 @@
-import os
+from unittest.mock import MagicMock, patch
+
 import pytest
-from pathlib import Path
-from unittest.mock import patch, MagicMock
-from image_metadata_analyzer.duplicates import find_duplicates, move_to_trash, get_file_hash
+
+from image_metadata_analyzer.duplicates import (find_duplicates, get_file_hash,
+                                                move_to_trash)
+
 
 @pytest.fixture
 def temp_image_folder(tmp_path):
@@ -29,11 +31,13 @@ def temp_image_folder(tmp_path):
 
     return folder
 
+
 def test_get_file_hash(temp_image_folder):
     img1 = temp_image_folder / "img1.jpg"
     h = get_file_hash(img1)
     assert h is not None
-    assert len(h) == 32 # MD5 hexdigest length
+    assert len(h) == 32  # MD5 hexdigest length
+
 
 def test_find_duplicates(temp_image_folder):
     duplicates = find_duplicates(temp_image_folder)
@@ -42,11 +46,12 @@ def test_find_duplicates(temp_image_folder):
     assert len(duplicates) == 1
     group = duplicates[0]
 
-    assert len(group['files']) == 2
-    filenames = {p.name for p in group['files']}
+    assert len(group["files"]) == 2
+    filenames = {p.name for p in group["files"]}
     assert "img1.jpg" in filenames
     assert "img2.jpg" in filenames
     assert "img3.jpg" not in filenames
+
 
 def test_find_duplicates_no_duplicates(tmp_path):
     f = tmp_path / "unique"
@@ -55,6 +60,7 @@ def test_find_duplicates_no_duplicates(tmp_path):
     (f / "b.jpg").write_bytes(b"2")
 
     assert len(find_duplicates(f)) == 0
+
 
 def test_find_duplicates_progress_callback(temp_image_folder):
     # img1, img2, img3 have same size. img4 different.
@@ -72,6 +78,7 @@ def test_find_duplicates_progress_callback(temp_image_folder):
     # Check last call args
     mock_callback.assert_called_with(3, 3)
 
+
 @patch("image_metadata_analyzer.duplicates.send2trash")
 def test_move_to_trash(mock_send2trash, tmp_path):
     f = tmp_path / "delete_me.txt"
@@ -80,6 +87,7 @@ def test_move_to_trash(mock_send2trash, tmp_path):
     success = move_to_trash(f)
     assert success is True
     mock_send2trash.assert_called_once_with(str(f))
+
 
 @patch("image_metadata_analyzer.duplicates.send2trash")
 def test_move_to_trash_failure(mock_send2trash, tmp_path):
