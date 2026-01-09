@@ -413,7 +413,8 @@ class DuplicateFinder(ttk.Frame):
                     self.photo_refs.append(photo) # Keep ref
                     lbl_img = ttk.Label(content_frame, image=photo)
                     lbl_img.pack(side="left", padx=10, anchor="n")
-                except Exception:
+                except Exception as e:
+                     print(f"Error creating PhotoImage for duplicate preview: {e}")
                      ttk.Label(content_frame, text="[Preview Error]").pack(side="left", padx=10, anchor="n")
             else:
                 ttk.Label(content_frame, text="[No Preview]").pack(side="left", padx=10, anchor="n")
