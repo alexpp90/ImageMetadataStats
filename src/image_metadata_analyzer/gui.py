@@ -453,12 +453,31 @@ class DuplicateFinder(ttk.Frame):
 
         # Execute Deletion
         deleted_count = 0
-        for fpath in to_delete:
-            if move_to_trash(fpath):
-                deleted_count += 1
+        failed_paths = []
 
-        messagebox.showinfo("Success", f"Moved {deleted_count} files to trash.")
-        self.start_scan()
+        for fpath in to_delete:
+            try:
+                move_to_trash(fpath)
+                deleted_count += 1
+            except Exception:
+                failed_paths.append(fpath)
+
+        if failed_paths:
+            msg = (f"Failed to move {len(failed_paths)} files to trash (e.g., network drive).\n"
+                   "Do you want to PERMANENTLY delete them?")
+            if messagebox.askyesno("Trash Failed", msg):
+                for fpath in failed_paths:
+                    try:
+                        fpath.unlink()
+                        deleted_count += 1
+                    except Exception as e:
+                        print(f"Failed to permanently delete {fpath}: {e}")
+
+        if deleted_count > 0:
+            messagebox.showinfo("Success", f"Deleted/Trashed {deleted_count} files.")
+            self.start_scan()
+        else:
+            messagebox.showwarning("Warning", "No files were deleted.")
 
 
 class Sidebar(ttk.Frame):

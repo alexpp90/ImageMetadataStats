@@ -493,16 +493,31 @@ class SharpnessTool(ttk.Frame):
 
         if messagebox.askyesno("Confirm Delete", f"Are you sure you want to move '{path.name}' and related files to trash?"):
             related = find_related_files(path)
-            success = True
+            failed_trash = []
+
             for f in related:
                 try:
-                    send2trash.send2trash(f)
+                    send2trash.send2trash(str(f))
                     self.log(f"Moved to trash: {f}")
                 except Exception as e:
-                    messagebox.showerror("Error", f"Failed to delete {f}:\n{e}")
-                    success = False
+                    failed_trash.append(f)
+                    self.log(f"Trash failed for {f}: {e}")
 
-            if success:
+            if failed_trash:
+                msg = (f"Failed to move {len(failed_trash)} related file(s) to trash (e.g. network drive).\n"
+                       "Do you want to PERMANENTLY delete them?")
+                if messagebox.askyesno("Trash Failed", msg):
+                    for f in failed_trash:
+                        try:
+                            if f.exists():
+                                f.unlink()
+                                self.log(f"Permanently deleted: {f}")
+                        except Exception as e:
+                            self.log(f"Delete failed for {f}: {e}")
+
+            # Check if all files are gone
+            remaining = [f for f in related if f.exists()]
+            if not remaining:
                 # Update UI
                 self.candidates.pop(idx)
                 self.candidate_listbox.delete(idx)
@@ -520,3 +535,6 @@ class SharpnessTool(ttk.Frame):
                     self.panel_curr.img_lbl.config(image='', text="No Candidates")
                     self.panel_prev.img_lbl.config(image='', text="")
                     self.panel_next.img_lbl.config(image='', text="")
+            elif failed_trash:
+                # If we had failures and files still remain (user said NO or delete failed)
+                messagebox.showwarning("Warning", f"Some files could not be deleted.")
