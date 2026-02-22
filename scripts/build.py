@@ -144,6 +144,9 @@ def run_pyinstaller(target):
         icon_dst = "."
         cmd.extend(["--add-data", f"{icon_src}{sep}{icon_dst}"])
 
+        # Add splash screen
+        cmd.extend(["--splash", "assets/logo.png"])
+
         # Set executable icon
         if platform.system() == "Windows":
              cmd.extend(["--icon", "assets/logo.ico"])

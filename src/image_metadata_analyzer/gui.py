@@ -563,6 +563,16 @@ class MainApp(tk.Tk):
 
         self.show_frame("ImageLibraryStatistics")
 
+        # Close splash screen if it exists (after GUI is ready)
+        self.after(100, self.close_splash)
+
+    def close_splash(self):
+        try:
+            import pyi_splash
+            pyi_splash.close()
+        except ImportError:
+            pass
+
     def show_frame(self, page_name):
         frame = self.frames[page_name]
         frame.tkraise()
