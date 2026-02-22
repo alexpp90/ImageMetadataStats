@@ -87,8 +87,7 @@ def test_move_to_trash(mock_send2trash, tmp_path):
     f = tmp_path / "delete_me.txt"
     f.touch()
 
-    success = move_to_trash(f)
-    assert success is True
+    move_to_trash(f)
     mock_send2trash.assert_called_once_with(str(f))
 
 
@@ -97,5 +96,5 @@ def test_move_to_trash_failure(mock_send2trash, tmp_path):
     mock_send2trash.side_effect = OSError("Access denied")
     f = tmp_path / "delete_me.txt"
 
-    success = move_to_trash(f)
-    assert success is False
+    with pytest.raises(OSError):
+        move_to_trash(f)

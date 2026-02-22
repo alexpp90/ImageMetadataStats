@@ -33,6 +33,14 @@ class SharpnessTool(ttk.Frame):
         self.sorted_files = [] # List of paths sorted by filename
         self.candidates = [] # List of paths that are category 2 or 3
 
+        # Caching and Review State
+        self.image_cache = {}
+        self.cache_lock = threading.Lock()
+        self.preloader_queue = queue.Queue()
+        self.has_switched_to_review = False
+
+        self.start_preloader()
+
         # Defaults
         self.default_blur_threshold = 100.0
         self.default_sharp_threshold = 500.0
@@ -140,6 +148,17 @@ class SharpnessTool(ttk.Frame):
 
         ttk.Label(self.sidebar, text="Candidates (Blurry/Acceptable)").pack(pady=5)
 
+        # Scan Progress (Visible during review)
+        self.scan_progress_frame = ttk.Frame(self.sidebar)
+        self.scan_progress_frame.pack(fill="x", pady=(0, 10))
+
+        self.review_status_lbl = ttk.Label(self.scan_progress_frame, text="Scan Progress: 0%")
+        self.review_status_lbl.pack(side="top", anchor="w")
+
+        self.review_progress_var = tk.DoubleVar()
+        self.review_progress_bar = ttk.Progressbar(self.scan_progress_frame, variable=self.review_progress_var, maximum=100)
+        self.review_progress_bar.pack(fill="x")
+
         # Scrollbar and Listbox
         sb = ttk.Scrollbar(self.sidebar)
         sb.pack(side="right", fill="y")
@@ -174,10 +193,12 @@ class SharpnessTool(ttk.Frame):
         btn_frame = ttk.Frame(self.info_frame)
         btn_frame.pack(pady=5)
 
-        ttk.Button(btn_frame, text="< Prev Candidate", command=self.prev_candidate).pack(side="left", padx=5)
+        self.prev_btn = ttk.Button(btn_frame, text="< Prev Candidate", command=self.prev_candidate)
+        self.prev_btn.pack(side="left", padx=5)
         self.del_btn = ttk.Button(btn_frame, text="Delete Candidate (Trash)", command=self.delete_current_candidate)
         self.del_btn.pack(side="left", padx=20)
-        ttk.Button(btn_frame, text="Next Candidate >", command=self.next_candidate).pack(side="left", padx=5)
+        self.next_btn = ttk.Button(btn_frame, text="Next Candidate >", command=self.next_candidate)
+        self.next_btn.pack(side="left", padx=5)
 
         # --- Bottom Container: Neighbors ---
         self.bottom_container = ttk.Frame(self.preview_area)
@@ -295,8 +316,18 @@ class SharpnessTool(ttk.Frame):
         self.log_text.config(state="disabled")
 
         self.progress_var.set(0)
+        self.review_progress_var.set(0)
+        self.review_status_lbl.config(text="Scan Progress: 0%")
         self.scan_results = []
         self.files_map = {}
+        self.candidates = []
+        self.candidate_listbox.delete(0, "end")
+        self.has_switched_to_review = False
+
+        # Reset cache
+        self.image_cache.clear()
+        with self.preloader_queue.mutex:
+            self.preloader_queue.queue.clear()
 
         threading.Thread(target=self.run_scan_thread, args=(folder,), daemon=True).start()
         self.after(100, self.update_log_view)
@@ -360,12 +391,8 @@ class SharpnessTool(ttk.Frame):
                     "exif": exif
                 }
 
-                self.scan_results.append(res)
-                self.files_map[f] = res
-
-                # Progress
-                prog = ((i + 1) / total) * 100
-                self.parent.after(0, lambda v=prog: self.progress_var.set(v))
+                # Send result to main thread
+                self.parent.after(0, lambda r=res, idx=i+1, t=total: self.process_scan_result(r, idx, t))
 
             self.log("Scan complete.")
 
@@ -376,49 +403,174 @@ class SharpnessTool(ttk.Frame):
 
         self.parent.after(0, self.scan_finished)
 
+    def process_scan_result(self, result, current_idx, total_count):
+        if not self.is_scanning:
+            return
+
+        # Update lists
+        self.scan_results.append(result)
+        self.files_map[result["path"]] = result
+
+        # Update Progress
+        pct = (current_idx / total_count) * 100
+        self.progress_var.set(pct)
+        self.review_progress_var.set(pct)
+        self.review_status_lbl.config(text=f"Scan Progress: {int(pct)}% ({current_idx}/{total_count})")
+
+        # Handle Candidate
+        if result["category"] in [SharpnessCategories.BLURRY, SharpnessCategories.ACCEPTABLE]:
+            path = result["path"]
+            self.candidates.append(path)
+
+            # Add to listbox
+            cat_name = SharpnessCategories.get_name(result["category"])
+            self.candidate_listbox.insert("end", f"{path.name} ({cat_name})")
+
+            # Color code
+            color = SharpnessCategories.get_color(result["category"])
+            idx = self.candidate_listbox.size() - 1
+            self.candidate_listbox.itemconfig(idx, {'fg': color})
+
+            # Auto-switch to review if we have enough candidates
+            # The user requested switching "After the first 3 were scanned"
+            if len(self.candidates) >= 3 and not self.has_switched_to_review:
+                self.switch_to_review_mode()
+
+            # If we are already reviewing, this new candidate might be the "Next" one for the current view.
+            if self.has_switched_to_review:
+                sel = self.candidate_listbox.curselection()
+                if sel:
+                    current_idx = sel[0]
+                    new_idx = len(self.candidates) - 1
+                    # If the new candidate is within the lookahead window (next 3), queue it
+                    if current_idx < new_idx <= current_idx + 3:
+                         self.queue_candidate(new_idx)
+
+            # Update button states (e.g., enable "Next" if we were at the end)
+            self.update_button_states()
+
+    def switch_to_review_mode(self):
+        self.has_switched_to_review = True
+        self.notebook.tab(2, state="normal")
+        self.notebook.select(2)
+        self.log("Auto-switching to Review mode.")
+
+        # Select the first one if nothing selected
+        if not self.candidate_listbox.curselection():
+            self.candidate_listbox.selection_set(0)
+            self.on_candidate_select(None)
+
     def scan_finished(self):
         self.is_scanning = False
         self.notebook.tab(0, state="normal")
 
-        # Filter candidates
-        self.candidates = [
-            res["path"] for res in self.scan_results
-            if res["category"] in [SharpnessCategories.BLURRY, SharpnessCategories.ACCEPTABLE]
-        ]
+        self.review_status_lbl.config(text="Scan Complete.")
 
         if self.candidates:
-            self.notebook.tab(2, state="normal")
-            self.notebook.select(2)
-            self.populate_candidates()
+            if not self.has_switched_to_review:
+                self.switch_to_review_mode()
             self.log(f"Found {len(self.candidates)} candidates for review.")
         else:
             messagebox.showinfo("Result", "No blurry or 'acceptable' images found based on current thresholds.")
             self.notebook.select(0)
 
-    def populate_candidates(self):
-        self.candidate_listbox.delete(0, "end")
-        for path in self.candidates:
-            res = self.files_map[path]
-            cat_name = SharpnessCategories.get_name(res["category"])
-            self.candidate_listbox.insert("end", f"{path.name} ({cat_name})")
-
-            # Color code
-            color = SharpnessCategories.get_color(res["category"])
-            idx = self.candidate_listbox.size() - 1
-            self.candidate_listbox.itemconfig(idx, {'fg': color})
-
-        if self.candidates:
-            self.candidate_listbox.selection_set(0)
-            self.on_candidate_select(None)
-
     def on_candidate_select(self, event):
         sel = self.candidate_listbox.curselection()
         if not sel:
+            self.update_button_states()
             return
 
         idx = sel[0]
         current_path = self.candidates[idx]
         self.load_triplet_view(current_path)
+        self.update_button_states()
+
+        # Trigger preloader for next candidates
+        self.preload_next_candidates(idx)
+
+    def preload_next_candidates(self, current_idx):
+        # Clear queue to prioritize new requests (user jumped to new location)
+        with self.preloader_queue.mutex:
+            self.preloader_queue.queue.clear()
+
+        # Look ahead for next 3 candidates
+        count = 0
+        for i in range(current_idx + 1, len(self.candidates)):
+            if count >= 3: break
+            self.queue_candidate(i)
+            count += 1
+
+    def queue_candidate(self, idx):
+        try:
+            c_path = self.candidates[idx]
+            # Find neighbors
+            if c_path in self.sorted_files:
+                f_idx = self.sorted_files.index(c_path)
+
+                # Prioritize: Candidate -> Next -> Prev
+                self.preloader_queue.put(c_path)
+
+                if f_idx < len(self.sorted_files) - 1:
+                    self.preloader_queue.put(self.sorted_files[f_idx + 1])
+
+                if f_idx > 0:
+                    self.preloader_queue.put(self.sorted_files[f_idx - 1])
+        except IndexError:
+            pass
+
+    def start_preloader(self):
+        threading.Thread(target=self.run_preloader, daemon=True).start()
+
+    def run_preloader(self):
+        CACHE_SIZE = (800, 600)
+        while True:
+            try:
+                path = self.preloader_queue.get()
+                if path is None: continue
+
+                with self.cache_lock:
+                    if path in self.image_cache:
+                        continue
+
+                try:
+                    img = load_image_preview(path, max_size=CACHE_SIZE)
+                    if img:
+                        with self.cache_lock:
+                            self.image_cache[path] = img
+                            # Prune
+                            if len(self.image_cache) > 30:
+                                first = next(iter(self.image_cache))
+                                del self.image_cache[first]
+                except Exception as e:
+                    pass
+            except Exception:
+                pass
+
+    def update_button_states(self):
+        sel = self.candidate_listbox.curselection()
+        if not sel:
+            try:
+                self.prev_btn.state(["disabled"])
+                self.next_btn.state(["disabled"])
+                self.del_btn.state(["disabled"])
+            except AttributeError:
+                pass # UI not ready
+            return
+
+        idx = sel[0]
+        total = self.candidate_listbox.size()
+
+        if idx > 0:
+            self.prev_btn.state(["!disabled"])
+        else:
+            self.prev_btn.state(["disabled"])
+
+        if idx < total - 1:
+            self.next_btn.state(["!disabled"])
+        else:
+            self.next_btn.state(["disabled"])
+
+        self.del_btn.state(["!disabled"])
 
     def load_triplet_view(self, current_path):
         # Find index in full sorted list
@@ -486,21 +638,45 @@ class SharpnessTool(ttk.Frame):
             self.meta_lbl.config(text=txt)
 
     def load_images_background(self, prev_path, curr_path, next_path, size_curr, size_neighbors):
-        # Helper to load one image
-        def load_one(path, size):
+        CACHE_SIZE = (800, 600)
+
+        def get_image(path, requested_size):
             if path is None: return None
+
+            img = None
+
+            # 1. Try Cache
+            with self.cache_lock:
+                if path in self.image_cache:
+                    img = self.image_cache[path]
+
+            # 2. Load if not in cache
+            if not img:
+                try:
+                    img = load_image_preview(path, max_size=CACHE_SIZE)
+                    if img:
+                        with self.cache_lock:
+                            self.image_cache[path] = img
+                            if len(self.image_cache) > 30:
+                                first = next(iter(self.image_cache))
+                                del self.image_cache[first]
+                except Exception as e:
+                    logger.error(f"Error loading {path}: {e}")
+
+            if not img: return None
+
+            # 3. Resize for requested size (copy to avoid modifying cached)
             try:
-                img = load_image_preview(path, max_size=size)
-                if img:
-                    return ImageTk.PhotoImage(img)
-                return None
+                img_copy = img.copy()
+                img_copy.thumbnail(requested_size, Image.Resampling.LANCZOS)
+                return ImageTk.PhotoImage(img_copy)
             except Exception as e:
-                logger.error(f"Failed to load thumbnail for {path}: {e}")
+                logger.error(f"Error resizing {path}: {e}")
                 return None
 
-        p_img = load_one(prev_path, size_neighbors)
-        c_img = load_one(curr_path, size_curr)
-        n_img = load_one(next_path, size_neighbors)
+        p_img = get_image(prev_path, size_neighbors)
+        c_img = get_image(curr_path, size_curr)
+        n_img = get_image(next_path, size_neighbors)
 
         # Update UI in main thread
         self.parent.after(0, lambda: self.update_panels_final(p_img, c_img, n_img))
