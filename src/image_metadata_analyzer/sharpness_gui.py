@@ -339,6 +339,7 @@ class SharpnessTool(ttk.Frame):
         self.default_grid_size = "4x4"
 
         self.setup_ui()
+        self.setup_focus_ui()
 
     def setup_ui(self):
         # Notebook for switching between Setup, Scanning, and Review
@@ -550,6 +551,9 @@ class SharpnessTool(ttk.Frame):
         )
         self.next_btn.pack(side="left", padx=5)
 
+        self.focus_toggle_btn = ttk.Button(btn_frame, text="Focus Mode", command=self.toggle_focus_mode)
+        self.focus_toggle_btn.pack(side="left", padx=20)
+
         # --- Bottom Container: Neighbors ---
         self.bottom_container = ttk.Frame(self.preview_area)
         self.bottom_container.pack(side="bottom", fill="x", ipady=5)
@@ -562,6 +566,120 @@ class SharpnessTool(ttk.Frame):
 
         self.panel_next = self.create_image_panel(self.bottom_container, "Next Image")
         self.panel_next.pack(side="right", fill="both", expand=True, padx=2)
+
+    def setup_focus_ui(self):
+        """Builds the fullscreen-optimized focus layout."""
+        self.focus_frame = ttk.Frame(self)
+
+        # Grid Configuration
+        # Row 0: Top (Main), Row 1: Bottom (Neighbors)
+        # User requested "Same Size" for all 3 images.
+        self.focus_frame.rowconfigure(0, weight=1)
+        self.focus_frame.rowconfigure(1, weight=1)
+
+        # Col 0: Left (Prev), Col 1: Center (Main/Spacer), Col 2: Right (Next/Controls)
+        self.focus_frame.columnconfigure(0, weight=1)
+        self.focus_frame.columnconfigure(1, weight=1)
+        self.focus_frame.columnconfigure(2, weight=1)
+
+        # --- Row 0: Main Area ---
+
+        # Left Gutter (Row 0, Col 0) - Nav
+        self.focus_left_panel = ttk.Frame(self.focus_frame)
+        self.focus_left_panel.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+
+        self.focus_prev_btn = ttk.Button(self.focus_left_panel, text="< Previous", command=self.prev_candidate)
+        self.focus_prev_btn.pack(side="top", pady=50)
+
+        # Center (Row 0, Col 1) - Current Candidate
+        self.focus_curr_container = ttk.Frame(self.focus_frame)
+        self.focus_curr_container.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
+
+        self.focus_curr_lbl = ttk.Label(self.focus_curr_container, text="No Image", anchor="center")
+        self.focus_curr_lbl.pack(fill="both", expand=True)
+        self.focus_curr_lbl.bind("<Button-1>", lambda e: self.on_image_click(self.panel_curr.path))
+
+        # Right Gutter (Row 0, Col 2) - Controls
+        self.focus_right_panel = ttk.Frame(self.focus_frame)
+        self.focus_right_panel.grid(row=0, column=2, sticky="nsew", padx=10, pady=10)
+
+        self.focus_exit_btn = ttk.Button(self.focus_right_panel, text="Exit Focus Mode", command=self.toggle_focus_mode)
+        self.focus_exit_btn.pack(side="top", pady=10, fill="x")
+
+        ttk.Separator(self.focus_right_panel, orient="horizontal").pack(fill="x", pady=10)
+
+        self.focus_score_lbl = ttk.Label(self.focus_right_panel, text="Score: --", font=("Helvetica", 12, "bold"))
+        self.focus_score_lbl.pack(side="top", pady=5)
+
+        self.focus_cat_lbl = ttk.Label(self.focus_right_panel, text="Category", font=("Helvetica", 10))
+        self.focus_cat_lbl.pack(side="top", pady=5)
+
+        self.focus_meta_lbl = ttk.Label(self.focus_right_panel, text="Metadata", justify="left", wraplength=150)
+        self.focus_meta_lbl.pack(side="top", pady=20)
+
+        ttk.Separator(self.focus_right_panel, orient="horizontal").pack(fill="x", pady=10)
+
+        self.focus_del_btn = ttk.Button(self.focus_right_panel, text="DELETE (Trash)", command=self.delete_current_candidate)
+        self.focus_del_btn.pack(side="top", pady=20, fill="x")
+
+        self.focus_next_btn = ttk.Button(self.focus_right_panel, text="Next >", command=self.next_candidate)
+        self.focus_next_btn.pack(side="top", pady=20, fill="x")
+
+        # --- Row 1: Bottom Strip ---
+
+        # Bottom Left (Row 1, Col 0) - Previous Image
+        self.focus_prev_lbl = ttk.Label(self.focus_frame, text="Prev", anchor="center", relief="sunken")
+        self.focus_prev_lbl.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
+        self.focus_prev_lbl.bind("<Button-1>", lambda e: self.on_image_click(self.panel_prev.path))
+
+        # Bottom Center (Row 1, Col 1) - Filename/Spacer
+        self.focus_filename_lbl = ttk.Label(self.focus_frame, text="", font=("Helvetica", 14))
+        self.focus_filename_lbl.grid(row=1, column=1, sticky="n", pady=5)
+
+        # Bottom Right (Row 1, Col 2) - Next Image
+        self.focus_next_lbl = ttk.Label(self.focus_frame, text="Next", anchor="center", relief="sunken")
+        self.focus_next_lbl.grid(row=1, column=2, sticky="nsew", padx=5, pady=5)
+        self.focus_next_lbl.bind("<Button-1>", lambda e: self.on_image_click(self.panel_next.path))
+
+        # Keyboard Bindings for Focus Mode
+        self.focus_frame.bind("<Left>", lambda e: self.prev_candidate())
+        self.focus_frame.bind("<Right>", lambda e: self.next_candidate())
+        self.focus_frame.bind("<Delete>", lambda e: self.delete_current_candidate())
+
+    def toggle_focus_mode(self):
+        self.focus_mode = not self.focus_mode
+
+        # Access MainApp to toggle sidebar
+        # self.parent is content_area, self.parent.master is MainApp
+        main_app = self.parent.master
+
+        if self.focus_mode:
+            # Enable Focus Mode
+            if hasattr(main_app, 'toggle_sidebar'):
+                main_app.toggle_sidebar(False)
+
+            self.notebook.pack_forget()
+            self.focus_frame.pack(fill="both", expand=True)
+            self.focus_frame.focus_set() # Enable keyboard events
+
+            # Reload images to ensure they are sized correctly for Focus Mode (Equal sizes)
+            if self.panel_curr.path:
+                self.load_triplet_view(self.panel_curr.path)
+            else:
+                self.refresh_active_view()
+        else:
+            # Disable Focus Mode
+            self.focus_frame.pack_forget()
+            self.notebook.pack(fill="both", expand=True)
+
+            if hasattr(main_app, 'toggle_sidebar'):
+                main_app.toggle_sidebar(True)
+
+            # Reload images to ensure they are sized correctly for Standard Mode (Large Main, Small Neighbors)
+            if self.panel_curr.path:
+                self.load_triplet_view(self.panel_curr.path)
+            else:
+                self.refresh_active_view()
 
     def create_image_panel(self, parent, title):
         frame = ttk.LabelFrame(parent, text=title)
@@ -1038,6 +1156,21 @@ class SharpnessTool(ttk.Frame):
         # Update Metadata immediately
         self.update_metadata_label(current_path)
 
+        # Clear current images to show loading state (avoids metadata/image mismatch)
+        self.current_triplet_images = (None, None, None)
+        self.refresh_active_view()
+
+        # Determine sizes based on mode
+        # Focus Mode: All same size (approx half screen height/width)
+        # Standard Mode: Main large, Neighbors small
+        if self.focus_mode:
+            # Target ~1/3 width of 1920px screen to prevent overflow
+            size_curr = (600, 450)
+            size_neighbors = (600, 450)
+        else:
+            size_curr = (800, 600)
+            size_neighbors = (400, 300)
+
         # Start background thread for loading images
         threading.Thread(
             target=self.load_images_background,
@@ -1077,6 +1210,7 @@ class SharpnessTool(ttk.Frame):
             aperture = exif.get("FNumber", "N/A")
             shutter = exif.get("ExposureTime", "N/A")
             cat_name = SharpnessCategories.get_name(res["category"])
+            cat_color = SharpnessCategories.get_color(res["category"])
 
             txt = (
                 f"File: {current_path.name}\n"
@@ -1134,8 +1268,14 @@ class SharpnessTool(ttk.Frame):
         self.parent.after(0, lambda: self.update_panels_final(p_img, c_img, n_img))
 
     def update_panels_final(self, p_img, c_img, n_img):
-        def set_img(panel, img):
-            lbl = panel.img_lbl
+        self.current_triplet_images = (p_img, c_img, n_img)
+        self.refresh_active_view()
+
+    def refresh_active_view(self):
+        p_img, c_img, n_img = self.current_triplet_images
+
+        # Helper to set image on a label
+        def set_lbl_img(lbl, img, fallback_text="No Image"):
             if img:
                 lbl.config(image=img, text="")
                 lbl.image = img
