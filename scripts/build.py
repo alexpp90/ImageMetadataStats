@@ -10,7 +10,7 @@ from pathlib import Path
 from generate_notices import generate_notices
 
 # Constants
-EXIFTOOL_VERSION = "13.45"
+EXIFTOOL_VERSION = "13.51"
 SF_BASE_URL = "https://sourceforge.net/projects/exiftool/files"
 
 PROJECT_ROOT = Path(__file__).parent.parent
