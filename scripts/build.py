@@ -177,6 +177,13 @@ def run_pyinstaller(target):
     print(f"Running: {' '.join(cmd)}")
     subprocess.run(cmd, check=True)
 
+    # Add ad-hoc signing for macOS .app bundles
+    if platform.system() == "Darwin" and target == "gui":
+        app_path = Path("dist") / "image-metadata-gui.app"
+        if app_path.exists():
+            print(f"Signing {app_path} with ad-hoc signature...")
+            subprocess.run(["codesign", "--force", "--deep", "--sign", "-", str(app_path)], check=True)
+
 def generate_icons_if_possible():
     # Only try generating icons on Linux, or if explicit env var is set.
     # On Windows/Mac, installing Cairo is tricky, so we rely on pre-generated assets.

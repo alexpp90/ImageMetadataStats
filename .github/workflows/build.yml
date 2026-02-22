@@ -63,7 +63,14 @@ jobs:
     - name: Build Executables
       run: poetry run python scripts/build.py
 
-    - name: Create Archive
+    - name: Create Archive (Unix)
+      if: runner.os != 'Windows'
+      run: |
+        cd dist
+        zip -r -y ../${{ matrix.artifact_name }}.zip .
+
+    - name: Create Archive (Windows)
+      if: runner.os == 'Windows'
       run: |
         # Create a zip archive of the dist directory
         # shutil.make_archive adds the .zip extension automatically
