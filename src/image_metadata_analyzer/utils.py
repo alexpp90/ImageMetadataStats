@@ -201,7 +201,7 @@ def aggregate_focal_lengths(focal_lengths: List[float], max_buckets: int = 25) -
 
     return result
 
-def load_image_preview(path: Path, max_size: Tuple[int, int] = (150, 150)) -> Optional[Image.Image]:
+def load_image_preview(path: Path, max_size: Tuple[int, int] = (150, 150), full_res: bool = False) -> Optional[Image.Image]:
     """
     Loads an image for preview, handling both standard formats (via Pillow)
     and RAW formats (via rawpy). Resizes the image to fit within max_size.
@@ -209,6 +209,7 @@ def load_image_preview(path: Path, max_size: Tuple[int, int] = (150, 150)) -> Op
     Args:
         path: Path to the image file.
         max_size: Tuple (width, height) for thumbnail size.
+        full_res: If True, loads the full resolution image (ignoring max_size).
 
     Returns:
         PIL Image object or None if loading fails.
@@ -224,7 +225,8 @@ def load_image_preview(path: Path, max_size: Tuple[int, int] = (150, 150)) -> Op
             try:
                 with rawpy.imread(str(path)) as raw:
                     # Fast processing for preview: half size, auto bright
-                    rgb = raw.postprocess(use_camera_wb=True, bright=1.0, half_size=True)
+                    # If full_res, disable half_size
+                    rgb = raw.postprocess(use_camera_wb=True, bright=1.0, half_size=not full_res)
                     img = Image.fromarray(rgb)
             except Exception as e:
                 # Log or just fall through to Pillow
@@ -235,7 +237,8 @@ def load_image_preview(path: Path, max_size: Tuple[int, int] = (150, 150)) -> Op
             img = Image.open(path)
 
         # Resize (thumbnail modifies in-place)
-        img.thumbnail(max_size)
+        if not full_res:
+            img.thumbnail(max_size)
         return img
 
     except Exception as e:
