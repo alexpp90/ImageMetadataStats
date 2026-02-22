@@ -567,6 +567,13 @@ class MainApp(tk.Tk):
         frame = self.frames[page_name]
         frame.tkraise()
 
+    def toggle_sidebar(self, visible):
+        if visible:
+            # Pack before content area to ensure it pushes content to the right
+            self.sidebar.pack(side="left", fill="y", before=self.content_area)
+        else:
+            self.sidebar.pack_forget()
+
 
 def main():
     app = MainApp()
