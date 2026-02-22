@@ -95,13 +95,7 @@ def find_duplicates(root_folder, callback=None):
     return duplicates
 
 def move_to_trash(filepath):
-    """Moves a file to the trash/recycle bin."""
-    try:
-        # send2trash expects a string, not a Path object on some versions/platforms,
-        # but modern versions usually handle it. To be safe, cast to str.
-        send2trash(str(filepath))
-        return True
-    except Exception as e:
-        # In a real app we might want to log this properly
-        print(f"Failed to move {filepath} to trash: {e}")
-        return False
+    """Moves a file to the trash/recycle bin. Raises exception on failure."""
+    # send2trash expects a string, not a Path object on some versions/platforms,
+    # but modern versions usually handle it. To be safe, cast to str.
+    send2trash(str(filepath))
