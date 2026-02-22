@@ -131,12 +131,18 @@ def run_pyinstaller(target):
         "poetry", "run", "pyinstaller",
         "--name", f"image-metadata-{target}",
         "--paths", "src",
-        "--onefile",
         "--distpath", "dist",
         "--add-data", add_data_arg,
         "--clean",
         "--noconfirm",
     ]
+
+    # Use onedir on macOS for faster startup and to avoid security issues
+    # Use onefile on other platforms for convenience
+    if platform.system() == "Darwin":
+        cmd.append("--onedir")
+    else:
+        cmd.append("--onefile")
 
     if target == "gui":
         # Add icon file to data
@@ -144,8 +150,9 @@ def run_pyinstaller(target):
         icon_dst = "."
         cmd.extend(["--add-data", f"{icon_src}{sep}{icon_dst}"])
 
-        # Add splash screen
-        cmd.extend(["--splash", "assets/logo.png"])
+        # Add splash screen (not supported on macOS)
+        if platform.system() != "Darwin":
+            cmd.extend(["--splash", "assets/logo.png"])
 
         # Set executable icon
         if platform.system() == "Windows":
