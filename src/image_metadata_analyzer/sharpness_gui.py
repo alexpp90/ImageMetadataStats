@@ -154,44 +154,41 @@ class SharpnessTool(ttk.Frame):
         self.preview_area = ttk.Frame(self.paned, padding=10)
         self.paned.add(self.preview_area, weight=4)
 
-        # 3-Panel Image View
-        self.image_container = ttk.Frame(self.preview_area)
-        self.image_container.pack(fill="both", expand=True)
+        # --- Top Container: Main Candidate + Controls ---
+        self.top_container = ttk.Frame(self.preview_area)
+        self.top_container.pack(side="top", fill="both", expand=True, pady=(0, 10))
 
-        # Configure columns for 3 images
-        self.image_container.columnconfigure(0, weight=1)
-        self.image_container.columnconfigure(1, weight=1)
-        self.image_container.columnconfigure(2, weight=1)
-        self.image_container.rowconfigure(0, weight=1)
+        # Current Candidate (Large, Centered)
+        self.panel_curr = self.create_image_panel(self.top_container, "Current Candidate")
+        self.panel_curr.pack(side="top", fill="both", expand=True)
 
-        # Prev
-        self.panel_prev = self.create_image_panel(self.image_container, "Previous")
-        self.panel_prev.grid(row=0, column=0, sticky="nsew", padx=2)
-
-        # Current
-        self.panel_curr = self.create_image_panel(self.image_container, "Candidate")
-        self.panel_curr.grid(row=0, column=1, sticky="nsew", padx=2)
-
-        # Next
-        self.panel_next = self.create_image_panel(self.image_container, "Next")
-        self.panel_next.grid(row=0, column=2, sticky="nsew", padx=2)
-
-        # Info & Actions
-        self.info_frame = ttk.Frame(self.preview_area, padding=10)
-        self.info_frame.pack(fill="x")
+        # Info & Actions (Below Candidate)
+        self.info_frame = ttk.Frame(self.top_container, padding=5)
+        self.info_frame.pack(side="top", fill="x", pady=5)
 
         # Metadata Label
-        self.meta_lbl = ttk.Label(self.info_frame, text="", font=("Helvetica", 10))
-        self.meta_lbl.pack(pady=5)
+        self.meta_lbl = ttk.Label(self.info_frame, text="", font=("Helvetica", 10), justify="center")
+        self.meta_lbl.pack(pady=2)
 
         # Buttons
         btn_frame = ttk.Frame(self.info_frame)
-        btn_frame.pack(pady=10)
+        btn_frame.pack(pady=5)
 
         ttk.Button(btn_frame, text="< Prev Candidate", command=self.prev_candidate).pack(side="left", padx=5)
         self.del_btn = ttk.Button(btn_frame, text="Delete Candidate (Trash)", command=self.delete_current_candidate)
         self.del_btn.pack(side="left", padx=20)
         ttk.Button(btn_frame, text="Next Candidate >", command=self.next_candidate).pack(side="left", padx=5)
+
+        # --- Bottom Container: Neighbors ---
+        self.bottom_container = ttk.Frame(self.preview_area)
+        self.bottom_container.pack(side="bottom", fill="x", ipady=5)
+
+        # Neighbors
+        self.panel_prev = self.create_image_panel(self.bottom_container, "Previous Image")
+        self.panel_prev.pack(side="left", fill="both", expand=True, padx=2)
+
+        self.panel_next = self.create_image_panel(self.bottom_container, "Next Image")
+        self.panel_next.pack(side="right", fill="both", expand=True, padx=2)
 
     def create_image_panel(self, parent, title):
         frame = ttk.LabelFrame(parent, text=title)
@@ -206,7 +203,56 @@ class SharpnessTool(ttk.Frame):
 
         frame.img_lbl = lbl # Store ref
         frame.details_lbl = details # Store ref
+        frame.path = None # Initialize path
+
+        # Bind click to fullscreen
+        lbl.bind("<Button-1>", lambda e: self.on_image_click(frame.path))
         return frame
+
+    def on_image_click(self, path):
+        if path:
+            self.show_fullscreen(path)
+
+    def show_fullscreen(self, path):
+        if not path or not path.exists():
+            return
+
+        top = tk.Toplevel(self)
+        top.title(f"Fullscreen - {path.name}")
+
+        # Configure fullscreen
+        top.attributes("-fullscreen", True)
+        top.bind("<Escape>", lambda e: top.destroy())
+
+        # UI
+        lbl = ttk.Label(top, text="Loading full resolution...", anchor="center", background="black", foreground="white")
+        lbl.pack(fill="both", expand=True)
+
+        # Close button
+        btn_close = ttk.Button(top, text="Close (Esc)", command=top.destroy)
+        btn_close.place(relx=0.95, rely=0.05, anchor="ne")
+
+        # Load image in background
+        def load_full():
+            try:
+                # Target a very large size for fullscreen
+                # Note: rawpy logic in utils.load_image_preview handles half_size=True, which is still large
+                img = load_image_preview(path, max_size=(3000, 2000))
+                if img:
+                    photo = ImageTk.PhotoImage(img)
+                    self.parent.after(0, lambda: display(photo))
+                else:
+                    self.parent.after(0, lambda: lbl.config(text="Failed to load image."))
+            except Exception as e:
+                logger.error(f"Fullscreen load error: {e}")
+                self.parent.after(0, lambda: lbl.config(text=f"Error: {e}"))
+
+        def display(photo):
+            if not top.winfo_exists(): return
+            lbl.config(image=photo, text="")
+            lbl.image = photo # Keep ref
+
+        threading.Thread(target=load_full, daemon=True).start()
 
     def browse_folder(self):
         folder = filedialog.askdirectory()
@@ -384,6 +430,11 @@ class SharpnessTool(ttk.Frame):
         prev_path = self.sorted_files[full_idx - 1] if full_idx > 0 else None
         next_path = self.sorted_files[full_idx + 1] if full_idx < len(self.sorted_files) - 1 else None
 
+        # Store paths in panels for fullscreen access
+        self.panel_prev.path = prev_path
+        self.panel_curr.path = current_path
+        self.panel_next.path = next_path
+
         # Load Images in background to prevent UI freeze
         # Set placeholders first
         self.set_placeholder(self.panel_prev, prev_path)
@@ -395,7 +446,7 @@ class SharpnessTool(ttk.Frame):
 
         # Start background thread for loading images
         threading.Thread(target=self.load_images_background,
-                         args=(prev_path, current_path, next_path),
+                         args=(prev_path, current_path, next_path, (800, 600), (400, 300)),
                          daemon=True).start()
 
     def set_placeholder(self, panel, path):
@@ -434,12 +485,12 @@ class SharpnessTool(ttk.Frame):
                    f"Aperture: {aperture}, Shutter: {shutter}")
             self.meta_lbl.config(text=txt)
 
-    def load_images_background(self, prev_path, curr_path, next_path):
+    def load_images_background(self, prev_path, curr_path, next_path, size_curr, size_neighbors):
         # Helper to load one image
-        def load_one(path):
+        def load_one(path, size):
             if path is None: return None
             try:
-                img = load_image_preview(path, max_size=(300, 300))
+                img = load_image_preview(path, max_size=size)
                 if img:
                     return ImageTk.PhotoImage(img)
                 return None
@@ -447,9 +498,9 @@ class SharpnessTool(ttk.Frame):
                 logger.error(f"Failed to load thumbnail for {path}: {e}")
                 return None
 
-        p_img = load_one(prev_path)
-        c_img = load_one(curr_path)
-        n_img = load_one(next_path)
+        p_img = load_one(prev_path, size_neighbors)
+        c_img = load_one(curr_path, size_curr)
+        n_img = load_one(next_path, size_neighbors)
 
         # Update UI in main thread
         self.parent.after(0, lambda: self.update_panels_final(p_img, c_img, n_img))
@@ -535,6 +586,7 @@ class SharpnessTool(ttk.Frame):
                     self.panel_curr.img_lbl.config(image='', text="No Candidates")
                     self.panel_prev.img_lbl.config(image='', text="")
                     self.panel_next.img_lbl.config(image='', text="")
-            elif failed_trash:
-                # If we had failures and files still remain (user said NO or delete failed)
-                messagebox.showwarning("Warning", f"Some files could not be deleted.")
+
+                    self.panel_curr.path = None
+                    self.panel_prev.path = None
+                    self.panel_next.path = None
