@@ -337,6 +337,7 @@ class SharpnessTool(ttk.Frame):
         self.default_blur_threshold = 100.0
         self.default_sharp_threshold = 500.0
         self.default_grid_size = "4x4"
+        self.focus_mode = False
 
         self.setup_ui()
         self.setup_focus_ui()
@@ -1169,12 +1170,12 @@ class SharpnessTool(ttk.Frame):
             size_neighbors = (600, 450)
         else:
             size_curr = (800, 600)
-            size_neighbors = (400, 300)
+            size_neighbors = (800, 600)
 
         # Start background thread for loading images
         threading.Thread(
             target=self.load_images_background,
-            args=(prev_path, current_path, next_path, (800, 600), (400, 300)),
+            args=(prev_path, current_path, next_path, size_curr, size_neighbors),
             daemon=True,
         ).start()
 
@@ -1275,16 +1276,17 @@ class SharpnessTool(ttk.Frame):
         p_img, c_img, n_img = self.current_triplet_images
 
         # Helper to set image on a label
-        def set_lbl_img(lbl, img, fallback_text="No Image"):
+        def set_panel_img(panel, img):
+            lbl = panel.img_lbl
             if img:
                 lbl.config(image=img, text="")
                 lbl.image = img
             elif lbl.cget("text") == "Loading...":
                 lbl.config(image="", text="Preview\nUnavailable")
 
-        set_img(self.panel_prev, p_img)
-        set_img(self.panel_curr, c_img)
-        set_img(self.panel_next, n_img)
+        set_panel_img(self.panel_prev, p_img)
+        set_panel_img(self.panel_curr, c_img)
+        set_panel_img(self.panel_next, n_img)
 
     def prev_candidate(self):
         sel = self.candidate_listbox.curselection()
