@@ -4,10 +4,12 @@ from collections import defaultdict
 from pathlib import Path
 from send2trash import send2trash
 
-IMAGE_EXTENSIONS = {
-    '.jpg', '.jpeg', '.tif', '.tiff', '.nef', '.cr2', '.arw',
-    '.dng', '.raw', '.png', '.webp', '.bmp', '.gif'
-}
+from image_metadata_analyzer.reader import SUPPORTED_EXTENSIONS
+
+# Extend supported extensions for duplicates to include basic formats
+# not necessarily supported by the metadata analyzer (like GIF/BMP)
+IMAGE_EXTENSIONS = SUPPORTED_EXTENSIONS | {'.bmp', '.gif'}
+
 
 def get_file_hash(filepath, block_size=65536):
     """Calculates the MD5 hash of a file."""
@@ -19,6 +21,7 @@ def get_file_hash(filepath, block_size=65536):
         return md5.hexdigest()
     except OSError:
         return None
+
 
 def find_duplicates(root_folder, callback=None):
     """
@@ -47,8 +50,6 @@ def find_duplicates(root_folder, callback=None):
 
     # Using a list to store all image paths first is fast enough for typical library sizes.
     # But checking size is also stat().
-
-    all_images = []
 
     # Initial scan
     for root, _, files in os.walk(root_path):
@@ -88,11 +89,12 @@ def find_duplicates(root_folder, callback=None):
             if len(paths) > 1:
                 duplicates.append({
                     'hash': h,
-                    'size': os.path.getsize(paths[0]), # Should be same as key of size_groups
-                    'files': sorted(paths) # Sort for consistent display
+                    'size': os.path.getsize(paths[0]),  # Should be same as key of size_groups
+                    'files': sorted(paths)  # Sort for consistent display
                 })
 
     return duplicates
+
 
 def move_to_trash(filepath):
     """Moves a file to the trash/recycle bin. Raises exception on failure."""
