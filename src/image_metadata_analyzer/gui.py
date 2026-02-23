@@ -493,7 +493,7 @@ class Sidebar(ttk.Frame):
             command=lambda: controller.show_frame("ImageLibraryStatistics")
         ).pack(fill="x", pady=5)
 
-        ttk.Button(self, text="Blurry Image Finder",
+        ttk.Button(self, text="Image Comparator",
                    command=lambda: controller.show_frame("SharpnessTool")).pack(fill="x", pady=5)
 
         ttk.Button(self, text="Duplicate Finder",
