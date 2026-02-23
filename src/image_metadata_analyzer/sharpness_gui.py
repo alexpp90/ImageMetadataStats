@@ -10,8 +10,6 @@ import send2trash
 # Local imports
 from image_metadata_analyzer.sharpness import (
     calculate_sharpness,
-    categorize_sharpness,
-    SharpnessCategories,
     find_related_files,
 )
 from image_metadata_analyzer.reader import get_exif_data
@@ -383,50 +381,9 @@ class SharpnessTool(ttk.Frame):
             row=0, column=2, pady=5
         )
 
-        # Thresholds
-        group = ttk.LabelFrame(container, text="Sharpness Thresholds", padding=10)
-        group.grid(row=1, column=0, columnspan=3, sticky="ew", pady=20)
-
-        # Blur Threshold
-        ttk.Label(group, text="Blurry Limit (<):").grid(row=0, column=0, padx=5)
-        self.blur_thresh_var = tk.DoubleVar(value=self.default_blur_threshold)
-        scale_blur = tk.Scale(
-            group,
-            variable=self.blur_thresh_var,
-            from_=0,
-            to=2000,
-            orient="horizontal",
-            length=200,
-        )
-        scale_blur.grid(row=0, column=1, padx=5)
-        ttk.Entry(group, textvariable=self.blur_thresh_var, width=8).grid(
-            row=0, column=2, padx=5
-        )
-
-        # Sharp Threshold
-        ttk.Label(group, text="Sharp Limit (>):").grid(row=1, column=0, padx=5)
-        self.sharp_thresh_var = tk.DoubleVar(value=self.default_sharp_threshold)
-        scale_sharp = tk.Scale(
-            group,
-            variable=self.sharp_thresh_var,
-            from_=0,
-            to=5000,
-            orient="horizontal",
-            length=200,
-        )
-        scale_sharp.grid(row=1, column=1, padx=5)
-        ttk.Entry(group, textvariable=self.sharp_thresh_var, width=8).grid(
-            row=1, column=2, padx=5
-        )
-
-        ttk.Label(
-            group,
-            text="(Scores depend on image resolution. Default values are estimates.)",
-        ).grid(row=2, column=0, columnspan=3, pady=5)
-
         # Grid Size Selection
         frame_grid = ttk.Frame(container)
-        frame_grid.grid(row=2, column=0, columnspan=3, pady=10, sticky="ew")
+        frame_grid.grid(row=1, column=0, columnspan=3, pady=10, sticky="ew")
 
         ttk.Label(frame_grid, text="Grid Analysis Size:").pack(side="left", padx=5)
         self.grid_size_var = tk.StringVar(value=self.default_grid_size)
@@ -447,7 +404,7 @@ class SharpnessTool(ttk.Frame):
         self.start_btn = ttk.Button(
             container, text="Start Sharpness Scan", command=self.start_scan
         )
-        self.start_btn.grid(row=3, column=0, columnspan=3, pady=20)
+        self.start_btn.grid(row=2, column=0, columnspan=3, pady=20)
 
     def setup_scan_ui(self):
         container = ttk.Frame(self.scan_frame, padding=20)
@@ -480,7 +437,7 @@ class SharpnessTool(ttk.Frame):
         self.sidebar = ttk.Frame(self.paned, width=250, padding=5)
         self.paned.add(self.sidebar, weight=1)
 
-        ttk.Label(self.sidebar, text="Candidates (Blurry/Acceptable)").pack(pady=5)
+        ttk.Label(self.sidebar, text="Images").pack(pady=5)
 
         # Scan Progress (Visible during review)
         self.scan_progress_frame = ttk.Frame(self.sidebar)
@@ -527,7 +484,7 @@ class SharpnessTool(ttk.Frame):
 
         # Current Candidate (Center)
         self.panel_curr = self.create_image_panel(
-            self.top_container, "Current Candidate"
+            self.top_container, "Current Image"
         )
         self.panel_curr.grid(row=0, column=1, padx=10)
 
@@ -638,7 +595,7 @@ class SharpnessTool(ttk.Frame):
         self.focus_score_lbl.pack(side="top", pady=5, anchor="w")
 
         self.focus_cat_lbl = ttk.Label(
-            self.focus_right_panel, text="Category", font=("Helvetica", 10)
+            self.focus_right_panel, text="", font=("Helvetica", 10)
         )
         self.focus_cat_lbl.pack(side="top", pady=5, anchor="w")
 
@@ -648,7 +605,7 @@ class SharpnessTool(ttk.Frame):
         self.focus_filename_lbl.pack(side="top", pady=5, anchor="w")
 
         self.focus_meta_lbl = ttk.Label(
-            self.focus_right_panel, text="Metadata", justify="left", wraplength=150
+            self.focus_right_panel, text="", justify="left", wraplength=150
         )
         self.focus_meta_lbl.pack(side="top", pady=5, anchor="w")
 
@@ -869,8 +826,17 @@ class SharpnessTool(ttk.Frame):
         with self.preloader_queue.mutex:
             self.preloader_queue.queue.clear()
 
+        # Parse grid size in main thread
+        grid_str = self.grid_size_var.get()
+        try:
+            # Extract first digit from "4x4" -> 4
+            grid_size = int(grid_str.split("x")[0])
+        except (ValueError, IndexError):
+            grid_size = 1
+            self.log(f"Warning: Invalid grid size '{grid_str}', defaulting to 1x1")
+
         threading.Thread(
-            target=self.run_scan_thread, args=(folder,), daemon=True
+            target=self.run_scan_thread, args=(folder, grid_size), daemon=True
         ).start()
         self.after(100, self.update_log_view)
 
@@ -879,7 +845,7 @@ class SharpnessTool(ttk.Frame):
             self.stop_event.set()
             self.log("Stopping scan...")
 
-    def run_scan_thread(self, folder_path):
+    def run_scan_thread(self, folder_path, grid_size):
         self.log(f"Scanning folder: {folder_path}")
 
         try:
@@ -910,17 +876,6 @@ class SharpnessTool(ttk.Frame):
             self.sorted_files = files
 
             total = len(files)
-            blur_t = self.blur_thresh_var.get()
-            sharp_t = self.sharp_thresh_var.get()
-
-            # Parse grid size
-            grid_str = self.grid_size_var.get()
-            try:
-                # Extract first digit from "4x4" -> 4
-                grid_size = int(grid_str.split("x")[0])
-            except (ValueError, IndexError):
-                grid_size = 1
-                self.log(f"Warning: Invalid grid size '{grid_str}', defaulting to 1x1")
 
             for i, f in enumerate(files):
                 if self.stop_event.is_set():
@@ -931,12 +886,11 @@ class SharpnessTool(ttk.Frame):
 
                 # Sharpness
                 score = calculate_sharpness(f, grid_size=grid_size)
-                cat = categorize_sharpness(score, blur_t, sharp_t)
 
                 # Exif (basic)
                 exif = get_exif_data(f) or {}
 
-                res = {"path": f, "score": score, "category": cat, "exif": exif}
+                res = {"path": f, "score": score, "exif": exif}
 
                 # Send result to main thread
                 self.parent.after(
@@ -972,40 +926,30 @@ class SharpnessTool(ttk.Frame):
             text=f"Scan Progress: {int(pct)}% ({current_idx}/{total_count})"
         )
 
-        # Handle Candidate
-        if result["category"] in [
-            SharpnessCategories.BLURRY,
-            SharpnessCategories.ACCEPTABLE,
-        ]:
-            path = result["path"]
-            self.candidates.append(path)
+        # Always add to candidates (Review List)
+        path = result["path"]
+        self.candidates.append(path)
 
-            # Add to listbox
-            cat_name = SharpnessCategories.get_name(result["category"])
-            self.candidate_listbox.insert("end", f"{path.name} ({cat_name})")
+        # Add to listbox
+        score_text = f"{result['score']:.1f}"
+        self.candidate_listbox.insert("end", f"{path.name} (Score: {score_text})")
 
-            # Color code
-            color = SharpnessCategories.get_color(result["category"])
-            idx = self.candidate_listbox.size() - 1
-            self.candidate_listbox.itemconfig(idx, {"fg": color})
+        # Auto-switch to review if we have enough candidates
+        if len(self.candidates) >= 3 and not self.has_switched_to_review:
+            self.switch_to_review_mode()
 
-            # Auto-switch to review if we have enough candidates
-            # The user requested switching "After the first 3 were scanned"
-            if len(self.candidates) >= 3 and not self.has_switched_to_review:
-                self.switch_to_review_mode()
+        # If we are already reviewing, this new candidate might be the "Next" one for the current view.
+        if self.has_switched_to_review:
+            sel = self.candidate_listbox.curselection()
+            if sel:
+                current_idx = sel[0]
+                new_idx = len(self.candidates) - 1
+                # If the new candidate is within the lookahead window (next 3), queue it
+                if current_idx < new_idx <= current_idx + 3:
+                    self.queue_candidate(new_idx)
 
-            # If we are already reviewing, this new candidate might be the "Next" one for the current view.
-            if self.has_switched_to_review:
-                sel = self.candidate_listbox.curselection()
-                if sel:
-                    current_idx = sel[0]
-                    new_idx = len(self.candidates) - 1
-                    # If the new candidate is within the lookahead window (next 3), queue it
-                    if current_idx < new_idx <= current_idx + 3:
-                        self.queue_candidate(new_idx)
-
-            # Update button states (e.g., enable "Next" if we were at the end)
-            self.update_button_states()
+        # Update button states (e.g., enable "Next" if we were at the end)
+        self.update_button_states()
 
     def switch_to_review_mode(self):
         self.has_switched_to_review = True
@@ -1027,11 +971,11 @@ class SharpnessTool(ttk.Frame):
         if self.candidates:
             if not self.has_switched_to_review:
                 self.switch_to_review_mode()
-            self.log(f"Found {len(self.candidates)} candidates for review.")
+            self.log(f"Found {len(self.candidates)} images for review.")
         else:
             messagebox.showinfo(
                 "Result",
-                "No blurry or 'acceptable' images found based on current thresholds.",
+                "No supported images found.",
             )
             self.notebook.select(0)
 
@@ -1252,42 +1196,60 @@ class SharpnessTool(ttk.Frame):
             return
 
         res = self.files_map.get(path)
-        cat_color = "black"
         score_txt = "N/A"
-        cat_name = ""
 
         if res:
-            cat_color = SharpnessCategories.get_color(res["category"])
             score_txt = f"{res['score']:.1f}"
-            cat_name = SharpnessCategories.get_name(res["category"])
 
         details.config(
-            text=f"{path.name}\n{cat_name} ({score_txt})", foreground=cat_color
+            text=f"{path.name}\nScore: {score_txt}", foreground="black"
         )
         lbl.config(image="", text="Loading...")
+
+    def _format_meta(self, val, unit=""):
+        if val is None or val == "N/A":
+            return "N/A"
+        if isinstance(val, float):
+            # Try to format nicely
+            if unit == "s":
+                if val < 1.0 and val > 0:
+                    # Fraction for shutter speed
+                    denom = int(round(1.0 / val))
+                    return f"1/{denom}s"
+                return f"{val}s"
+            if unit == "mm":
+                return f"{val:.0f}mm"
+            if unit == "f/":
+                return f"f/{val:.1f}"
+            return f"{val:.1f}"
+        return str(val)
 
     def update_metadata_label(self, current_path):
         res = self.files_map.get(current_path)
         if res:
             exif = res["exif"]
             score = res["score"]
-            aperture = exif.get("Aperture", "N/A")
-            shutter = exif.get("Shutter Speed", "N/A")
-            cat_name = SharpnessCategories.get_name(res["category"])
-            cat_color = SharpnessCategories.get_color(res["category"])
+
+            iso = self._format_meta(exif.get("ISO"), "")
+            shutter = self._format_meta(exif.get("Shutter Speed"), "s")
+            aperture = self._format_meta(exif.get("Aperture"), "f/")
+            focal = self._format_meta(exif.get("Focal Length"), "mm")
+
+            # ISO: 100 | 1/200s | f/2.8 | 50mm
+            meta_str = f"ISO: {iso} | {shutter} | {aperture} | {focal}"
 
             txt = (
                 f"File: {current_path.name}\n"
-                f"Category: {cat_name} (Score: {score:.1f})\n"
-                f"Aperture: {aperture}, Shutter: {shutter}"
+                f"Score: {score:.1f}\n"
+                f"{meta_str}"
             )
             self.meta_lbl.config(text=txt)
 
             # Update Focus Mode labels if they exist
             if hasattr(self, "focus_score_lbl"):
-                self.focus_score_lbl.config(text=f"Score: {score:.1f}", foreground=cat_color)
-                self.focus_cat_lbl.config(text=f"{cat_name}", foreground=cat_color)
-                self.focus_meta_lbl.config(text=f"Aperture: {aperture}\nShutter: {shutter}")
+                self.focus_score_lbl.config(text=f"Score: {score:.1f}", foreground="black")
+                self.focus_cat_lbl.config(text="", foreground="black")
+                self.focus_meta_lbl.config(text=meta_str)
                 self.focus_filename_lbl.config(text=current_path.name)
 
     def load_images_background(
