@@ -806,6 +806,10 @@ class SharpnessTool(ttk.Frame):
 
         self.open_fullscreen(frame.path, "100%", (rx, ry))
 
+    def on_image_click(self, path):
+        if path and path.exists():
+            self.open_fullscreen(path, "fit")
+
     def open_fullscreen(self, path, mode, focus=(0.5, 0.5)):
         # Check if file exists
         if path and path.exists():
@@ -1267,8 +1271,8 @@ class SharpnessTool(ttk.Frame):
         if res:
             exif = res["exif"]
             score = res["score"]
-            aperture = exif.get("FNumber", "N/A")
-            shutter = exif.get("ExposureTime", "N/A")
+            aperture = exif.get("Aperture", "N/A")
+            shutter = exif.get("Shutter Speed", "N/A")
             cat_name = SharpnessCategories.get_name(res["category"])
             cat_color = SharpnessCategories.get_color(res["category"])
 
