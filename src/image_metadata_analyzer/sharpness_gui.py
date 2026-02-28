@@ -1,18 +1,17 @@
-import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
-import threading
-import queue
 import logging
+import queue
+import threading
+import tkinter as tk
 from pathlib import Path
-from PIL import Image, ImageTk
-import send2trash
+from tkinter import filedialog, messagebox, ttk
 
-# Local imports
-from image_metadata_analyzer.sharpness import (
-    calculate_sharpness,
-    find_related_files,
-)
+import send2trash
+from PIL import Image, ImageTk
+
 from image_metadata_analyzer.reader import get_exif_data
+# Local imports
+from image_metadata_analyzer.sharpness import (calculate_sharpness,
+                                               find_related_files)
 from image_metadata_analyzer.utils import load_image_preview
 
 logger = logging.getLogger(__name__)
@@ -483,10 +482,9 @@ class SharpnessTool(ttk.Frame):
         ttk.Frame(self.top_container).grid(row=0, column=0, sticky="ew")
 
         # Current Candidate (Center)
-        self.panel_curr = self.create_image_panel(
-            self.top_container, "Current Image"
-        )
-        self.panel_curr.grid(row=0, column=1, padx=10)
+        self.panel_curr = self.create_image_panel(self.top_container, "Current Image")
+        # Using sticky="nsew" so it expands and centers properly if window shrinks
+        self.panel_curr.grid(row=0, column=1, padx=10, sticky="nsew")
 
         # Info & Actions (Right)
         self.info_frame = ttk.Frame(self.top_container, padding=5)
@@ -534,7 +532,7 @@ class SharpnessTool(ttk.Frame):
 
         # --- Bottom Container: Neighbors ---
         self.bottom_container = ttk.Frame(self.preview_area)
-        self.bottom_container.pack(side="bottom", fill="x", ipady=5)
+        self.bottom_container.pack(side="bottom", fill="both", expand=True, ipady=5)
 
         # Neighbors
         self.panel_prev = self.create_image_panel(
@@ -587,7 +585,9 @@ class SharpnessTool(ttk.Frame):
         )
         self.focus_exit_btn.pack(side="top", pady=10, fill="x")
 
-        ttk.Separator(self.focus_right_panel, orient="horizontal").pack(fill="x", pady=10)
+        ttk.Separator(self.focus_right_panel, orient="horizontal").pack(
+            fill="x", pady=10
+        )
 
         self.focus_score_lbl = ttk.Label(
             self.focus_right_panel, text="Score: --", font=("Helvetica", 12, "bold")
@@ -609,7 +609,9 @@ class SharpnessTool(ttk.Frame):
         )
         self.focus_meta_lbl.pack(side="top", pady=5, anchor="w")
 
-        ttk.Separator(self.focus_right_panel, orient="horizontal").pack(fill="x", pady=10)
+        ttk.Separator(self.focus_right_panel, orient="horizontal").pack(
+            fill="x", pady=10
+        )
 
         # Navigation & Actions
         self.focus_prev_btn = ttk.Button(
@@ -657,6 +659,17 @@ class SharpnessTool(ttk.Frame):
             "<Button-1>", lambda e: self.on_image_click(self.panel_next.path)
         )
 
+        # Add resize handlers for dynamic scaling
+        self.focus_curr_lbl.bind(
+            "<Configure>", lambda e: self.on_focus_label_resize(e, self.focus_curr_lbl)
+        )
+        self.focus_prev_lbl.bind(
+            "<Configure>", lambda e: self.on_focus_label_resize(e, self.focus_prev_lbl)
+        )
+        self.focus_next_lbl.bind(
+            "<Configure>", lambda e: self.on_focus_label_resize(e, self.focus_next_lbl)
+        )
+
         # Keyboard Bindings for Focus Mode
         self.focus_frame.bind("<Left>", lambda e: self.prev_candidate())
         self.focus_frame.bind("<Right>", lambda e: self.next_candidate())
@@ -671,7 +684,7 @@ class SharpnessTool(ttk.Frame):
 
         if self.focus_mode:
             # Enable Focus Mode
-            if hasattr(main_app, 'toggle_sidebar'):
+            if hasattr(main_app, "toggle_sidebar"):
                 main_app.toggle_sidebar(False)
 
             self.notebook.pack_forget()
@@ -688,7 +701,7 @@ class SharpnessTool(ttk.Frame):
             self.focus_frame.pack_forget()
             self.notebook.pack(fill="both", expand=True)
 
-            if hasattr(main_app, 'toggle_sidebar'):
+            if hasattr(main_app, "toggle_sidebar"):
                 main_app.toggle_sidebar(True)
 
             # Reload images to ensure they are sized correctly for Standard Mode (Large Main, Small Neighbors)
@@ -711,6 +724,11 @@ class SharpnessTool(ttk.Frame):
         frame.img_lbl = lbl  # Store ref
         frame.details_lbl = details  # Store ref
         frame.path = None  # Initialize path
+        frame.pil_image = None  # Reference to unscaled base image
+        frame.tk_image = None
+
+        # Responsive resize handler
+        frame.bind("<Configure>", lambda e: self.on_panel_resize(e, frame))
 
         # Bind click to fullscreen
         lbl.bind("<Button-1>", lambda e: self.on_thumbnail_single_click(e, frame))
@@ -719,6 +737,71 @@ class SharpnessTool(ttk.Frame):
         )
 
         return frame
+
+    def on_panel_resize(self, event, panel):
+        """Called when a panel resizes. Triggers image rescaling if available."""
+        if hasattr(self, "_resize_timer_" + str(id(panel))):
+            self.after_cancel(getattr(self, "_resize_timer_" + str(id(panel))))
+
+        # Debounce the resize to prevent lag
+        timer_id = self.after(100, lambda: self.scale_image_to_panel(panel))
+        setattr(self, "_resize_timer_" + str(id(panel)), timer_id)
+
+    def scale_image_to_panel(self, panel):
+        """Scales the panel's PIL image to fit its current label dimensions."""
+        if not hasattr(panel, "pil_image") or not panel.pil_image:
+            return
+
+        lbl = panel.img_lbl
+        lbl.update_idletasks()  # Ensure dimensions are correct
+
+        # Get dimensions of the label (the container)
+        w = lbl.winfo_width()
+        h = lbl.winfo_height()
+
+        # Fallback to sensible default if container is uninitialized (e.g. 1x1)
+        if w < 10 or h < 10:
+            w, h = panel.pil_image.size
+
+        try:
+            img_copy = panel.pil_image.copy()
+            img_copy.thumbnail((w, h), Image.Resampling.LANCZOS)
+            tk_img = ImageTk.PhotoImage(img_copy)
+
+            lbl.config(image=tk_img, text="")
+            lbl.image = tk_img  # Keep reference to prevent garbage collection
+        except Exception as e:
+            logger.error(f"Error scaling panel image: {e}")
+
+    def on_focus_label_resize(self, event, lbl):
+        """Called when a focus mode label resizes."""
+        if hasattr(self, "_resize_timer_f_" + str(id(lbl))):
+            self.after_cancel(getattr(self, "_resize_timer_f_" + str(id(lbl))))
+
+        timer_id = self.after(100, lambda: self.scale_image_to_focus_label(lbl))
+        setattr(self, "_resize_timer_f_" + str(id(lbl)), timer_id)
+
+    def scale_image_to_focus_label(self, lbl):
+        """Scales the PIL image stored on a focus label to fit its dimensions."""
+        if not hasattr(lbl, "pil_image") or not lbl.pil_image:
+            return
+
+        lbl.update_idletasks()
+        w = lbl.winfo_width()
+        h = lbl.winfo_height()
+
+        if w < 10 or h < 10:
+            w, h = lbl.pil_image.size
+
+        try:
+            img_copy = lbl.pil_image.copy()
+            img_copy.thumbnail((w, h), Image.Resampling.LANCZOS)
+            tk_img = ImageTk.PhotoImage(img_copy)
+
+            lbl.config(image=tk_img, text="")
+            lbl.image = tk_img
+        except Exception as e:
+            logger.error(f"Error scaling focus label image: {e}")
 
     def on_thumbnail_single_click(self, event, frame):
         if not frame.path:
@@ -1055,7 +1138,7 @@ class SharpnessTool(ttk.Frame):
         threading.Thread(target=self.run_full_res_preloader, daemon=True).start()
 
     def run_preloader(self):
-        CACHE_SIZE = (800, 600)
+        CACHE_SIZE = (1200, 900)
         while True:
             try:
                 path = self.preloader_queue.get()
@@ -1169,8 +1252,8 @@ class SharpnessTool(ttk.Frame):
 
         # Determine sizes based on mode
         # User requested "Same Size" for all 3 images in Standard Mode and Focus Mode
-        # Target size that fits 2 rows on a typical laptop screen (~900px height)
-        common_size = (600, 400)  # Width, Height
+        # Increased to utilize more space on 2K monitors (around 800px width as requested)
+        common_size = (800, 600)  # Width, Height
 
         if self.focus_mode:
             size_curr = common_size
@@ -1201,9 +1284,7 @@ class SharpnessTool(ttk.Frame):
         if res:
             score_txt = f"{res['score']:.1f}"
 
-        details.config(
-            text=f"{path.name}\nScore: {score_txt}", foreground="black"
-        )
+        details.config(text=f"{path.name}\nScore: {score_txt}", foreground="black")
         lbl.config(image="", text="Loading...")
 
     def _format_meta(self, val, unit=""):
@@ -1238,16 +1319,14 @@ class SharpnessTool(ttk.Frame):
             # ISO: 100 | 1/200s | f/2.8 | 50mm
             meta_str = f"ISO: {iso} | {shutter} | {aperture} | {focal}"
 
-            txt = (
-                f"File: {current_path.name}\n"
-                f"Score: {score:.1f}\n"
-                f"{meta_str}"
-            )
+            txt = f"File: {current_path.name}\n" f"Score: {score:.1f}\n" f"{meta_str}"
             self.meta_lbl.config(text=txt)
 
             # Update Focus Mode labels if they exist
             if hasattr(self, "focus_score_lbl"):
-                self.focus_score_lbl.config(text=f"Score: {score:.1f}", foreground="black")
+                self.focus_score_lbl.config(
+                    text=f"Score: {score:.1f}", foreground="black"
+                )
                 self.focus_cat_lbl.config(text="", foreground="black")
                 self.focus_meta_lbl.config(text=meta_str)
                 self.focus_filename_lbl.config(text=current_path.name)
@@ -1255,7 +1334,7 @@ class SharpnessTool(ttk.Frame):
     def load_images_background(
         self, prev_path, curr_path, next_path, size_curr, size_neighbors
     ):
-        CACHE_SIZE = (800, 600)
+        CACHE_SIZE = (1200, 900)
 
         def get_image(path, requested_size):
             if path is None:
@@ -1284,13 +1363,14 @@ class SharpnessTool(ttk.Frame):
             if not img:
                 return None
 
-            # 3. Resize for requested size (copy to avoid modifying cached)
+            # 3. Return the base unscaled PIL image.
+            # We scale it dynamically in the main thread to fit the UI panel perfectly.
             try:
                 img_copy = img.copy()
                 img_copy.thumbnail(requested_size, Image.Resampling.LANCZOS)
-                return ImageTk.PhotoImage(img_copy)
+                return img_copy
             except Exception as e:
-                logger.error(f"Error resizing {path}: {e}")
+                logger.error(f"Error preparing {path}: {e}")
                 return None
 
         p_img = get_image(prev_path, size_neighbors)
@@ -1310,9 +1390,10 @@ class SharpnessTool(ttk.Frame):
         if self.focus_mode:
             # Update Focus Mode
             def set_lbl(lbl, img, default_text):
+                lbl.pil_image = img  # Store unscaled image for resize events
+
                 if img:
-                    lbl.config(image=img, text="")
-                    lbl.image = img
+                    self.scale_image_to_focus_label(lbl)
                 else:
                     lbl.config(image="", text=default_text)
 
@@ -1323,9 +1404,11 @@ class SharpnessTool(ttk.Frame):
             # Helper to set image on a label
             def set_panel_img(panel, img):
                 lbl = panel.img_lbl
+                panel.pil_image = img  # Store raw PIL image
+
                 if img:
-                    lbl.config(image=img, text="")
-                    lbl.image = img
+                    # Initial display before resize event fires
+                    self.scale_image_to_panel(panel)
                 elif lbl.cget("text") == "Loading...":
                     lbl.config(image="", text="Preview\nUnavailable")
 
