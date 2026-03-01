@@ -657,6 +657,7 @@ class SharpnessTool(ttk.Frame):
         )
 
         # Split 50/50
+        self.focus_bottom_frame.rowconfigure(0, weight=1)
         self.focus_bottom_frame.columnconfigure(0, weight=1)
         self.focus_bottom_frame.columnconfigure(1, weight=1)
 
