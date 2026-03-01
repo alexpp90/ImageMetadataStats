@@ -1323,6 +1323,18 @@ files = [
     {file = "webencodings-0.5.1.tar.gz", hash = "sha256:b36a1c245f2d304965eb4e0a82848379241dc04b865afcc4aab16748587e1923"},
 ]
 
+[[package]]
+name = "xvfbwrapper"
+version = "0.2.21"
+description = "Manage headless displays with Xvfb (X virtual framebuffer)"
+optional = false
+python-versions = ">=3.10"
+groups = ["dev"]
+files = [
+    {file = "xvfbwrapper-0.2.21-py3-none-any.whl", hash = "sha256:77139907ecf7819b752d9dd5d7f65229c1c923e5093fa4ff2a0b166b42864cbb"},
+    {file = "xvfbwrapper-0.2.21.tar.gz", hash = "sha256:bad4c7a0d60feea5f8c7cb0c58bc20dfb48225ca50207e4d9e80360e88b1ecc9"},
+]
+
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<3.15"
