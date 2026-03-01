@@ -26,12 +26,6 @@ jobs:
           - os: macos-latest
             architecture: arm64
             artifact_name: image-metadata-analyzer-macos-apple-silicon
-          - os: macos-15
-            architecture: arm64
-            artifact_name: image-metadata-analyzer-macos-15
-          - os: macos-latest
-            architecture: x64
-            artifact_name: image-metadata-analyzer-macos-intel
           - os: windows-latest
             architecture: x64
             artifact_name: image-metadata-analyzer-windows-x64
