@@ -490,22 +490,18 @@ class SharpnessTool(ttk.Frame):
         self.top_container = ttk.Frame(self.preview_area)
         self.top_container.pack(side="top", fill="both", expand=True, pady=(0, 10))
 
-        # Grid Layout for Top Container (Image Center, Controls Right)
-        self.top_container.columnconfigure(0, weight=1)  # Spacer Left
-        self.top_container.columnconfigure(1, weight=2)  # Image Center (Match 50/50 split below)
-        self.top_container.columnconfigure(2, weight=1)  # Controls Right
+        # Grid Layout for Top Container (Image Left, Controls Right)
+        self.top_container.columnconfigure(0, weight=3)  # Image Left
+        self.top_container.columnconfigure(1, weight=1)  # Controls Right
 
-        # Spacer (Left)
-        ttk.Frame(self.top_container).grid(row=0, column=0, sticky="ew")
-
-        # Current Candidate (Center)
+        # Current Candidate (Left)
         self.panel_curr = self.create_image_panel(self.top_container, "Current Image")
         # Using sticky="nsew" so it expands and centers properly if window shrinks
-        self.panel_curr.grid(row=0, column=1, padx=10, sticky="nsew")
+        self.panel_curr.grid(row=0, column=0, padx=10, sticky="nsew")
 
         # Info & Actions (Right)
         self.info_frame = ttk.Frame(self.top_container, padding=5)
-        self.info_frame.grid(row=0, column=2, sticky="ns", padx=10)
+        self.info_frame.grid(row=0, column=1, sticky="ns", padx=10)
 
         # Metadata Label
         self.meta_lbl = ttk.Label(
@@ -568,19 +564,15 @@ class SharpnessTool(ttk.Frame):
         self.focus_frame.rowconfigure(0, weight=1)
         self.focus_frame.rowconfigure(1, weight=1)
 
-        # Columns for Top Row centering
-        self.focus_frame.columnconfigure(0, weight=1)  # Spacer Left
-        self.focus_frame.columnconfigure(1, weight=2)  # Image Center (Match 50/50 split below)
-        self.focus_frame.columnconfigure(2, weight=1)  # Controls Right
+        # Columns for Top Row
+        self.focus_frame.columnconfigure(0, weight=3)  # Image Left
+        self.focus_frame.columnconfigure(1, weight=1)  # Controls Right
 
         # --- Row 0: Main Area ---
 
-        # Left Spacer (Row 0, Col 0)
-        ttk.Frame(self.focus_frame).grid(row=0, column=0, sticky="ew")
-
-        # Center (Row 0, Col 1) - Current Candidate
+        # Left (Row 0, Col 0) - Current Candidate
         self.focus_curr_container = ttk.Frame(self.focus_frame)
-        self.focus_curr_container.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
+        self.focus_curr_container.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
         self.focus_curr_container.pack_propagate(False) # Stop label from resizing container
         self.focus_curr_container.grid_propagate(False)
 
@@ -592,9 +584,9 @@ class SharpnessTool(ttk.Frame):
             "<Button-1>", lambda e: self.on_image_click(self.panel_curr.path)
         )
 
-        # Right Gutter (Row 0, Col 2) - Controls
+        # Right Gutter (Row 0, Col 1) - Controls
         self.focus_right_panel = ttk.Frame(self.focus_frame)
-        self.focus_right_panel.grid(row=0, column=2, sticky="nsew", padx=10, pady=10)
+        self.focus_right_panel.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
 
         # Controls Stack
         self.focus_exit_btn = ttk.Button(
@@ -653,7 +645,7 @@ class SharpnessTool(ttk.Frame):
         # --- Row 1: Bottom Strip ---
         self.focus_bottom_frame = ttk.Frame(self.focus_frame)
         self.focus_bottom_frame.grid(
-            row=1, column=0, columnspan=3, sticky="nsew", pady=5
+            row=1, column=0, columnspan=2, sticky="nsew", pady=5
         )
 
         # Split 50/50
@@ -811,13 +803,16 @@ class SharpnessTool(ttk.Frame):
         if w < 10 or h < 10:
             w, h = panel.pil_image.size
 
-        # Calculate optimal 4:3 dimensions based on available space
-        if h > 0 and w / h > 4/3:
-            opt_w = int(h * 4/3)
-            opt_h = h
-        else:
-            opt_w = w
-            opt_h = int(w * 3/4)
+        # Calculate maximum scale factor that fits image into the container dimensions
+        img_w, img_h = panel.pil_image.size
+
+        # Avoid division by zero
+        if img_w == 0 or img_h == 0:
+            return
+
+        scale = min(w / img_w, h / img_h)
+        opt_w = int(img_w * scale)
+        opt_h = int(img_h * scale)
 
         try:
             img_copy = panel.pil_image.copy()
@@ -857,13 +852,16 @@ class SharpnessTool(ttk.Frame):
         if w < 10 or h < 10:
             w, h = lbl.pil_image.size
 
-        # Calculate optimal 4:3 dimensions based on available space
-        if h > 0 and w / h > 4/3:
-            opt_w = int(h * 4/3)
-            opt_h = h
-        else:
-            opt_w = w
-            opt_h = int(w * 3/4)
+        # Calculate maximum scale factor that fits image into the container dimensions
+        img_w, img_h = lbl.pil_image.size
+
+        # Avoid division by zero
+        if img_w == 0 or img_h == 0:
+            return
+
+        scale = min(w / img_w, h / img_h)
+        opt_w = int(img_w * scale)
+        opt_h = int(img_h * scale)
 
         try:
             img_copy = lbl.pil_image.copy()
@@ -1403,22 +1401,19 @@ class SharpnessTool(ttk.Frame):
             n_w = self.panel_next.img_container.winfo_width()
             n_h = self.panel_next.img_container.winfo_height()
 
-        # Use min to find a bounding box that ensures all 3 images are exactly the same size.
-        min_w = min(c_w, p_w, n_w)
-        min_h = min(c_h, p_h, n_h)
+        def _get_valid_size(w, h):
+            if w < 10 or h < 10:
+                return (800, 600)
+            return (w, h)
 
-        if min_w < 10 or min_h < 10:
-            common_size = (800, 600)
-        else:
-            common_size = (min_w, min_h)
-
-        size_curr = common_size
-        size_neighbors = common_size
+        size_curr = _get_valid_size(c_w, c_h)
+        size_prev = _get_valid_size(p_w, p_h)
+        size_next = _get_valid_size(n_w, n_h)
 
         # Start background thread for loading images
         threading.Thread(
             target=self.load_images_background,
-            args=(prev_path, current_path, next_path, size_curr, size_neighbors),
+            args=(prev_path, current_path, next_path, size_curr, size_prev, size_next),
             daemon=True,
         ).start()
 
@@ -1494,7 +1489,7 @@ class SharpnessTool(ttk.Frame):
                 self.focus_filename_lbl.config(text=current_path.name)
 
     def load_images_background(
-        self, prev_path, curr_path, next_path, size_curr, size_neighbors
+        self, prev_path, curr_path, next_path, size_curr, size_prev, size_next
     ):
         CACHE_SIZE = (1200, 900)
 
@@ -1535,9 +1530,9 @@ class SharpnessTool(ttk.Frame):
                 logger.error(f"Error preparing {path}: {e}")
                 return None
 
-        p_img = get_image(prev_path, size_neighbors)
+        p_img = get_image(prev_path, size_prev)
         c_img = get_image(curr_path, size_curr)
-        n_img = get_image(next_path, size_neighbors)
+        n_img = get_image(next_path, size_next)
 
         # Update UI in main thread
         self.parent.after(0, lambda: self.update_panels_final(p_img, c_img, n_img))
