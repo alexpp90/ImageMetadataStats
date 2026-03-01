@@ -333,7 +333,7 @@ class SharpnessTool(ttk.Frame):
         # Defaults
         self.default_blur_threshold = 100.0
         self.default_sharp_threshold = 500.0
-        self.default_grid_size = "4x4"
+        self.default_grid_size = "8x8"
         self.focus_mode = False
 
         self.setup_ui()
@@ -380,14 +380,21 @@ class SharpnessTool(ttk.Frame):
             row=0, column=2, pady=5
         )
 
-        # Grid Size Selection
-        frame_grid = ttk.Frame(container)
-        frame_grid.grid(row=1, column=0, columnspan=3, pady=10, sticky="ew")
+        # Tool Selection
+        tools_frame = ttk.LabelFrame(container, text="Analysis Tools", padding=10)
+        tools_frame.grid(row=1, column=0, columnspan=3, pady=10, sticky="ew")
 
-        ttk.Label(frame_grid, text="Grid Analysis Size:").pack(side="left", padx=5)
+        # Create rows for each tool inside tools_frame for better alignment
+        sharpness_row = ttk.Frame(tools_frame)
+        sharpness_row.pack(fill="x", pady=5)
+
+        self.tool_sharpness_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(sharpness_row, text="Sharpness Analysis", variable=self.tool_sharpness_var).pack(side="left", padx=5)
+
+        ttk.Label(sharpness_row, text="Grid Analysis Size:").pack(side="left", padx=(20, 5))
         self.grid_size_var = tk.StringVar(value=self.default_grid_size)
         grid_combo = ttk.Combobox(
-            frame_grid,
+            sharpness_row,
             textvariable=self.grid_size_var,
             values=["1x1 (Global)", "2x2", "3x3", "4x4", "5x5", "8x8"],
             state="readonly",
@@ -395,28 +402,25 @@ class SharpnessTool(ttk.Frame):
         )
         grid_combo.pack(side="left", padx=5)
         ttk.Label(
-            frame_grid,
+            sharpness_row,
             text="(Higher grid size helps find small sharp subjects in blurry backgrounds)",
         ).pack(side="left", padx=5)
 
-        # Tool Selection
-        tools_frame = ttk.LabelFrame(container, text="Analysis Tools", padding=10)
-        tools_frame.grid(row=2, column=0, columnspan=3, pady=10, sticky="ew")
-
-        self.tool_sharpness_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(tools_frame, text="Sharpness Analysis", variable=self.tool_sharpness_var).pack(side="left", padx=5)
-
+        dummy1_row = ttk.Frame(tools_frame)
+        dummy1_row.pack(fill="x", pady=5)
         self.tool_dummy1_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(tools_frame, text="Dummy Tool 1", variable=self.tool_dummy1_var).pack(side="left", padx=5)
+        ttk.Checkbutton(dummy1_row, text="Dummy Tool 1", variable=self.tool_dummy1_var).pack(side="left", padx=5)
 
+        dummy2_row = ttk.Frame(tools_frame)
+        dummy2_row.pack(fill="x", pady=5)
         self.tool_dummy2_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(tools_frame, text="Dummy Tool 2", variable=self.tool_dummy2_var).pack(side="left", padx=5)
+        ttk.Checkbutton(dummy2_row, text="Dummy Tool 2", variable=self.tool_dummy2_var).pack(side="left", padx=5)
 
         # Start Button
         self.start_btn = ttk.Button(
             container, text="Start Scan", command=self.start_scan
         )
-        self.start_btn.grid(row=3, column=0, columnspan=3, pady=20)
+        self.start_btn.grid(row=2, column=0, columnspan=3, pady=20)
 
     def setup_scan_ui(self):
         container = ttk.Frame(self.scan_frame, padding=20)
@@ -603,7 +607,7 @@ class SharpnessTool(ttk.Frame):
         )
 
         self.focus_score_lbl = ttk.Label(
-            self.focus_right_panel, text="Score: --", font=("Helvetica", 12, "bold")
+            self.focus_right_panel, text="Sharpness Score: --", font=("Helvetica", 12, "bold")
         )
         self.focus_score_lbl.pack(side="top", pady=5, anchor="w")
 
@@ -899,7 +903,7 @@ class SharpnessTool(ttk.Frame):
             # Initialize with N/A score and empty EXIF (fetch EXIF asynchronously if needed later)
             res = {"path": f, "score": "N/A", "exif": {}}
             self.files_map[f] = res
-            self.candidate_listbox.insert("end", f"{f.name} (Score: N/A)")
+            self.candidate_listbox.insert("end", f"{f.name} (Sharpness Score: N/A)")
 
         if self.candidates:
             self.notebook.tab(2, state="normal")
@@ -1086,7 +1090,7 @@ class SharpnessTool(ttk.Frame):
             # Delete and reinsert to update text, but maintain selection if it was selected
             is_selected = (self.candidate_listbox.curselection() == (idx,))
             self.candidate_listbox.delete(idx)
-            self.candidate_listbox.insert(idx, f"{path.name} (Score: {score_text})")
+            self.candidate_listbox.insert(idx, f"{path.name} (Sharpness Score: {score_text})")
             if is_selected:
                 self.candidate_listbox.selection_set(idx)
                 # Refresh metadata label
@@ -1359,7 +1363,7 @@ class SharpnessTool(ttk.Frame):
             else:
                 score_txt = str(score_val)
 
-        details.config(text=f"{path.name}\nScore: {score_txt}", foreground="black")
+        details.config(text=f"{path.name}\nSharpness Score: {score_txt}", foreground="black")
         lbl.config(image="", text="Loading...")
 
     def _format_meta(self, val, unit=""):
@@ -1399,13 +1403,13 @@ class SharpnessTool(ttk.Frame):
             # ISO: 100 | 1/200s | f/2.8 | 50mm
             meta_str = f"ISO: {iso} | {shutter} | {aperture} | {focal}"
 
-            txt = f"File: {current_path.name}\n" f"Score: {score_str}\n" f"{meta_str}"
+            txt = f"File: {current_path.name}\n" f"Sharpness Score: {score_str}\n" f"{meta_str}"
             self.meta_lbl.config(text=txt)
 
             # Update Focus Mode labels if they exist
             if hasattr(self, "focus_score_lbl"):
                 self.focus_score_lbl.config(
-                    text=f"Score: {score_str}", foreground="black"
+                    text=f"Sharpness Score: {score_str}", foreground="black"
                 )
                 self.focus_cat_lbl.config(text="", foreground="black")
                 self.focus_meta_lbl.config(text=meta_str)
