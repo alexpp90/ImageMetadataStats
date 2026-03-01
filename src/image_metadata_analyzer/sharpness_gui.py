@@ -492,7 +492,7 @@ class SharpnessTool(ttk.Frame):
 
         # Grid Layout for Top Container (Image Center, Controls Right)
         self.top_container.columnconfigure(0, weight=1)  # Spacer Left
-        self.top_container.columnconfigure(1, weight=0)  # Image Center
+        self.top_container.columnconfigure(1, weight=2)  # Image Center (Match 50/50 split below)
         self.top_container.columnconfigure(2, weight=1)  # Controls Right
 
         # Spacer (Left)
@@ -570,7 +570,7 @@ class SharpnessTool(ttk.Frame):
 
         # Columns for Top Row centering
         self.focus_frame.columnconfigure(0, weight=1)  # Spacer Left
-        self.focus_frame.columnconfigure(1, weight=0)  # Image Center
+        self.focus_frame.columnconfigure(1, weight=2)  # Image Center (Match 50/50 split below)
         self.focus_frame.columnconfigure(2, weight=1)  # Controls Right
 
         # --- Row 0: Main Area ---
@@ -1392,18 +1392,6 @@ class SharpnessTool(ttk.Frame):
 
             n_w = self.focus_next_container.winfo_width()
             n_h = self.focus_next_container.winfo_height()
-
-            # Use min to find a bounding box that ensures all 3 images are exactly the same size.
-            min_w = min(c_w, p_w, n_w)
-            min_h = min(c_h, p_h, n_h)
-
-            if min_w < 10 or min_h < 10:
-                common_size = (800, 600)
-            else:
-                common_size = (min_w, min_h)
-
-            size_curr = common_size
-            size_neighbors = common_size
         else:
             c_w = self.panel_curr.img_container.winfo_width()
             c_h = self.panel_curr.img_container.winfo_height()
@@ -1414,8 +1402,17 @@ class SharpnessTool(ttk.Frame):
             n_w = self.panel_next.img_container.winfo_width()
             n_h = self.panel_next.img_container.winfo_height()
 
-            size_curr = (max(800, c_w), max(600, c_h))
-            size_neighbors = (max(400, max(p_w, n_w)), max(300, max(p_h, n_h)))
+        # Use min to find a bounding box that ensures all 3 images are exactly the same size.
+        min_w = min(c_w, p_w, n_w)
+        min_h = min(c_h, p_h, n_h)
+
+        if min_w < 10 or min_h < 10:
+            common_size = (800, 600)
+        else:
+            common_size = (min_w, min_h)
+
+        size_curr = common_size
+        size_neighbors = common_size
 
         # Start background thread for loading images
         threading.Thread(
