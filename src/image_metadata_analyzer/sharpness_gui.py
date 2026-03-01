@@ -757,11 +757,17 @@ class SharpnessTool(ttk.Frame):
 
     def on_panel_resize(self, event, panel):
         """Called when a panel resizes. Triggers image rescaling if available."""
+        if hasattr(panel, "_last_width") and panel._last_width == event.width and panel._last_height == event.height:
+            return
+
+        panel._last_width = event.width
+        panel._last_height = event.height
+
         if hasattr(self, "_resize_timer_" + str(id(panel))):
             self.after_cancel(getattr(self, "_resize_timer_" + str(id(panel))))
 
-        # Debounce the resize to prevent lag
-        timer_id = self.after(100, lambda: self.scale_image_to_panel(panel))
+        # Debounce the resize to prevent lag (increased for optimization)
+        timer_id = self.after(300, lambda: self.scale_image_to_panel(panel))
         setattr(self, "_resize_timer_" + str(id(panel)), timer_id)
 
     def scale_image_to_panel(self, panel):
@@ -780,9 +786,17 @@ class SharpnessTool(ttk.Frame):
         if w < 10 or h < 10:
             w, h = panel.pil_image.size
 
+        # Calculate optimal 4:3 dimensions based on available space
+        if h > 0 and w / h > 4/3:
+            opt_w = int(h * 4/3)
+            opt_h = h
+        else:
+            opt_w = w
+            opt_h = int(w * 3/4)
+
         try:
             img_copy = panel.pil_image.copy()
-            img_copy.thumbnail((w, h), Image.Resampling.LANCZOS)
+            img_copy.thumbnail((opt_w, opt_h), Image.Resampling.LANCZOS)
             tk_img = ImageTk.PhotoImage(img_copy)
 
             lbl.config(image=tk_img, text="")
@@ -792,10 +806,17 @@ class SharpnessTool(ttk.Frame):
 
     def on_focus_label_resize(self, event, lbl):
         """Called when a focus mode label resizes."""
+        if hasattr(lbl, "_last_width") and lbl._last_width == event.width and lbl._last_height == event.height:
+            return
+
+        lbl._last_width = event.width
+        lbl._last_height = event.height
+
         if hasattr(self, "_resize_timer_f_" + str(id(lbl))):
             self.after_cancel(getattr(self, "_resize_timer_f_" + str(id(lbl))))
 
-        timer_id = self.after(100, lambda: self.scale_image_to_focus_label(lbl))
+        # Debounce the resize to prevent lag
+        timer_id = self.after(300, lambda: self.scale_image_to_focus_label(lbl))
         setattr(self, "_resize_timer_f_" + str(id(lbl)), timer_id)
 
     def scale_image_to_focus_label(self, lbl):
@@ -810,9 +831,17 @@ class SharpnessTool(ttk.Frame):
         if w < 10 or h < 10:
             w, h = lbl.pil_image.size
 
+        # Calculate optimal 4:3 dimensions based on available space
+        if h > 0 and w / h > 4/3:
+            opt_w = int(h * 4/3)
+            opt_h = h
+        else:
+            opt_w = w
+            opt_h = int(w * 3/4)
+
         try:
             img_copy = lbl.pil_image.copy()
-            img_copy.thumbnail((w, h), Image.Resampling.LANCZOS)
+            img_copy.thumbnail((opt_w, opt_h), Image.Resampling.LANCZOS)
             tk_img = ImageTk.PhotoImage(img_copy)
 
             lbl.config(image=tk_img, text="")
