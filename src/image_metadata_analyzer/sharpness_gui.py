@@ -389,7 +389,9 @@ class SharpnessTool(ttk.Frame):
         sharpness_row.pack(fill="x", pady=5)
 
         self.tool_sharpness_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(sharpness_row, text="Sharpness Analysis", variable=self.tool_sharpness_var).pack(side="left", padx=5)
+        ttk.Checkbutton(
+            sharpness_row, text="Sharpness Analysis", variable=self.tool_sharpness_var
+        ).pack(side="left", padx=5)
 
         ttk.Label(sharpness_row, text="Grid Analysis Size:").pack(side="left", padx=(20, 5))
         self.grid_size_var = tk.StringVar(value=self.default_grid_size)
@@ -570,7 +572,7 @@ class SharpnessTool(ttk.Frame):
 
         # Columns for Top Row centering
         self.focus_frame.columnconfigure(0, weight=1)  # Spacer Left
-        self.focus_frame.columnconfigure(1, weight=0)  # Image Center
+        self.focus_frame.columnconfigure(1, weight=1)  # Image Center
         self.focus_frame.columnconfigure(2, weight=1)  # Controls Right
 
         # --- Row 0: Main Area ---
@@ -581,7 +583,7 @@ class SharpnessTool(ttk.Frame):
         # Center (Row 0, Col 1) - Current Candidate
         self.focus_curr_container = ttk.Frame(self.focus_frame)
         self.focus_curr_container.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
-        self.focus_curr_container.pack_propagate(False) # Stop label from resizing container
+        self.focus_curr_container.pack_propagate(False)  # Stop label from resizing container
         self.focus_curr_container.grid_propagate(False)
 
         self.focus_curr_lbl = ttk.Label(
@@ -750,7 +752,7 @@ class SharpnessTool(ttk.Frame):
         # Image Container Frame
         img_container = ttk.Frame(frame)
         img_container.pack(fill="both", expand=True)
-        img_container.pack_propagate(False) # Stop the label from resizing the container
+        img_container.pack_propagate(False)  # Stop the label from resizing the container
 
         # Image Label (Placeholder)
         lbl = ttk.Label(img_container, text="No Image", anchor="center")
@@ -760,7 +762,7 @@ class SharpnessTool(ttk.Frame):
         details = ttk.Label(frame, text="", font=("Helvetica", 9))
         details.pack(fill="x")
 
-        frame.img_container = img_container # Store ref
+        frame.img_container = img_container  # Store ref
         frame.img_lbl = lbl  # Store ref
         frame.details_lbl = details  # Store ref
         frame.path = None  # Initialize path
@@ -830,49 +832,63 @@ class SharpnessTool(ttk.Frame):
 
     def on_focus_label_resize(self, event, lbl):
         """Called when a focus mode label resizes."""
-        if hasattr(lbl, "_last_width") and lbl._last_width == event.width and lbl._last_height == event.height:
+        # For focus mode, we want to scale ALL images simultaneously when ANY container resizes
+        # to ensure they all share the exact same dimensions.
+        if hasattr(self, "_resize_timer_f"):
+            self.after_cancel(getattr(self, "_resize_timer_f"))
+
+        # Debounce the resize to prevent lag and ensure all containers have finished resizing
+        timer_id = self.after(300, self.scale_all_focus_labels)
+        setattr(self, "_resize_timer_f", timer_id)
+
+    def scale_all_focus_labels(self):
+        """Scales all PIL images stored on focus labels to identically fit within the smallest available container."""
+        containers = [self.focus_curr_container, self.focus_prev_container, self.focus_next_container]
+        labels = [self.focus_curr_lbl, self.focus_prev_lbl, self.focus_next_lbl]
+
+        for c in containers:
+            c.update_idletasks()
+
+        # Find the smallest bounding box among the 3 containers
+        widths = [c.winfo_width() for c in containers if c.winfo_width() > 10]
+        heights = [c.winfo_height() for c in containers if c.winfo_height() > 10]
+
+        if not widths or not heights:
             return
 
-        lbl._last_width = event.width
-        lbl._last_height = event.height
+        min_w = min(widths)
+        min_h = min(heights)
 
-        if hasattr(self, "_resize_timer_f_" + str(id(lbl))):
-            self.after_cancel(getattr(self, "_resize_timer_f_" + str(id(lbl))))
-
-        # Debounce the resize to prevent lag
-        timer_id = self.after(300, lambda: self.scale_image_to_focus_label(lbl))
-        setattr(self, "_resize_timer_f_" + str(id(lbl)), timer_id)
-
-    def scale_image_to_focus_label(self, lbl):
-        """Scales the PIL image stored on a focus label to fit its dimensions."""
-        if not hasattr(lbl, "pil_image") or not lbl.pil_image:
-            return
-
-        container = lbl.container
-        container.update_idletasks()
-        w = container.winfo_width()
-        h = container.winfo_height()
-
-        if w < 10 or h < 10:
-            w, h = lbl.pil_image.size
-
-        # Calculate optimal 4:3 dimensions based on available space
-        if h > 0 and w / h > 4/3:
-            opt_w = int(h * 4/3)
-            opt_h = h
+        # Calculate optimal 4:3 dimensions based on the smallest available container
+        if min_h > 0 and min_w / min_h > 4/3:
+            opt_w = int(min_h * 4/3)
+            opt_h = min_h
         else:
-            opt_w = w
-            opt_h = int(w * 3/4)
+            opt_w = min_w
+            opt_h = int(min_w * 3/4)
 
-        try:
-            img_copy = lbl.pil_image.copy()
-            img_copy.thumbnail((opt_w, opt_h), Image.Resampling.LANCZOS)
-            tk_img = ImageTk.PhotoImage(img_copy)
+        if opt_w <= 0 or opt_h <= 0:
+            return
 
-            lbl.config(image=tk_img, text="")
-            lbl.image = tk_img
-        except Exception as e:
-            logger.error(f"Error scaling focus label image: {e}")
+        # Check if size actually changed to prevent infinite loops
+        if hasattr(self, "_last_focus_opt_size") and self._last_focus_opt_size == (opt_w, opt_h):
+            return
+
+        self._last_focus_opt_size = (opt_w, opt_h)
+
+        for lbl in labels:
+            if not hasattr(lbl, "pil_image") or not lbl.pil_image:
+                continue
+
+            try:
+                img_copy = lbl.pil_image.copy()
+                img_copy.thumbnail((opt_w, opt_h), Image.Resampling.LANCZOS)
+                tk_img = ImageTk.PhotoImage(img_copy)
+
+                lbl.config(image=tk_img, text="")
+                lbl.image = tk_img
+            except Exception as e:
+                logger.error(f"Error scaling focus label image: {e}")
 
     def on_thumbnail_single_click(self, event, frame):
         if not frame.path:
@@ -1555,15 +1571,18 @@ class SharpnessTool(ttk.Frame):
             # Update Focus Mode
             def set_lbl(lbl, img, default_text):
                 lbl.pil_image = img  # Store unscaled image for resize events
-
-                if img:
-                    self.scale_image_to_focus_label(lbl)
-                else:
+                if not img:
                     lbl.config(image="", text=default_text)
+
+            # Clear cache for size
+            if hasattr(self, "_last_focus_opt_size"):
+                del self._last_focus_opt_size
 
             set_lbl(self.focus_prev_lbl, p_img, "Prev")
             set_lbl(self.focus_curr_lbl, c_img, "No Image")
             set_lbl(self.focus_next_lbl, n_img, "Next")
+
+            self.scale_all_focus_labels()
         else:
             # Helper to set image on a label
             def set_panel_img(panel, img):
