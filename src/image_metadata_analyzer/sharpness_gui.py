@@ -581,6 +581,8 @@ class SharpnessTool(ttk.Frame):
         # Center (Row 0, Col 1) - Current Candidate
         self.focus_curr_container = ttk.Frame(self.focus_frame)
         self.focus_curr_container.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
+        self.focus_curr_container.pack_propagate(False) # Stop label from resizing container
+        self.focus_curr_container.grid_propagate(False)
 
         self.focus_curr_lbl = ttk.Label(
             self.focus_curr_container, text="No Image", anchor="center"
@@ -659,31 +661,46 @@ class SharpnessTool(ttk.Frame):
         self.focus_bottom_frame.columnconfigure(1, weight=1)
 
         # Bottom Left (Prev)
+        self.focus_prev_container = ttk.Frame(self.focus_bottom_frame)
+        self.focus_prev_container.grid(row=0, column=0, sticky="nsew", padx=5)
+        self.focus_prev_container.pack_propagate(False)
+        self.focus_prev_container.grid_propagate(False)
+
         self.focus_prev_lbl = ttk.Label(
-            self.focus_bottom_frame, text="Prev", anchor="center", relief="sunken"
+            self.focus_prev_container, text="Prev", anchor="center", relief="sunken"
         )
-        self.focus_prev_lbl.grid(row=0, column=0, sticky="nsew", padx=5)
+        self.focus_prev_lbl.pack(fill="both", expand=True)
         self.focus_prev_lbl.bind(
             "<Button-1>", lambda e: self.on_image_click(self.panel_prev.path)
         )
 
         # Bottom Right (Next)
+        self.focus_next_container = ttk.Frame(self.focus_bottom_frame)
+        self.focus_next_container.grid(row=0, column=1, sticky="nsew", padx=5)
+        self.focus_next_container.pack_propagate(False)
+        self.focus_next_container.grid_propagate(False)
+
         self.focus_next_lbl = ttk.Label(
-            self.focus_bottom_frame, text="Next", anchor="center", relief="sunken"
+            self.focus_next_container, text="Next", anchor="center", relief="sunken"
         )
-        self.focus_next_lbl.grid(row=0, column=1, sticky="nsew", padx=5)
+        self.focus_next_lbl.pack(fill="both", expand=True)
         self.focus_next_lbl.bind(
             "<Button-1>", lambda e: self.on_image_click(self.panel_next.path)
         )
 
-        # Add resize handlers for dynamic scaling
-        self.focus_curr_lbl.bind(
+        # Store container references on labels
+        self.focus_curr_lbl.container = self.focus_curr_container
+        self.focus_prev_lbl.container = self.focus_prev_container
+        self.focus_next_lbl.container = self.focus_next_container
+
+        # Add resize handlers to containers
+        self.focus_curr_container.bind(
             "<Configure>", lambda e: self.on_focus_label_resize(e, self.focus_curr_lbl)
         )
-        self.focus_prev_lbl.bind(
+        self.focus_prev_container.bind(
             "<Configure>", lambda e: self.on_focus_label_resize(e, self.focus_prev_lbl)
         )
-        self.focus_next_lbl.bind(
+        self.focus_next_container.bind(
             "<Configure>", lambda e: self.on_focus_label_resize(e, self.focus_next_lbl)
         )
 
@@ -730,14 +747,20 @@ class SharpnessTool(ttk.Frame):
     def create_image_panel(self, parent, title):
         frame = ttk.LabelFrame(parent, text=title)
 
+        # Image Container Frame
+        img_container = ttk.Frame(frame)
+        img_container.pack(fill="both", expand=True)
+        img_container.pack_propagate(False) # Stop the label from resizing the container
+
         # Image Label (Placeholder)
-        lbl = ttk.Label(frame, text="No Image", anchor="center")
+        lbl = ttk.Label(img_container, text="No Image", anchor="center")
         lbl.pack(fill="both", expand=True)
 
         # Details
         details = ttk.Label(frame, text="", font=("Helvetica", 9))
         details.pack(fill="x")
 
+        frame.img_container = img_container # Store ref
         frame.img_lbl = lbl  # Store ref
         frame.details_lbl = details  # Store ref
         frame.path = None  # Initialize path
@@ -745,7 +768,7 @@ class SharpnessTool(ttk.Frame):
         frame.tk_image = None
 
         # Responsive resize handler
-        frame.bind("<Configure>", lambda e: self.on_panel_resize(e, frame))
+        img_container.bind("<Configure>", lambda e: self.on_panel_resize(e, frame))
 
         # Bind click to fullscreen
         lbl.bind("<Button-1>", lambda e: self.on_thumbnail_single_click(e, frame))
@@ -775,12 +798,13 @@ class SharpnessTool(ttk.Frame):
         if not hasattr(panel, "pil_image") or not panel.pil_image:
             return
 
+        img_container = panel.img_container
         lbl = panel.img_lbl
-        lbl.update_idletasks()  # Ensure dimensions are correct
+        img_container.update_idletasks()  # Ensure dimensions are correct
 
-        # Get dimensions of the label (the container)
-        w = lbl.winfo_width()
-        h = lbl.winfo_height()
+        # Get dimensions of the image container
+        w = img_container.winfo_width()
+        h = img_container.winfo_height()
 
         # Fallback to sensible default if container is uninitialized (e.g. 1x1)
         if w < 10 or h < 10:
@@ -824,9 +848,10 @@ class SharpnessTool(ttk.Frame):
         if not hasattr(lbl, "pil_image") or not lbl.pil_image:
             return
 
-        lbl.update_idletasks()
-        w = lbl.winfo_width()
-        h = lbl.winfo_height()
+        container = lbl.container
+        container.update_idletasks()
+        w = container.winfo_width()
+        h = container.winfo_height()
 
         if w < 10 or h < 10:
             w, h = lbl.pil_image.size
@@ -1354,17 +1379,43 @@ class SharpnessTool(ttk.Frame):
         self.current_triplet_images = (None, None, None)
         self.refresh_active_view()
 
-        # Determine sizes based on mode
-        # User requested "Same Size" for all 3 images in Standard Mode and Focus Mode
-        # Increased to utilize more space on 2K monitors (around 800px width as requested)
-        common_size = (800, 600)  # Width, Height
+        # Ensure dimensions are up to date
+        self.update_idletasks()
 
+        # Get actual sizes from containers to load images at the correct size instantly
         if self.focus_mode:
+            c_w = self.focus_curr_container.winfo_width()
+            c_h = self.focus_curr_container.winfo_height()
+
+            p_w = self.focus_prev_container.winfo_width()
+            p_h = self.focus_prev_container.winfo_height()
+
+            n_w = self.focus_next_container.winfo_width()
+            n_h = self.focus_next_container.winfo_height()
+
+            # Use min to find a bounding box that ensures all 3 images are exactly the same size.
+            min_w = min(c_w, p_w, n_w)
+            min_h = min(c_h, p_h, n_h)
+
+            if min_w < 10 or min_h < 10:
+                common_size = (800, 600)
+            else:
+                common_size = (min_w, min_h)
+
             size_curr = common_size
             size_neighbors = common_size
         else:
-            size_curr = common_size
-            size_neighbors = common_size
+            c_w = self.panel_curr.img_container.winfo_width()
+            c_h = self.panel_curr.img_container.winfo_height()
+
+            p_w = self.panel_prev.img_container.winfo_width()
+            p_h = self.panel_prev.img_container.winfo_height()
+
+            n_w = self.panel_next.img_container.winfo_width()
+            n_h = self.panel_next.img_container.winfo_height()
+
+            size_curr = (max(800, c_w), max(600, c_h))
+            size_neighbors = (max(400, max(p_w, n_w)), max(300, max(p_h, n_h)))
 
         # Start background thread for loading images
         threading.Thread(
