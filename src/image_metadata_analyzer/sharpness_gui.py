@@ -565,7 +565,7 @@ class SharpnessTool(ttk.Frame):
         self.focus_frame.rowconfigure(1, weight=1)
 
         # Columns for Top Row
-        self.focus_frame.columnconfigure(0, weight=3)  # Image Left
+        self.focus_frame.columnconfigure(0, weight=1)  # Image Left
         self.focus_frame.columnconfigure(1, weight=1)  # Controls Right
 
         # --- Row 0: Main Area ---
