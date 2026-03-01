@@ -399,11 +399,24 @@ class SharpnessTool(ttk.Frame):
             text="(Higher grid size helps find small sharp subjects in blurry backgrounds)",
         ).pack(side="left", padx=5)
 
+        # Tool Selection
+        tools_frame = ttk.LabelFrame(container, text="Analysis Tools", padding=10)
+        tools_frame.grid(row=2, column=0, columnspan=3, pady=10, sticky="ew")
+
+        self.tool_sharpness_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(tools_frame, text="Sharpness Analysis", variable=self.tool_sharpness_var).pack(side="left", padx=5)
+
+        self.tool_dummy1_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(tools_frame, text="Dummy Tool 1", variable=self.tool_dummy1_var).pack(side="left", padx=5)
+
+        self.tool_dummy2_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(tools_frame, text="Dummy Tool 2", variable=self.tool_dummy2_var).pack(side="left", padx=5)
+
         # Start Button
         self.start_btn = ttk.Button(
-            container, text="Start Sharpness Scan", command=self.start_scan
+            container, text="Start Scan", command=self.start_scan
         )
-        self.start_btn.grid(row=2, column=0, columnspan=3, pady=20)
+        self.start_btn.grid(row=3, column=0, columnspan=3, pady=20)
 
     def setup_scan_ui(self):
         container = ttk.Frame(self.scan_frame, padding=20)
@@ -859,6 +872,50 @@ class SharpnessTool(ttk.Frame):
         folder = filedialog.askdirectory()
         if folder:
             self.folder_var.set(folder)
+            self._load_folder_contents(folder)
+
+    def _load_folder_contents(self, folder_path):
+        """Finds all supported images in the selected folder and populates the Review tab."""
+        # Block the UI briefly
+        self.config(cursor="watch")
+        self.update()
+
+        p = Path(folder_path)
+        extensions = {
+            ".jpg", ".jpeg", ".tif", ".tiff", ".nef",
+            ".cr2", ".arw", ".dng", ".raw", ".heic", ".heif", ".png", ".webp"
+        }
+        files = [f for f in p.rglob("*") if f.suffix.lower() in extensions]
+        files.sort(key=lambda x: x.name)
+
+        self.sorted_files = files
+        self.candidates = files.copy()
+        self.scan_results = []
+        self.files_map = {}
+
+        self.candidate_listbox.delete(0, "end")
+
+        for f in self.sorted_files:
+            # Initialize with N/A score and empty EXIF (fetch EXIF asynchronously if needed later)
+            res = {"path": f, "score": "N/A", "exif": {}}
+            self.files_map[f] = res
+            self.candidate_listbox.insert("end", f"{f.name} (Score: N/A)")
+
+        if self.candidates:
+            self.notebook.tab(2, state="normal")
+            self.log(f"Loaded {len(self.candidates)} images. Ready for review.")
+
+            # Select first item
+            self.candidate_listbox.selection_set(0)
+            self.on_candidate_select(None)
+        else:
+            self.notebook.tab(2, state="disabled")
+            self.log("No supported images found in the selected folder.")
+            messagebox.showinfo("Folder Load", "No supported images found in the selected folder.")
+
+        # Restore UI cursor
+        self.config(cursor="")
+        self.update()
 
     def log(self, msg):
         self.log_queue.put(msg)
@@ -886,9 +943,11 @@ class SharpnessTool(ttk.Frame):
         self.is_scanning = True
         self.stop_event.clear()
 
-        # Switch to Scan Tab
+        # Switch to Review Tab (as requested)
+        self.notebook.tab(2, state="normal")
+        self.notebook.select(2)
+        # We also enable Scan Tab so the user can look at the raw logs if they want to
         self.notebook.tab(1, state="normal")
-        self.notebook.select(1)
         self.notebook.tab(0, state="disabled")
 
         self.log_text.config(state="normal")
@@ -898,16 +957,20 @@ class SharpnessTool(ttk.Frame):
         self.progress_var.set(0)
         self.review_progress_var.set(0)
         self.review_status_lbl.config(text="Scan Progress: 0%")
-        self.scan_results = []
-        self.files_map = {}
-        self.candidates = []
-        self.candidate_listbox.delete(0, "end")
+        # We don't reset these because they were populated during _load_folder_contents
+        # self.scan_results = []
+        # self.files_map = {}
+        # self.candidates = []
+        # self.candidate_listbox.delete(0, "end")
         self.has_switched_to_review = False
 
         # Reset cache
         self.image_cache.clear()
         with self.preloader_queue.mutex:
             self.preloader_queue.queue.clear()
+
+        # Switch to review tab immediately as requested
+        self.switch_to_review_mode()
 
         # Parse grid size in main thread
         grid_str = self.grid_size_var.get()
@@ -918,8 +981,13 @@ class SharpnessTool(ttk.Frame):
             grid_size = 1
             self.log(f"Warning: Invalid grid size '{grid_str}', defaulting to 1x1")
 
+        # Pass the tool configuration
+        tools = {
+            "sharpness": self.tool_sharpness_var.get()
+        }
+
         threading.Thread(
-            target=self.run_scan_thread, args=(folder, grid_size), daemon=True
+            target=self.run_scan_thread, args=(folder, grid_size, tools), daemon=True
         ).start()
         self.after(100, self.update_log_view)
 
@@ -928,35 +996,18 @@ class SharpnessTool(ttk.Frame):
             self.stop_event.set()
             self.log("Stopping scan...")
 
-    def run_scan_thread(self, folder_path, grid_size):
+    def run_scan_thread(self, folder_path, grid_size, tools):
         self.log(f"Scanning folder: {folder_path}")
 
         try:
-            p = Path(folder_path)
-            # Recursive scan
-            extensions = {
-                ".jpg",
-                ".jpeg",
-                ".tif",
-                ".tiff",
-                ".nef",
-                ".cr2",
-                ".arw",
-                ".dng",
-                ".raw",
-            }
-            files = [f for f in p.rglob("*") if f.suffix.lower() in extensions]
+            files = self.sorted_files
 
             if not files:
-                self.log("No supported images found.")
+                self.log("No images to scan.")
                 self.parent.after(0, self.scan_finished)
                 return
 
-            self.log(f"Found {len(files)} images. Starting analysis...")
-
-            # Sort files alphabetically to handle previous/next logic
-            files.sort(key=lambda x: x.name)
-            self.sorted_files = files
+            self.log(f"Scanning {len(files)} images. Starting analysis...")
 
             total = len(files)
 
@@ -967,10 +1018,11 @@ class SharpnessTool(ttk.Frame):
 
                 self.log(f"Analyzing {f.name}...")
 
-                # Sharpness
-                score = calculate_sharpness(f, grid_size=grid_size)
+                score = "N/A"
+                if tools.get("sharpness", False):
+                    score = calculate_sharpness(f, grid_size=grid_size)
 
-                # Exif (basic)
+                # Fetch EXIF
                 exif = get_exif_data(f) or {}
 
                 res = {"path": f, "score": score, "exif": exif}
@@ -998,8 +1050,20 @@ class SharpnessTool(ttk.Frame):
             return
 
         # Update lists
-        self.scan_results.append(result)
-        self.files_map[result["path"]] = result
+        # We replace the entry instead of appending it if it already exists
+        path = result["path"]
+
+        # update scan results list
+        found = False
+        for i, r in enumerate(self.scan_results):
+            if r["path"] == path:
+                self.scan_results[i] = result
+                found = True
+                break
+        if not found:
+            self.scan_results.append(result)
+
+        self.files_map[path] = result
 
         # Update Progress
         pct = (current_idx / total_count) * 100
@@ -1009,29 +1073,36 @@ class SharpnessTool(ttk.Frame):
             text=f"Scan Progress: {int(pct)}% ({current_idx}/{total_count})"
         )
 
-        # Always add to candidates (Review List)
-        path = result["path"]
-        self.candidates.append(path)
+        # Update listbox entry
+        # The file is already in candidates (from _load_folder_contents)
+        if path in self.candidates:
+            idx = self.candidates.index(path)
+            score_val = result['score']
+            if isinstance(score_val, float):
+                score_text = f"{score_val:.1f}"
+            else:
+                score_text = "N/A"
 
-        # Add to listbox
-        score_text = f"{result['score']:.1f}"
-        self.candidate_listbox.insert("end", f"{path.name} (Score: {score_text})")
-
-        # Auto-switch to review if we have enough candidates
-        if len(self.candidates) >= 3 and not self.has_switched_to_review:
-            self.switch_to_review_mode()
+            # Delete and reinsert to update text, but maintain selection if it was selected
+            is_selected = (self.candidate_listbox.curselection() == (idx,))
+            self.candidate_listbox.delete(idx)
+            self.candidate_listbox.insert(idx, f"{path.name} (Score: {score_text})")
+            if is_selected:
+                self.candidate_listbox.selection_set(idx)
+                # Refresh metadata label
+                self.update_metadata_label(path)
 
         # If we are already reviewing, this new candidate might be the "Next" one for the current view.
         if self.has_switched_to_review:
             sel = self.candidate_listbox.curselection()
             if sel:
-                current_idx = sel[0]
-                new_idx = len(self.candidates) - 1
+                cur_sel_idx = sel[0]
+                new_idx = self.candidates.index(path)
                 # If the new candidate is within the lookahead window (next 3), queue it
-                if current_idx < new_idx <= current_idx + 3:
+                if cur_sel_idx < new_idx <= cur_sel_idx + 3:
                     self.queue_candidate(new_idx)
 
-        # Update button states (e.g., enable "Next" if we were at the end)
+        # Update button states
         self.update_button_states()
 
     def switch_to_review_mode(self):
@@ -1282,7 +1353,11 @@ class SharpnessTool(ttk.Frame):
         score_txt = "N/A"
 
         if res:
-            score_txt = f"{res['score']:.1f}"
+            score_val = res.get('score', "N/A")
+            if isinstance(score_val, float):
+                score_txt = f"{score_val:.1f}"
+            else:
+                score_txt = str(score_val)
 
         details.config(text=f"{path.name}\nScore: {score_txt}", foreground="black")
         lbl.config(image="", text="Loading...")
@@ -1308,8 +1383,13 @@ class SharpnessTool(ttk.Frame):
     def update_metadata_label(self, current_path):
         res = self.files_map.get(current_path)
         if res:
-            exif = res["exif"]
-            score = res["score"]
+            exif = res.get("exif", {})
+            score_val = res.get("score", "N/A")
+
+            if isinstance(score_val, float):
+                score_str = f"{score_val:.1f}"
+            else:
+                score_str = str(score_val)
 
             iso = self._format_meta(exif.get("ISO"), "")
             shutter = self._format_meta(exif.get("Shutter Speed"), "s")
@@ -1319,13 +1399,13 @@ class SharpnessTool(ttk.Frame):
             # ISO: 100 | 1/200s | f/2.8 | 50mm
             meta_str = f"ISO: {iso} | {shutter} | {aperture} | {focal}"
 
-            txt = f"File: {current_path.name}\n" f"Score: {score:.1f}\n" f"{meta_str}"
+            txt = f"File: {current_path.name}\n" f"Score: {score_str}\n" f"{meta_str}"
             self.meta_lbl.config(text=txt)
 
             # Update Focus Mode labels if they exist
             if hasattr(self, "focus_score_lbl"):
                 self.focus_score_lbl.config(
-                    text=f"Score: {score:.1f}", foreground="black"
+                    text=f"Score: {score_str}", foreground="black"
                 )
                 self.focus_cat_lbl.config(text="", foreground="black")
                 self.focus_meta_lbl.config(text=meta_str)
