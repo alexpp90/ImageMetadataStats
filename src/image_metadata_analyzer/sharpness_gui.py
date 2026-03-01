@@ -561,12 +561,12 @@ class SharpnessTool(ttk.Frame):
         self.focus_frame = ttk.Frame(self)
 
         # Grid Configuration
-        self.focus_frame.rowconfigure(0, weight=1, uniform="rows")
-        self.focus_frame.rowconfigure(1, weight=1, uniform="rows")
+        self.focus_frame.rowconfigure(0, weight=1, uniform="row")
+        self.focus_frame.rowconfigure(1, weight=1, uniform="row")
 
         # Columns for Top Row
-        self.focus_frame.columnconfigure(0, weight=1)  # Image Left
-        self.focus_frame.columnconfigure(1, weight=1)  # Controls Right
+        self.focus_frame.columnconfigure(0, weight=1, uniform="col")  # Image Left
+        self.focus_frame.columnconfigure(1, weight=1, uniform="col")  # Controls Right
 
         # --- Row 0: Main Area ---
 
@@ -650,8 +650,8 @@ class SharpnessTool(ttk.Frame):
 
         # Split 50/50
         self.focus_bottom_frame.rowconfigure(0, weight=1)
-        self.focus_bottom_frame.columnconfigure(0, weight=1)
-        self.focus_bottom_frame.columnconfigure(1, weight=1)
+        self.focus_bottom_frame.columnconfigure(0, weight=1, uniform="bot_col")
+        self.focus_bottom_frame.columnconfigure(1, weight=1, uniform="bot_col")
 
         # Bottom Left (Prev)
         self.focus_prev_container = ttk.Frame(self.focus_bottom_frame)
