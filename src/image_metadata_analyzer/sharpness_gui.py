@@ -561,8 +561,8 @@ class SharpnessTool(ttk.Frame):
         self.focus_frame = ttk.Frame(self)
 
         # Grid Configuration
-        self.focus_frame.rowconfigure(0, weight=1)
-        self.focus_frame.rowconfigure(1, weight=1)
+        self.focus_frame.rowconfigure(0, weight=1, uniform="rows")
+        self.focus_frame.rowconfigure(1, weight=1, uniform="rows")
 
         # Columns for Top Row
         self.focus_frame.columnconfigure(0, weight=1)  # Image Left
@@ -660,10 +660,20 @@ class SharpnessTool(ttk.Frame):
         self.focus_prev_container.grid_propagate(False)
 
         self.focus_prev_lbl = ttk.Label(
-            self.focus_prev_container, text="Prev", anchor="center", relief="sunken"
+            self.focus_prev_container, text="Prev", anchor="center"
         )
         self.focus_prev_lbl.pack(fill="both", expand=True)
         self.focus_prev_lbl.bind(
+            "<Button-1>", lambda e: self.on_image_click(self.panel_prev.path)
+        )
+
+        # Overlay for Prev
+        self.focus_prev_overlay = ttk.Label(
+            self.focus_prev_container, text="", font=("Helvetica", 9),
+            background="black", foreground="white", padding=(4, 2)
+        )
+        self.focus_prev_overlay.place(relx=0.0, rely=0.0, anchor="nw")
+        self.focus_prev_overlay.bind(
             "<Button-1>", lambda e: self.on_image_click(self.panel_prev.path)
         )
 
@@ -674,10 +684,20 @@ class SharpnessTool(ttk.Frame):
         self.focus_next_container.grid_propagate(False)
 
         self.focus_next_lbl = ttk.Label(
-            self.focus_next_container, text="Next", anchor="center", relief="sunken"
+            self.focus_next_container, text="Next", anchor="center"
         )
         self.focus_next_lbl.pack(fill="both", expand=True)
         self.focus_next_lbl.bind(
+            "<Button-1>", lambda e: self.on_image_click(self.panel_next.path)
+        )
+
+        # Overlay for Next
+        self.focus_next_overlay = ttk.Label(
+            self.focus_next_container, text="", font=("Helvetica", 9),
+            background="black", foreground="white", padding=(4, 2)
+        )
+        self.focus_next_overlay.place(relx=0.0, rely=0.0, anchor="nw")
+        self.focus_next_overlay.bind(
             "<Button-1>", lambda e: self.on_image_click(self.panel_next.path)
         )
 
@@ -1487,6 +1507,37 @@ class SharpnessTool(ttk.Frame):
                 self.focus_cat_lbl.config(text="", foreground="black")
                 self.focus_meta_lbl.config(text=meta_str)
                 self.focus_filename_lbl.config(text=current_path.name)
+
+        # Update previous and next overlay labels
+        if hasattr(self, "focus_prev_overlay"):
+            prev_path = self.panel_prev.path
+            if prev_path:
+                prev_res = self.files_map.get(prev_path)
+                if prev_res:
+                    prev_score_val = prev_res.get("score", "N/A")
+                    if isinstance(prev_score_val, float):
+                        prev_score_str = f"{prev_score_val:.1f}"
+                    else:
+                        prev_score_str = str(prev_score_val)
+                    self.focus_prev_overlay.config(text=f"{prev_path.name}\nScore: {prev_score_str}")
+                    self.focus_prev_overlay.place(relx=0.0, rely=0.0, anchor="nw")
+            else:
+                self.focus_prev_overlay.place_forget()
+
+        if hasattr(self, "focus_next_overlay"):
+            next_path = self.panel_next.path
+            if next_path:
+                next_res = self.files_map.get(next_path)
+                if next_res:
+                    next_score_val = next_res.get("score", "N/A")
+                    if isinstance(next_score_val, float):
+                        next_score_str = f"{next_score_val:.1f}"
+                    else:
+                        next_score_str = str(next_score_val)
+                    self.focus_next_overlay.config(text=f"{next_path.name}\nScore: {next_score_str}")
+                    self.focus_next_overlay.place(relx=0.0, rely=0.0, anchor="nw")
+            else:
+                self.focus_next_overlay.place_forget()
 
     def load_images_background(
         self, prev_path, curr_path, next_path, size_curr, size_prev, size_next
