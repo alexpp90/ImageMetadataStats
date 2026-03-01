@@ -22,8 +22,6 @@ For the absolute latest version built automatically from the `main` branch:
 **Download:**
 *   **Windows (x64)**: [Download ZIP](https://github.com/alexpp90/ImageMetadataStats/releases/download/nightly/image-metadata-analyzer-windows-x64.zip)
 *   **macOS (Apple Silicon)**: [Download ZIP](https://github.com/alexpp90/ImageMetadataStats/releases/download/nightly/image-metadata-analyzer-macos-apple-silicon.zip)
-*   **macOS (Intel)**: [Download ZIP](https://github.com/alexpp90/ImageMetadataStats/releases/download/nightly/image-metadata-analyzer-macos-intel.zip)
-*   **macOS (v15+)**: [Download ZIP](https://github.com/alexpp90/ImageMetadataStats/releases/download/nightly/image-metadata-analyzer-macos-15.zip)
 *   **Linux (x64)**: [Download ZIP](https://github.com/alexpp90/ImageMetadataStats/releases/download/nightly/image-metadata-analyzer-linux-x64.zip)
 
 **Instructions:**
