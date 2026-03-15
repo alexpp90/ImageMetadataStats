@@ -618,7 +618,7 @@ class SharpnessTool(ttk.Frame):
         self.focus_curr_lbl = ttk.Label(
             self.focus_curr_container, text="No Image", anchor="center"
         )
-        self.focus_curr_lbl.pack(fill="both", expand=True)
+        self.focus_curr_lbl.place(relx=0.5, rely=0.5, anchor="center")
         self.focus_curr_lbl.bind(
             "<Button-1>", lambda e: self.on_image_click(self.panel_curr.path)
         )
@@ -701,7 +701,7 @@ class SharpnessTool(ttk.Frame):
         self.focus_prev_lbl = ttk.Label(
             self.focus_prev_container, text="Prev", anchor="center"
         )
-        self.focus_prev_lbl.pack(fill="both", expand=True)
+        self.focus_prev_lbl.place(relx=0.5, rely=0.5, anchor="center")
         self.focus_prev_lbl.bind(
             "<Button-1>", lambda e: self.on_image_click(self.panel_prev.path)
         )
@@ -725,7 +725,7 @@ class SharpnessTool(ttk.Frame):
         self.focus_next_lbl = ttk.Label(
             self.focus_next_container, text="Next", anchor="center"
         )
-        self.focus_next_lbl.pack(fill="both", expand=True)
+        self.focus_next_lbl.place(relx=0.5, rely=0.5, anchor="center")
         self.focus_next_lbl.bind(
             "<Button-1>", lambda e: self.on_image_click(self.panel_next.path)
         )
@@ -803,7 +803,7 @@ class SharpnessTool(ttk.Frame):
 
         # Image Label (Placeholder)
         lbl = ttk.Label(img_container, text="No Image", anchor="center")
-        lbl.pack(fill="both", expand=True)
+        lbl.place(relx=0.5, rely=0.5, anchor="center")
 
         # Details
         details = ttk.Label(frame, text="", font=("Helvetica", 9))
