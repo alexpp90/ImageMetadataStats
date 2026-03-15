@@ -604,14 +604,48 @@ class SharpnessTool(ttk.Frame):
         self.focus_frame.rowconfigure(1, weight=1, uniform="row")
 
         # Columns for Top Row
-        self.focus_frame.columnconfigure(0, weight=1, uniform="col")  # Image Left
-        self.focus_frame.columnconfigure(1, weight=1, uniform="col")  # Controls Right
+        self.focus_frame.columnconfigure(0, weight=1, uniform="col")  # Metadata Left
+        self.focus_frame.columnconfigure(1, weight=3, uniform="col")  # Image Center (Prominent)
+        self.focus_frame.columnconfigure(2, weight=1, uniform="col")  # Controls Right
 
         # --- Row 0: Main Area ---
 
-        # Left (Row 0, Col 0) - Current Candidate
+        # Left (Row 0, Col 0) - Metadata
+        self.focus_left_panel = ttk.Frame(self.focus_frame)
+        self.focus_left_panel.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+
+        # "Current" title
+        ttk.Label(
+            self.focus_left_panel, text="Current", font=("Helvetica", 14, "bold")
+        ).pack(side="top", pady=(10, 5), anchor="w")
+
+        ttk.Separator(self.focus_left_panel, orient="horizontal").pack(
+            fill="x", pady=5
+        )
+
+        self.focus_score_lbl = ttk.Label(
+            self.focus_left_panel, text="Sharpness Score: --", font=("Helvetica", 12, "bold")
+        )
+        self.focus_score_lbl.pack(side="top", pady=5, anchor="w")
+
+        self.focus_cat_lbl = ttk.Label(
+            self.focus_left_panel, text="", font=("Helvetica", 10)
+        )
+        self.focus_cat_lbl.pack(side="top", pady=5, anchor="w")
+
+        self.focus_filename_lbl = ttk.Label(
+            self.focus_left_panel, text="", wraplength=150
+        )
+        self.focus_filename_lbl.pack(side="top", pady=5, anchor="w")
+
+        self.focus_meta_lbl = ttk.Label(
+            self.focus_left_panel, text="", justify="left", wraplength=150
+        )
+        self.focus_meta_lbl.pack(side="top", pady=5, anchor="w")
+
+        # Center (Row 0, Col 1) - Current Candidate
         self.focus_curr_container = ttk.Frame(self.focus_frame)
-        self.focus_curr_container.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+        self.focus_curr_container.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
         self.focus_curr_container.pack_propagate(False) # Stop label from resizing container
         self.focus_curr_container.grid_propagate(False)
 
@@ -623,9 +657,9 @@ class SharpnessTool(ttk.Frame):
             "<Button-1>", lambda e: self.on_image_click(self.panel_curr.path)
         )
 
-        # Right Gutter (Row 0, Col 1) - Controls
+        # Right (Row 0, Col 2) - Controls
         self.focus_right_panel = ttk.Frame(self.focus_frame)
-        self.focus_right_panel.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
+        self.focus_right_panel.grid(row=0, column=2, sticky="nsew", padx=10, pady=10)
 
         # Controls Stack
         self.focus_exit_btn = ttk.Button(
@@ -634,30 +668,6 @@ class SharpnessTool(ttk.Frame):
             command=self.toggle_focus_mode,
         )
         self.focus_exit_btn.pack(side="top", pady=10, fill="x")
-
-        ttk.Separator(self.focus_right_panel, orient="horizontal").pack(
-            fill="x", pady=10
-        )
-
-        self.focus_score_lbl = ttk.Label(
-            self.focus_right_panel, text="Sharpness Score: --", font=("Helvetica", 12, "bold")
-        )
-        self.focus_score_lbl.pack(side="top", pady=5, anchor="w")
-
-        self.focus_cat_lbl = ttk.Label(
-            self.focus_right_panel, text="", font=("Helvetica", 10)
-        )
-        self.focus_cat_lbl.pack(side="top", pady=5, anchor="w")
-
-        self.focus_filename_lbl = ttk.Label(
-            self.focus_right_panel, text="", wraplength=150
-        )
-        self.focus_filename_lbl.pack(side="top", pady=5, anchor="w")
-
-        self.focus_meta_lbl = ttk.Label(
-            self.focus_right_panel, text="", justify="left", wraplength=150
-        )
-        self.focus_meta_lbl.pack(side="top", pady=5, anchor="w")
 
         ttk.Separator(self.focus_right_panel, orient="horizontal").pack(
             fill="x", pady=10
@@ -684,7 +694,7 @@ class SharpnessTool(ttk.Frame):
         # --- Row 1: Bottom Strip ---
         self.focus_bottom_frame = ttk.Frame(self.focus_frame)
         self.focus_bottom_frame.grid(
-            row=1, column=0, columnspan=2, sticky="nsew", pady=5
+            row=1, column=0, columnspan=3, sticky="nsew", pady=5
         )
 
         # Split 50/50
