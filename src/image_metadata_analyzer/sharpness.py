@@ -66,6 +66,40 @@ def get_image_data(filepath: Path) -> Optional[np.ndarray]:
         logger.error(f"Error reading image {path_str}: {e}")
         return None
 
+def calculate_noise(filepath: Path) -> float:
+    """
+    Estimates the noise level in an image.
+    Uses the Median Absolute Deviation (MAD) of the image's Laplacian,
+    which is a common approach to estimate standard deviation of Gaussian noise.
+
+    Returns a float score (higher means more noise).
+    Returns 0.0 if image cannot be read.
+    """
+    img = get_image_data(filepath)
+
+    if img is None:
+        return 0.0
+
+    try:
+        # Convert to grayscale
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+        # Apply Laplacian filter
+        laplacian = cv2.Laplacian(gray, cv2.CV_64F)
+
+        # Calculate Median Absolute Deviation (MAD)
+        # Using the standard constant 0.6745 for Gaussian distribution
+        # sigma = MAD / 0.6745
+        mad = np.median(np.abs(laplacian - np.median(laplacian)))
+        sigma = mad / 0.6745
+
+        return sigma
+
+    except Exception as e:
+        logger.error(f"Error calculating noise for {filepath}: {e}")
+        return 0.0
+
+
 def calculate_sharpness(filepath: Path, grid_size: int = 1) -> float:
     """
     Calculates the sharpness score of an image using the Laplacian Variance method.

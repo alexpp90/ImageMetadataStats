@@ -15,8 +15,9 @@ The Image Metadata Analyzer is a cross-platform desktop application designed to 
 
 ### 2.2 Image Comparator (Sharpness Tool)
 *   **Sharpness Algorithm:** The sharpness analysis algorithm crops the center 50% of the image, divides it into a configurable grid (default 8x8), and uses the maximum block variance score to determine overall sharpness.
+*   **Noise Algorithm:** A noise analysis tool estimates image noise using the Median Absolute Deviation (MAD) of the image's Laplacian filter.
 *   **Synchronous Pre-loading:** The application must synchronously pre-load all supported images from a selected folder for immediate side-by-side review prior to scanning, displaying metadata alongside 'N/A' placeholder scores initially.
-*   **Score Labeling:** The evaluation metric must be explicitly labeled as "Sharpness Score" in the GUI (rather than just "Score").
+*   **Score Labeling:** The evaluation metric must be explicitly labeled as "Sharpness Score" and "Noise Level" (or "Noise") in the GUI (rather than just "Score").
 
 ### 2.3 Duplicate Finder
 *   **Detection Logic:** Duplicate image detection utilizes MD5 hashing of file content.
