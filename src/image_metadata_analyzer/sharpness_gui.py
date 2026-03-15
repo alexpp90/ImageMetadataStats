@@ -19,12 +19,18 @@ logger = logging.getLogger(__name__)
 
 
 class FullscreenViewer(tk.Toplevel):
-    def __init__(self, parent, path, initial_mode="fit", focus_point=(0.5, 0.5)):
+    def __init__(self, parent, path, initial_mode="fit", focus_point=(0.5, 0.5), file_list=None):
         super().__init__(parent)
         self.parent = parent
         self.path = path
         self.initial_mode = initial_mode
         self.focus_point = focus_point  # (rel_x, rel_y) 0.0-1.0
+        self.file_list = file_list or []
+
+        # Track current index
+        self.current_idx = -1
+        if self.path in self.file_list:
+            self.current_idx = self.file_list.index(self.path)
 
         self.title(f"Fullscreen - {path.name}")
         self.attributes("-fullscreen", True)
@@ -45,6 +51,15 @@ class FullscreenViewer(tk.Toplevel):
 
         self.close_btn = ttk.Button(self, text="Close (Esc)", command=self.destroy)
         self.close_btn.place(relx=0.95, rely=0.05, anchor="ne")
+
+        # Next / Previous buttons below the Close button
+        self.next_btn = ttk.Button(self, text="Next (N)", command=self.next_image)
+        self.next_btn.place(relx=0.95, rely=0.10, anchor="ne")
+
+        self.prev_btn = ttk.Button(self, text="Previous (P)", command=self.prev_image)
+        self.prev_btn.place(relx=0.95, rely=0.15, anchor="ne")
+
+        self.update_nav_buttons()
 
         # State
         self.pil_image = None  # Full resolution PIL image
@@ -75,8 +90,57 @@ class FullscreenViewer(tk.Toplevel):
         self.bind("<equal>", lambda e: self.zoom_key(1.2))  # Shared key with plus
         self.bind("<minus>", lambda e: self.zoom_key(0.8))
 
+        self.bind("<n>", self.next_image)
+        self.bind("<N>", self.next_image)
+        self.bind("<p>", self.prev_image)
+        self.bind("<P>", self.prev_image)
+
         # Start Loading
         self.after(100, self.load_image)
+
+    def update_nav_buttons(self):
+        if not self.file_list:
+            self.next_btn.state(["disabled"])
+            self.prev_btn.state(["disabled"])
+            return
+
+        if self.current_idx < len(self.file_list) - 1:
+            self.next_btn.state(["!disabled"])
+        else:
+            self.next_btn.state(["disabled"])
+
+        if self.current_idx > 0:
+            self.prev_btn.state(["!disabled"])
+        else:
+            self.prev_btn.state(["disabled"])
+
+    def next_image(self, event=None):
+        if self.file_list and self.current_idx < len(self.file_list) - 1:
+            self.current_idx += 1
+            self.load_new_path(self.file_list[self.current_idx])
+
+    def prev_image(self, event=None):
+        if self.file_list and self.current_idx > 0:
+            self.current_idx -= 1
+            self.load_new_path(self.file_list[self.current_idx])
+
+    def load_new_path(self, new_path):
+        self.path = new_path
+        self.initial_mode = "fit"
+        self.title(f"Fullscreen - {self.path.name}")
+        self.update_nav_buttons()
+
+        # Show loading indicator again
+        self.canvas.delete("all")
+        self.loading_lbl.config(text="Loading full resolution...")
+        self.loading_lbl.place(relx=0.5, rely=0.5, anchor="center")
+
+        # Clear current image state
+        self.pil_image = None
+        self.tk_image = None
+
+        # Load new image
+        self.load_image()
 
     def load_image(self):
         # Check cache
@@ -995,7 +1059,9 @@ class SharpnessTool(ttk.Frame):
     def open_fullscreen(self, path, mode, focus=(0.5, 0.5)):
         # Check if file exists
         if path and path.exists():
-            FullscreenViewer(self, path, initial_mode=mode, focus_point=focus)
+            # Pass sorted_files so FullscreenViewer can navigate via N/P keys
+            file_list = getattr(self, "sorted_files", [])
+            FullscreenViewer(self, path, initial_mode=mode, focus_point=focus, file_list=file_list)
 
     def browse_folder(self):
         folder = filedialog.askdirectory()
