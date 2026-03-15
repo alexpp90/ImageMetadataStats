@@ -1555,7 +1555,15 @@ class SharpnessTool(ttk.Frame):
                         prev_score_str = f"{prev_score_val:.1f}"
                     else:
                         prev_score_str = str(prev_score_val)
-                    self.focus_prev_overlay.config(text=f"{prev_path.name}\nScore: {prev_score_str}")
+
+                    prev_exif = prev_res.get("exif", {})
+                    p_iso = self._format_meta(prev_exif.get("ISO"), "")
+                    p_shutter = self._format_meta(prev_exif.get("Shutter Speed"), "s")
+                    p_aperture = self._format_meta(prev_exif.get("Aperture"), "f/")
+                    p_focal = self._format_meta(prev_exif.get("Focal Length"), "mm")
+                    p_meta = f"{p_iso} | {p_shutter} | {p_aperture} | {p_focal}"
+
+                    self.focus_prev_overlay.config(text=f"Previous\n{prev_path.name}\nSharpness Score: {prev_score_str}\n{p_meta}")
                     self.focus_prev_overlay.place(relx=0.0, rely=0.0, anchor="nw")
             else:
                 self.focus_prev_overlay.place_forget()
@@ -1570,7 +1578,15 @@ class SharpnessTool(ttk.Frame):
                         next_score_str = f"{next_score_val:.1f}"
                     else:
                         next_score_str = str(next_score_val)
-                    self.focus_next_overlay.config(text=f"{next_path.name}\nScore: {next_score_str}")
+
+                    next_exif = next_res.get("exif", {})
+                    n_iso = self._format_meta(next_exif.get("ISO"), "")
+                    n_shutter = self._format_meta(next_exif.get("Shutter Speed"), "s")
+                    n_aperture = self._format_meta(next_exif.get("Aperture"), "f/")
+                    n_focal = self._format_meta(next_exif.get("Focal Length"), "mm")
+                    n_meta = f"{n_iso} | {n_shutter} | {n_aperture} | {n_focal}"
+
+                    self.focus_next_overlay.config(text=f"Next\n{next_path.name}\nSharpness Score: {next_score_str}\n{n_meta}")
                     self.focus_next_overlay.place(relx=0.0, rely=0.0, anchor="nw")
             else:
                 self.focus_next_overlay.place_forget()
