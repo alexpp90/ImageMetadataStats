@@ -130,6 +130,24 @@ class FullscreenViewer(tk.Toplevel):
         self.title(f"Fullscreen - {self.path.name}")
         self.update_nav_buttons()
 
+        # Trigger preloading for neighbors
+        if hasattr(self.parent, "queue_full_res_candidate"):
+            with self.parent.full_res_queue.mutex:
+                self.parent.full_res_queue.queue.clear()
+
+            # Queue current image first
+            self.parent.queue_full_res_candidate(self.path)
+
+            # Queue next 3 images
+            for offset in range(1, 4):
+                if self.current_idx + offset < len(self.file_list):
+                    self.parent.queue_full_res_candidate(self.file_list[self.current_idx + offset])
+
+            # Queue previous 2 images
+            for offset in range(1, 3):
+                if self.current_idx - offset >= 0:
+                    self.parent.queue_full_res_candidate(self.file_list[self.current_idx - offset])
+
         # Show loading indicator again
         self.canvas.delete("all")
         self.loading_lbl.config(text="Loading full resolution...")
@@ -1365,7 +1383,7 @@ class SharpnessTool(ttk.Frame):
         with self.full_res_queue.mutex:
             self.full_res_queue.queue.clear()
 
-        # 1. Enqueue current triplet for full resolution loading IMMEDIATELY
+        # 1. Enqueue current and neighbors (prev 2, next 3) for full resolution loading IMMEDIATELY
         # This ensures the active image and neighbors are ready for fullscreen
         try:
             c_path = self.candidates[current_idx]
@@ -1374,10 +1392,16 @@ class SharpnessTool(ttk.Frame):
             # Find neighbors for full res queue
             if c_path in self.sorted_files:
                 f_idx = self.sorted_files.index(c_path)
-                if f_idx < len(self.sorted_files) - 1:
-                    self.queue_full_res_candidate(self.sorted_files[f_idx + 1])
-                if f_idx > 0:
-                    self.queue_full_res_candidate(self.sorted_files[f_idx - 1])
+
+                # Next 3 images
+                for offset in range(1, 4):
+                    if f_idx + offset < len(self.sorted_files):
+                        self.queue_full_res_candidate(self.sorted_files[f_idx + offset])
+
+                # Previous 2 images
+                for offset in range(1, 3):
+                    if f_idx - offset >= 0:
+                        self.queue_full_res_candidate(self.sorted_files[f_idx - offset])
         except IndexError:
             pass
 
@@ -1445,8 +1469,8 @@ class SharpnessTool(ttk.Frame):
                 pass
 
     def run_full_res_preloader(self):
-        # Limit full res cache to 5 images (approx 500MB-1GB depending on resolution)
-        CACHE_LIMIT = 5
+        # Limit full res cache to 10 images to accommodate current + prev 2 + next 3
+        CACHE_LIMIT = 10
 
         while True:
             try:
