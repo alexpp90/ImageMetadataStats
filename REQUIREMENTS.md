@@ -37,6 +37,11 @@ The Image Metadata Analyzer is a cross-platform desktop application designed to 
 *   **Focus Mode Layout:** Hides the sidebar. Uses a grid layout where the top row is split evenly (weight=1 for both columns) between the current image and controls panel. The bottom row splits the previous and next images evenly, ensuring all three displayed images share the exact same dimensions.
 *   **Image Reloading:** Switching views (Standard vs. Focus) triggers a reload of the image triplet to ensure the correct resolution is generated for the specific layout.
 *   **Navigation Interactions:** In Focus Mode, clicking a non-central image (Previous/Next) must open it in a fullscreen viewer (via `tk.Toplevel`) instead of making it the new current image.
+*   **Keyboard Controls (Review & Focus Modes):**
+    *   **Escape (`<Escape>`):** Exits Focus mode. Does nothing in Standard mode.
+    *   **Left Arrow (`<Left>`):** Navigates to the previous image.
+    *   **Right Arrow (`<Right>`):** Navigates to the next image.
+    *   **Delete (`<Delete>`):** Triggers moving the current image to the trash, prompting a confirmation dialogue. A second press of `<Delete>` confirms the deletion (acts as an alternative to clicking "Yes" or pressing Enter).
 
 ### 3.3 State and Interaction Management
 *   **Thread Safety:** PIL Image objects must be loaded in background threads. Unscaled PIL images are returned and dynamically converted to `ImageTk.PhotoImage` in the main thread during `<Configure>` events.

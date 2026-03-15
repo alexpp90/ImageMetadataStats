@@ -339,6 +339,45 @@ class SharpnessTool(ttk.Frame):
         self.setup_ui()
         self.setup_focus_ui()
 
+        # Setup global key bindings for Review/Focus mode
+        self.bind_all("<Escape>", self.on_escape_key)
+        self.bind_all("<Left>", self.on_left_key)
+        self.bind_all("<Right>", self.on_right_key)
+        self.bind_all("<Delete>", self.on_delete_key)
+
+    def on_escape_key(self, event):
+        # We only want to process this if we are in the SharpnessTool (specifically Review tab)
+        # Note: Event binding on toplevel can be global, but FullscreenViewer intercepts Escape as well
+        # and stops propagation or is higher up.
+        if self.notebook.select() != str(self.review_frame) and not self.focus_mode:
+            return
+        if self.focus_mode:
+            self.toggle_focus_mode()
+
+    def on_left_key(self, event):
+        # Don't trigger if user is typing in a text entry
+        if isinstance(event.widget, (tk.Entry, tk.Text, ttk.Entry, ttk.Combobox)):
+            return
+        if self.notebook.select() != str(self.review_frame) and not self.focus_mode:
+            return
+        self.prev_candidate()
+
+    def on_right_key(self, event):
+        # Don't trigger if user is typing in a text entry
+        if isinstance(event.widget, (tk.Entry, tk.Text, ttk.Entry, ttk.Combobox)):
+            return
+        if self.notebook.select() != str(self.review_frame) and not self.focus_mode:
+            return
+        self.next_candidate()
+
+    def on_delete_key(self, event):
+        # Don't trigger if user is typing in a text entry
+        if isinstance(event.widget, (tk.Entry, tk.Text, ttk.Entry, ttk.Combobox)):
+            return
+        if self.notebook.select() != str(self.review_frame) and not self.focus_mode:
+            return
+        self.delete_current_candidate()
+
     def setup_ui(self):
         # Notebook for switching between Setup, Scanning, and Review
         self.notebook = ttk.Notebook(self)
@@ -717,10 +756,7 @@ class SharpnessTool(ttk.Frame):
             "<Configure>", lambda e: self.on_focus_label_resize(e, self.focus_next_lbl)
         )
 
-        # Keyboard Bindings for Focus Mode
-        self.focus_frame.bind("<Left>", lambda e: self.prev_candidate())
-        self.focus_frame.bind("<Right>", lambda e: self.next_candidate())
-        self.focus_frame.bind("<Delete>", lambda e: self.delete_current_candidate())
+        # Keyboard bindings are now handled globally in SharpnessTool init
 
     def toggle_focus_mode(self):
         self.focus_mode = not self.focus_mode
@@ -1648,58 +1684,102 @@ class SharpnessTool(ttk.Frame):
         idx = sel[0]
         path = self.candidates[idx]
 
-        if messagebox.askyesno(
-            "Confirm Delete",
-            f"Are you sure you want to move '{path.name}' and related files to trash?",
-        ):
-            related = find_related_files(path)
-            failed_trash = []
+        # Use our custom delete confirmation to support the <Delete> key
+        self.show_delete_confirmation(path, idx)
 
-            for f in related:
-                try:
-                    send2trash.send2trash(str(f))
-                    self.log(f"Moved to trash: {f}")
-                except Exception as e:
-                    failed_trash.append(f)
-                    msg = f"Trash failed for {f}: {e}"
-                    self.log(msg)
+    def show_delete_confirmation(self, path, idx):
+        # Prevent multiple dialogs
+        if hasattr(self, "_delete_dialog") and self._delete_dialog and self._delete_dialog.winfo_exists():
+            return
 
-            if failed_trash:
-                msg = (
-                    f"Failed to move {len(failed_trash)} related file(s) to trash (e.g. network drive).\n"
-                    "Do you want to PERMANENTLY delete them?"
-                )
-                if messagebox.askyesno("Trash Failed", msg):
-                    for f in failed_trash:
-                        try:
-                            if f.exists():
-                                f.unlink()
-                                self.log(f"Permanently deleted: {f}")
-                        except Exception as e:
-                            msg = f"Delete failed for {f}: {e}"
-                            self.log(msg)
+        dialog = tk.Toplevel(self)
+        dialog.title("Confirm Delete")
+        dialog.geometry("400x150")
+        dialog.resizable(False, False)
+        dialog.transient(self.winfo_toplevel())
+        dialog.grab_set()
 
-            # Check if all files are gone
-            remaining = [f for f in related if f.exists()]
-            if not remaining:
-                # Update UI
-                self.candidates.pop(idx)
-                self.candidate_listbox.delete(idx)
-                if path in self.sorted_files:
-                    self.sorted_files.remove(path)
-                if path in self.files_map:
-                    del self.files_map[path]
+        # Center on parent
+        parent = self.winfo_toplevel()
+        x = parent.winfo_x() + (parent.winfo_width() - 400) // 2
+        y = parent.winfo_y() + (parent.winfo_height() - 150) // 2
+        dialog.geometry(f"+{x}+{y}")
 
-                # Select next if available, or prev
-                if self.candidates:
-                    new_idx = idx if idx < len(self.candidates) else idx - 1
-                    self.candidate_listbox.selection_set(new_idx)
-                    self.on_candidate_select(None)
-                else:
-                    self.panel_curr.img_lbl.config(image="", text="No Candidates")
-                    self.panel_prev.img_lbl.config(image="", text="")
-                    self.panel_next.img_lbl.config(image="", text="")
+        msg = f"Are you sure you want to move '{path.name}' and related files to trash?\n\n(Press Delete again to confirm)"
+        ttk.Label(dialog, text=msg, justify="center", wraplength=350).pack(pady=20, padx=20)
 
-                    self.panel_curr.path = None
-                    self.panel_prev.path = None
-                    self.panel_next.path = None
+        btn_frame = ttk.Frame(dialog)
+        btn_frame.pack(fill="x", padx=20, pady=10)
+
+        def on_confirm(*args):
+            dialog.destroy()
+            self.execute_delete(path, idx)
+
+        def on_cancel(*args):
+            dialog.destroy()
+
+        yes_btn = ttk.Button(btn_frame, text="Yes", command=on_confirm)
+        yes_btn.pack(side="left", expand=True, padx=5)
+        no_btn = ttk.Button(btn_frame, text="No", command=on_cancel)
+        no_btn.pack(side="right", expand=True, padx=5)
+
+        # Bind Delete key to confirm
+        dialog.bind("<Delete>", on_confirm)
+        dialog.bind("<Escape>", on_cancel)
+
+        # Focus
+        no_btn.focus_set()
+        self._delete_dialog = dialog
+
+    def execute_delete(self, path, idx):
+        related = find_related_files(path)
+        failed_trash = []
+
+        for f in related:
+            try:
+                send2trash.send2trash(str(f))
+                self.log(f"Moved to trash: {f}")
+            except Exception as e:
+                failed_trash.append(f)
+                msg = f"Trash failed for {f}: {e}"
+                self.log(msg)
+
+        if failed_trash:
+            msg = (
+                f"Failed to move {len(failed_trash)} related file(s) to trash (e.g. network drive).\n"
+                "Do you want to PERMANENTLY delete them?"
+            )
+            if messagebox.askyesno("Trash Failed", msg):
+                for f in failed_trash:
+                    try:
+                        if f.exists():
+                            f.unlink()
+                            self.log(f"Permanently deleted: {f}")
+                    except Exception as e:
+                        msg = f"Delete failed for {f}: {e}"
+                        self.log(msg)
+
+        # Check if all files are gone
+        remaining = [f for f in related if f.exists()]
+        if not remaining:
+            # Update UI
+            self.candidates.pop(idx)
+            self.candidate_listbox.delete(idx)
+            if path in self.sorted_files:
+                self.sorted_files.remove(path)
+            if path in self.files_map:
+                del self.files_map[path]
+
+            # Select next if available, or prev
+            if self.candidates:
+                new_idx = idx if idx < len(self.candidates) else idx - 1
+                self.candidate_listbox.selection_set(new_idx)
+                self.on_candidate_select(None)
+            else:
+                self.panel_curr.img_lbl.config(image="", text="No Candidates")
+                self.panel_prev.img_lbl.config(image="", text="")
+                self.panel_next.img_lbl.config(image="", text="")
+
+                self.panel_curr.path = None
+                self.panel_prev.path = None
+                self.panel_next.path = None
