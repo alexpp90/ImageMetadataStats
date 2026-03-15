@@ -11,6 +11,7 @@ from PIL import Image, ImageTk
 from image_metadata_analyzer.reader import get_exif_data
 # Local imports
 from image_metadata_analyzer.sharpness import (calculate_sharpness,
+                                               calculate_noise,
                                                find_related_files)
 from image_metadata_analyzer.utils import load_image_preview
 
@@ -447,8 +448,8 @@ class SharpnessTool(ttk.Frame):
 
         dummy1_row = ttk.Frame(tools_frame)
         dummy1_row.pack(fill="x", pady=5)
-        self.tool_dummy1_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(dummy1_row, text="Dummy Tool 1", variable=self.tool_dummy1_var).pack(side="left", padx=5)
+        self.tool_noise_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(dummy1_row, text="Noise Analysis", variable=self.tool_noise_var).pack(side="left", padx=5)
 
         dummy2_row = ttk.Frame(tools_frame)
         dummy2_row.pack(fill="x", pady=5)
@@ -626,7 +627,12 @@ class SharpnessTool(ttk.Frame):
         self.focus_score_lbl = ttk.Label(
             self.focus_left_panel, text="Sharpness Score: --", font=("Helvetica", 12, "bold")
         )
-        self.focus_score_lbl.pack(side="top", pady=5, anchor="w")
+        self.focus_score_lbl.pack(side="top", pady=(5, 0), anchor="w")
+
+        self.focus_noise_lbl = ttk.Label(
+            self.focus_left_panel, text="Noise Level: --", font=("Helvetica", 12, "bold")
+        )
+        self.focus_noise_lbl.pack(side="top", pady=(0, 5), anchor="w")
 
         self.focus_cat_lbl = ttk.Label(
             self.focus_left_panel, text="", font=("Helvetica", 10)
@@ -1020,9 +1026,9 @@ class SharpnessTool(ttk.Frame):
 
         for f in self.sorted_files:
             # Initialize with N/A score and empty EXIF (fetch EXIF asynchronously if needed later)
-            res = {"path": f, "score": "N/A", "exif": {}}
+            res = {"path": f, "score": "N/A", "noise_score": "N/A", "exif": {}}
             self.files_map[f] = res
-            self.candidate_listbox.insert("end", f"{f.name} (Sharpness Score: N/A)")
+            self.candidate_listbox.insert("end", f"{f.name} (Sharpness: N/A)")
 
         if self.candidates:
             self.notebook.tab(2, state="normal")
@@ -1106,7 +1112,8 @@ class SharpnessTool(ttk.Frame):
 
         # Pass the tool configuration
         tools = {
-            "sharpness": self.tool_sharpness_var.get()
+            "sharpness": self.tool_sharpness_var.get(),
+            "noise": self.tool_noise_var.get()
         }
 
         threading.Thread(
@@ -1145,10 +1152,14 @@ class SharpnessTool(ttk.Frame):
                 if tools.get("sharpness", False):
                     score = calculate_sharpness(f, grid_size=grid_size)
 
+                noise_score = "N/A"
+                if tools.get("noise", False):
+                    noise_score = calculate_noise(f)
+
                 # Fetch EXIF
                 exif = get_exif_data(f) or {}
 
-                res = {"path": f, "score": score, "exif": exif}
+                res = {"path": f, "score": score, "noise_score": noise_score, "exif": exif}
 
                 # Send result to main thread
                 self.parent.after(
@@ -1206,10 +1217,20 @@ class SharpnessTool(ttk.Frame):
             else:
                 score_text = "N/A"
 
+            noise_val = result.get('noise_score', "N/A")
+            if isinstance(noise_val, float):
+                noise_text = f"{noise_val:.1f}"
+            else:
+                noise_text = str(noise_val)
+
             # Delete and reinsert to update text, but maintain selection if it was selected
             is_selected = (self.candidate_listbox.curselection() == (idx,))
             self.candidate_listbox.delete(idx)
-            self.candidate_listbox.insert(idx, f"{path.name} (Sharpness Score: {score_text})")
+
+            # Construct display string
+            listbox_text = f"{path.name} (Sharpness: {score_text}, Noise: {noise_text})"
+            self.candidate_listbox.insert(idx, listbox_text)
+
             if is_selected:
                 self.candidate_listbox.selection_set(idx)
                 # Refresh metadata label
@@ -1494,6 +1515,7 @@ class SharpnessTool(ttk.Frame):
 
         res = self.files_map.get(path)
         score_txt = "N/A"
+        noise_txt = "N/A"
 
         if res:
             score_val = res.get('score', "N/A")
@@ -1502,7 +1524,13 @@ class SharpnessTool(ttk.Frame):
             else:
                 score_txt = str(score_val)
 
-        details.config(text=f"{path.name}\nSharpness Score: {score_txt}", foreground="black")
+            noise_val = res.get('noise_score', "N/A")
+            if isinstance(noise_val, float):
+                noise_txt = f"{noise_val:.1f}"
+            else:
+                noise_txt = str(noise_val)
+
+        details.config(text=f"{path.name}\nSharpness: {score_txt}\nNoise: {noise_txt}", foreground="black")
         lbl.config(image="", text="Loading...")
 
     def _format_meta(self, val, unit=""):
@@ -1534,6 +1562,12 @@ class SharpnessTool(ttk.Frame):
             else:
                 score_str = str(score_val)
 
+            noise_val = res.get("noise_score", "N/A")
+            if isinstance(noise_val, float):
+                noise_str = f"{noise_val:.1f}"
+            else:
+                noise_str = str(noise_val)
+
             iso = self._format_meta(exif.get("ISO"), "")
             shutter = self._format_meta(exif.get("Shutter Speed"), "s")
             aperture = self._format_meta(exif.get("Aperture"), "f/")
@@ -1542,7 +1576,7 @@ class SharpnessTool(ttk.Frame):
             # ISO: 100 | 1/200s | f/2.8 | 50mm
             meta_str = f"ISO: {iso} | {shutter} | {aperture} | {focal}"
 
-            txt = f"File: {current_path.name}\n" f"Sharpness Score: {score_str}\n" f"{meta_str}"
+            txt = f"File: {current_path.name}\n" f"Sharpness Score: {score_str}\n" f"Noise Level: {noise_str}\n" f"{meta_str}"
             self.meta_lbl.config(text=txt)
 
             # Update Focus Mode labels if they exist
@@ -1550,6 +1584,11 @@ class SharpnessTool(ttk.Frame):
                 self.focus_score_lbl.config(
                     text=f"Sharpness Score: {score_str}", foreground="black"
                 )
+            if hasattr(self, "focus_noise_lbl"):
+                self.focus_noise_lbl.config(
+                    text=f"Noise Level: {noise_str}", foreground="black"
+                )
+            if hasattr(self, "focus_cat_lbl"):
                 self.focus_cat_lbl.config(text="", foreground="black")
                 self.focus_meta_lbl.config(text=meta_str)
                 self.focus_filename_lbl.config(text=current_path.name)
@@ -1566,6 +1605,12 @@ class SharpnessTool(ttk.Frame):
                     else:
                         prev_score_str = str(prev_score_val)
 
+                    prev_noise_val = prev_res.get("noise_score", "N/A")
+                    if isinstance(prev_noise_val, float):
+                        prev_noise_str = f"{prev_noise_val:.1f}"
+                    else:
+                        prev_noise_str = str(prev_noise_val)
+
                     prev_exif = prev_res.get("exif", {})
                     p_iso = self._format_meta(prev_exif.get("ISO"), "")
                     p_shutter = self._format_meta(prev_exif.get("Shutter Speed"), "s")
@@ -1573,7 +1618,7 @@ class SharpnessTool(ttk.Frame):
                     p_focal = self._format_meta(prev_exif.get("Focal Length"), "mm")
                     p_meta = f"{p_iso} | {p_shutter} | {p_aperture} | {p_focal}"
 
-                    self.focus_prev_overlay.config(text=f"Previous\n{prev_path.name}\nSharpness Score: {prev_score_str}\n{p_meta}")
+                    self.focus_prev_overlay.config(text=f"Previous\n{prev_path.name}\nSharpness: {prev_score_str}\nNoise: {prev_noise_str}\n{p_meta}")
                     self.focus_prev_overlay.place(relx=0.0, rely=0.0, anchor="nw")
             else:
                 self.focus_prev_overlay.place_forget()
@@ -1589,6 +1634,12 @@ class SharpnessTool(ttk.Frame):
                     else:
                         next_score_str = str(next_score_val)
 
+                    next_noise_val = next_res.get("noise_score", "N/A")
+                    if isinstance(next_noise_val, float):
+                        next_noise_str = f"{next_noise_val:.1f}"
+                    else:
+                        next_noise_str = str(next_noise_val)
+
                     next_exif = next_res.get("exif", {})
                     n_iso = self._format_meta(next_exif.get("ISO"), "")
                     n_shutter = self._format_meta(next_exif.get("Shutter Speed"), "s")
@@ -1596,7 +1647,7 @@ class SharpnessTool(ttk.Frame):
                     n_focal = self._format_meta(next_exif.get("Focal Length"), "mm")
                     n_meta = f"{n_iso} | {n_shutter} | {n_aperture} | {n_focal}"
 
-                    self.focus_next_overlay.config(text=f"Next\n{next_path.name}\nSharpness Score: {next_score_str}\n{n_meta}")
+                    self.focus_next_overlay.config(text=f"Next\n{next_path.name}\nSharpness: {next_score_str}\nNoise: {next_noise_str}\n{n_meta}")
                     self.focus_next_overlay.place(relx=0.0, rely=0.0, anchor="nw")
             else:
                 self.focus_next_overlay.place_forget()
