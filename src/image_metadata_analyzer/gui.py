@@ -428,17 +428,22 @@ class DuplicateFinder(ttk.Frame):
                 0, lambda: self.status_lbl.config(text="Generating previews...")
             )
 
-            thumbnails = []
-            for group in results:
-                thumb = None
+            def _load_thumb(group):
                 if group["files"]:
                     try:
-                        thumb = load_image_preview(
+                        return load_image_preview(
                             group["files"][0], max_size=(150, 150)
                         )
                     except Exception:
                         pass
-                thumbnails.append(thumb)
+                return None
+
+            import concurrent.futures
+            # Determine thread count: use at most 8 threads to balance performance and overhead
+            import os
+            max_workers = min(8, (os.cpu_count() or 1) + 4)
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+                thumbnails = list(executor.map(_load_thumb, results))
 
             self.parent.after(0, lambda: self.display_results(results, thumbnails))
         except Exception as e:
