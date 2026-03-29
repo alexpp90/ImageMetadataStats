@@ -19,7 +19,14 @@ The Image Metadata Analyzer is a cross-platform desktop application designed to 
 *   **Synchronous Pre-loading:** The application must synchronously pre-load all supported images from a selected folder for immediate side-by-side review prior to scanning, displaying metadata alongside 'N/A' placeholder scores initially.
 *   **Score Labeling:** The evaluation metric must be explicitly labeled as "Sharpness Score" and "Noise Level" (or "Noise") in the GUI (rather than just "Score").
 
-### 2.3 Duplicate Finder
+### 2.3 Path Resolution Utility
+*   **SMB URL Support:** The application must support resolving `smb://` URLs to local mount points.
+*   **Linux Resolution:** On Linux, `smb://server/share/path` must resolve to `/run/user/<uid>/gvfs/smb-share:server=<server>,share=<share>/<path>`.
+*   **macOS Resolution:** On macOS, `smb://server/share/path` must resolve to `/Volumes/<share>/<path>`.
+*   **Fallback:** On other platforms (e.g., Windows), or for malformed SMB URLs, the path should be returned as a standard `Path` object without transformation.
+*   **URL Decoding:** The resolver must correctly unquote URL-encoded characters (e.g., `%20` to spaces) during the resolution process.
+
+### 2.4 Duplicate Finder
 *   **Detection Logic:** Duplicate image detection utilizes MD5 hashing of file content.
 *   **Deletion Strategy:** The utility first attempts to move files to the trash using `send2trash`.
 *   **Deletion Error Handling:** If `send2trash` fails (e.g., on network drives), the backend utility (`move_to_trash`) must raise an exception rather than returning a boolean status. The GUI layer is responsible for catching this exception and prompting the user for a fallback to permanent deletion (`Path.unlink()`).
@@ -81,6 +88,7 @@ The Image Metadata Analyzer is a cross-platform desktop application designed to 
 
 ## 6. Testing Requirements
 
+*   **Path Resolution Tests:** The `resolve_path` utility must be tested across simulated platforms (Linux, macOS, Windows) using mocking for `sys.platform` and `os.getuid`.
 *   **GUI Unit Tests:** Tests validating GUI components (e.g., `tests/test_sharpness_gui_basic.py`) require extensive mocking of `tkinter`, `PIL`, and `image_metadata_analyzer` dependencies due to the lack of a display environment in CI runners.
 *   **Headless Execution:** To run or test standalone Tkinter GUI scripts headlessly in the development environment, developers must use `xvfb-run` (e.g., `poetry run xvfb-run python3 script.py`) to avoid `_tkinter.TclError` exceptions.
 *   **Execution Command:** Tests should be executed using `poetry run pytest tests/` after ensuring dependencies are installed via `poetry install`.
