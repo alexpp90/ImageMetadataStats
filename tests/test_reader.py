@@ -59,3 +59,28 @@ def test_get_exif_data_exiftool_import_error(image_dir, capsys):
     assert "PyExifTool not installed or found." in captured.out
     # It should fall back to Pillow and return None for our dummy image
     assert result is None
+
+
+def test_get_exif_data_exifread_import_error(image_dir, capsys):
+    import builtins
+    from unittest.mock import patch
+
+    p = image_dir / "test.dng"
+    img = Image.new("RGB", (100, 100), color="blue")
+    img.save(p, format="TIFF")  # DNG is TIFF based, Pillow can save as TIFF
+
+    real_import = builtins.__import__
+
+    def mock_import(name, *args, **kwargs):
+        if name in ("exiftool", "exifread"):
+            raise ImportError(f"Mocked ImportError for {name}")
+        return real_import(name, *args, **kwargs)
+
+    with patch("builtins.__import__", side_effect=mock_import):
+        result = get_exif_data(p, debug=True)
+
+    captured = capsys.readouterr()
+    assert "PyExifTool not installed or found." in captured.out
+    assert "`exifread` library not found." in captured.out
+    # It should fall back to Pillow and return None for our dummy image
+    assert result is None
