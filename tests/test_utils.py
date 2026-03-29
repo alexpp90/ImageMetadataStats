@@ -125,5 +125,83 @@ class TestResolvePath(unittest.TestCase):
         result = resolve_path(path_str)
         self.assertEqual(result, Path(path_str))
 
+
+class TestLoadImagePreview(unittest.TestCase):
+    @patch('image_metadata_analyzer.utils.Image.open')
+    def test_standard_image(self, mock_open):
+        """Test loading a standard image (e.g., JPEG)."""
+        mock_img = MagicMock()
+        mock_open.return_value = mock_img
+
+        path = Path('test.jpg')
+        result = load_image_preview(path)
+
+        mock_open.assert_called_once_with(path)
+        mock_img.thumbnail.assert_called_once_with((150, 150))
+        self.assertEqual(result, mock_img)
+
+    @patch('image_metadata_analyzer.utils.Image.fromarray')
+    @patch('image_metadata_analyzer.utils.rawpy.imread')
+    def test_raw_image(self, mock_imread, mock_fromarray):
+        """Test loading a RAW image."""
+        mock_raw = MagicMock()
+        mock_rgb = MagicMock()
+        mock_raw.__enter__.return_value = mock_raw
+        mock_raw.postprocess.return_value = mock_rgb
+        mock_imread.return_value = mock_raw
+
+        mock_img = MagicMock()
+        mock_fromarray.return_value = mock_img
+
+        path = Path('test.arw')
+        result = load_image_preview(path)
+
+        mock_imread.assert_called_once_with('test.arw')
+        mock_raw.postprocess.assert_called_once_with(use_camera_wb=True, bright=1.0, half_size=True)
+        mock_fromarray.assert_called_once_with(mock_rgb)
+        mock_img.thumbnail.assert_called_once_with((150, 150))
+        self.assertEqual(result, mock_img)
+
+    @patch('image_metadata_analyzer.utils.Image.open')
+    def test_full_res(self, mock_open):
+        """Test loading a standard image at full resolution."""
+        mock_img = MagicMock()
+        mock_open.return_value = mock_img
+
+        path = Path('test.jpg')
+        result = load_image_preview(path, full_res=True)
+
+        mock_open.assert_called_once_with(path)
+        mock_img.thumbnail.assert_not_called()
+        self.assertEqual(result, mock_img)
+
+    @patch('image_metadata_analyzer.utils.Image.open')
+    @patch('image_metadata_analyzer.utils.rawpy.imread')
+    def test_raw_fallback_to_pillow(self, mock_imread, mock_open):
+        """Test that Pillow is used if rawpy fails."""
+        mock_imread.side_effect = Exception("rawpy failed")
+
+        mock_img = MagicMock()
+        mock_open.return_value = mock_img
+
+        path = Path('test.arw')
+        result = load_image_preview(path)
+
+        mock_imread.assert_called_once_with('test.arw')
+        mock_open.assert_called_once_with(path)
+        mock_img.thumbnail.assert_called_once_with((150, 150))
+        self.assertEqual(result, mock_img)
+
+    @patch('image_metadata_analyzer.utils.Image.open')
+    def test_exception_handling(self, mock_open):
+        """Test that None is returned on general exception."""
+        mock_open.side_effect = Exception("General failure")
+
+        path = Path('test.jpg')
+        result = load_image_preview(path)
+
+        self.assertIsNone(result)
+
+
 if __name__ == "__main__":
     unittest.main()
