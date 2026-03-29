@@ -2,12 +2,19 @@ import sys
 from unittest.mock import MagicMock
 
 # Mock dependencies that are not in the environment to allow importing utils
-mock_pil = MagicMock()
-mock_image = MagicMock()
-mock_pil.Image = mock_image
-sys.modules['PIL'] = mock_pil
-sys.modules['PIL.Image'] = mock_image
-sys.modules['rawpy'] = MagicMock()
+try:
+    import PIL
+except ImportError:
+    mock_pil = MagicMock()
+    mock_image = MagicMock()
+    mock_pil.Image = mock_image
+    sys.modules['PIL'] = mock_pil
+    sys.modules['PIL.Image'] = mock_image
+
+try:
+    import rawpy
+except ImportError:
+    sys.modules['rawpy'] = MagicMock()
 
 import unittest
 from unittest.mock import patch
