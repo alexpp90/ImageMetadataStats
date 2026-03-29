@@ -3,23 +3,28 @@ import queue
 import threading
 import tkinter as tk
 from pathlib import Path
+from typing import List, Dict
 from tkinter import filedialog, messagebox, ttk
 
 import send2trash
 from PIL import Image, ImageTk
 
-from image_metadata_analyzer.reader import get_exif_data
 # Local imports
-from image_metadata_analyzer.sharpness import (calculate_sharpness,
-                                               calculate_noise,
-                                               find_related_files)
+from image_metadata_analyzer.sharpness import (
+    find_related_files,
+)
 from image_metadata_analyzer.utils import load_image_preview
+from image_metadata_analyzer.formatting import format_score, format_meta
+from image_metadata_analyzer.controllers import ImageCacheManager, ScanController
+from image_metadata_analyzer.models import ScanResult
 
 logger = logging.getLogger(__name__)
 
 
 class FullscreenViewer(tk.Toplevel):
-    def __init__(self, parent, path, initial_mode="fit", focus_point=(0.5, 0.5), file_list=None):
+    def __init__(
+        self, parent, path, initial_mode="fit", focus_point=(0.5, 0.5), file_list=None
+    ):
         super().__init__(parent)
         self.parent = parent
         self.path = path
@@ -132,8 +137,7 @@ class FullscreenViewer(tk.Toplevel):
 
         # Trigger preloading for neighbors
         if hasattr(self.parent, "queue_full_res_candidate"):
-            with self.parent.full_res_queue.mutex:
-                self.parent.full_res_queue.queue.clear()
+            self.parent.cache_manager.clear_full_res_queue()
 
             # Queue current image first
             self.parent.queue_full_res_candidate(self.path)
@@ -141,12 +145,16 @@ class FullscreenViewer(tk.Toplevel):
             # Queue next 3 images
             for offset in range(1, 4):
                 if self.current_idx + offset < len(self.file_list):
-                    self.parent.queue_full_res_candidate(self.file_list[self.current_idx + offset])
+                    self.parent.queue_full_res_candidate(
+                        self.file_list[self.current_idx + offset]
+                    )
 
             # Queue previous 2 images
             for offset in range(1, 3):
                 if self.current_idx - offset >= 0:
-                    self.parent.queue_full_res_candidate(self.file_list[self.current_idx - offset])
+                    self.parent.queue_full_res_candidate(
+                        self.file_list[self.current_idx - offset]
+                    )
 
         # Show loading indicator again
         self.canvas.delete("all")
@@ -163,8 +171,7 @@ class FullscreenViewer(tk.Toplevel):
     def load_image(self):
         # Check cache
         img = None
-        with self.parent.full_res_lock:
-            img = self.parent.full_res_cache.get(self.path)
+        img = self.parent.cache_manager.get_full_res(self.path)
 
         if img:
             self.pil_image = img
@@ -180,8 +187,8 @@ class FullscreenViewer(tk.Toplevel):
                 self.pil_image = img
                 self.parent.after(0, self.on_image_loaded)
                 # Add to parent cache if possible
-                with self.parent.full_res_lock:
-                    self.parent.full_res_cache[self.path] = img
+                with self.parent.cache_manager.full_res_lock:
+                    self.parent.cache_manager.full_res_cache[self.path] = img
             else:
                 self.parent.after(
                     0, lambda: self.loading_lbl.config(text="Failed to load.")
@@ -195,7 +202,6 @@ class FullscreenViewer(tk.Toplevel):
         if not self.pil_image:
             return
 
-        # Calculate fit scale
         sw = self.winfo_width()
         sh = self.winfo_height()
         iw, ih = self.pil_image.size
@@ -204,8 +210,12 @@ class FullscreenViewer(tk.Toplevel):
         if iw == 0 or ih == 0:
             return
 
-        scale_w = sw / iw
-        scale_h = sh / ih
+        # Casting to int for type safety
+        sw_int = int(sw)
+        sh_int = int(sh)
+
+        scale_w = sw_int / iw
+        scale_h = sh_int / ih
         self.fit_scale = min(scale_w, scale_h)
         self.min_scale = self.fit_scale
 
@@ -394,24 +404,15 @@ class SharpnessTool(ttk.Frame):
         self.stop_event = threading.Event()
 
         # State
-        self.scan_results = []  # List of dicts: {path, score, category, exif}
-        self.files_map = {}  # path -> result dict
-        self.sorted_files = []  # List of paths sorted by filename
-        self.candidates = []  # List of paths that are category 2 or 3
+        self.scan_results: List[ScanResult] = []
+        self.files_map: Dict[Path, ScanResult] = {}
+        self.sorted_files: List[Path] = []
+        self.candidates: List[Path] = []
 
-        # Caching and Review State
-        self.image_cache = {}
-        self.cache_lock = threading.Lock()
-        self.preloader_queue = queue.Queue()
+        # Controllers and State
+        self.cache_manager = ImageCacheManager(preview_size=(1200, 900))
+        self.scan_controller = ScanController()
         self.has_switched_to_review = False
-
-        # Full Resolution Caching
-        self.full_res_cache = {}
-        self.full_res_queue = queue.Queue()
-        self.full_res_lock = threading.Lock()
-
-        self.start_preloader()
-        self.start_full_res_preloader()
 
         # Defaults
         self.default_blur_threshold = 100.0
@@ -511,9 +512,13 @@ class SharpnessTool(ttk.Frame):
         sharpness_row.pack(fill="x", pady=5)
 
         self.tool_sharpness_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(sharpness_row, text="Sharpness Analysis", variable=self.tool_sharpness_var).pack(side="left", padx=5)
+        ttk.Checkbutton(
+            sharpness_row, text="Sharpness Analysis", variable=self.tool_sharpness_var
+        ).pack(side="left", padx=5)
 
-        ttk.Label(sharpness_row, text="Grid Analysis Size:").pack(side="left", padx=(20, 5))
+        ttk.Label(sharpness_row, text="Grid Analysis Size:").pack(
+            side="left", padx=(20, 5)
+        )
         self.grid_size_var = tk.StringVar(value=self.default_grid_size)
         grid_combo = ttk.Combobox(
             sharpness_row,
@@ -531,12 +536,16 @@ class SharpnessTool(ttk.Frame):
         dummy1_row = ttk.Frame(tools_frame)
         dummy1_row.pack(fill="x", pady=5)
         self.tool_noise_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(dummy1_row, text="Noise Analysis", variable=self.tool_noise_var).pack(side="left", padx=5)
+        ttk.Checkbutton(
+            dummy1_row, text="Noise Analysis", variable=self.tool_noise_var
+        ).pack(side="left", padx=5)
 
         dummy2_row = ttk.Frame(tools_frame)
         dummy2_row.pack(fill="x", pady=5)
         self.tool_dummy2_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(dummy2_row, text="Dummy Tool 2", variable=self.tool_dummy2_var).pack(side="left", padx=5)
+        ttk.Checkbutton(
+            dummy2_row, text="Dummy Tool 2", variable=self.tool_dummy2_var
+        ).pack(side="left", padx=5)
 
         # Start Button
         self.start_btn = ttk.Button(
@@ -688,7 +697,9 @@ class SharpnessTool(ttk.Frame):
 
         # Columns for Top Row
         self.focus_frame.columnconfigure(0, weight=1, uniform="col")  # Metadata Left
-        self.focus_frame.columnconfigure(1, weight=3, uniform="col")  # Image Center (Prominent)
+        self.focus_frame.columnconfigure(
+            1, weight=3, uniform="col"
+        )  # Image Center (Prominent)
         self.focus_frame.columnconfigure(2, weight=1, uniform="col")  # Controls Right
 
         # --- Row 0: Main Area ---
@@ -702,17 +713,19 @@ class SharpnessTool(ttk.Frame):
             self.focus_left_panel, text="Current", font=("Helvetica", 14, "bold")
         ).pack(side="top", pady=(10, 5), anchor="w")
 
-        ttk.Separator(self.focus_left_panel, orient="horizontal").pack(
-            fill="x", pady=5
-        )
+        ttk.Separator(self.focus_left_panel, orient="horizontal").pack(fill="x", pady=5)
 
         self.focus_score_lbl = ttk.Label(
-            self.focus_left_panel, text="Sharpness Score: --", font=("Helvetica", 12, "bold")
+            self.focus_left_panel,
+            text="Sharpness Score: --",
+            font=("Helvetica", 12, "bold"),
         )
         self.focus_score_lbl.pack(side="top", pady=(5, 0), anchor="w")
 
         self.focus_noise_lbl = ttk.Label(
-            self.focus_left_panel, text="Noise Level: --", font=("Helvetica", 12, "bold")
+            self.focus_left_panel,
+            text="Noise Level: --",
+            font=("Helvetica", 12, "bold"),
         )
         self.focus_noise_lbl.pack(side="top", pady=(0, 5), anchor="w")
 
@@ -734,7 +747,9 @@ class SharpnessTool(ttk.Frame):
         # Center (Row 0, Col 1) - Current Candidate
         self.focus_curr_container = ttk.Frame(self.focus_frame)
         self.focus_curr_container.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
-        self.focus_curr_container.pack_propagate(False) # Stop label from resizing container
+        self.focus_curr_container.pack_propagate(
+            False
+        )  # Stop label from resizing container
         self.focus_curr_container.grid_propagate(False)
 
         self.focus_curr_lbl = ttk.Label(
@@ -806,8 +821,12 @@ class SharpnessTool(ttk.Frame):
 
         # Overlay for Prev
         self.focus_prev_overlay = ttk.Label(
-            self.focus_prev_container, text="", font=("Helvetica", 9),
-            background="black", foreground="white", padding=(4, 2)
+            self.focus_prev_container,
+            text="",
+            font=("Helvetica", 9),
+            background="black",
+            foreground="white",
+            padding=(4, 2),
         )
         self.focus_prev_overlay.place(relx=0.0, rely=0.0, anchor="nw")
         self.focus_prev_overlay.bind(
@@ -830,8 +849,12 @@ class SharpnessTool(ttk.Frame):
 
         # Overlay for Next
         self.focus_next_overlay = ttk.Label(
-            self.focus_next_container, text="", font=("Helvetica", 9),
-            background="black", foreground="white", padding=(4, 2)
+            self.focus_next_container,
+            text="",
+            font=("Helvetica", 9),
+            background="black",
+            foreground="white",
+            padding=(4, 2),
         )
         self.focus_next_overlay.place(relx=0.0, rely=0.0, anchor="nw")
         self.focus_next_overlay.bind(
@@ -897,7 +920,9 @@ class SharpnessTool(ttk.Frame):
         # Image Container Frame
         img_container = ttk.Frame(frame)
         img_container.pack(fill="both", expand=True)
-        img_container.pack_propagate(False) # Stop the label from resizing the container
+        img_container.pack_propagate(
+            False
+        )  # Stop the label from resizing the container
 
         # Image Label (Placeholder)
         lbl = ttk.Label(img_container, text="No Image", anchor="center")
@@ -907,7 +932,7 @@ class SharpnessTool(ttk.Frame):
         details = ttk.Label(frame, text="", font=("Helvetica", 9))
         details.pack(fill="x")
 
-        frame.img_container = img_container # Store ref
+        frame.img_container = img_container  # Store ref
         frame.img_lbl = lbl  # Store ref
         frame.details_lbl = details  # Store ref
         frame.path = None  # Initialize path
@@ -927,7 +952,11 @@ class SharpnessTool(ttk.Frame):
 
     def on_panel_resize(self, event, panel):
         """Called when a panel resizes. Triggers image rescaling if available."""
-        if hasattr(panel, "_last_width") and panel._last_width == event.width and panel._last_height == event.height:
+        if (
+            hasattr(panel, "_last_width")
+            and panel._last_width == event.width
+            and panel._last_height == event.height
+        ):
             return
 
         panel._last_width = event.width
@@ -980,7 +1009,11 @@ class SharpnessTool(ttk.Frame):
 
     def on_focus_label_resize(self, event, lbl):
         """Called when a focus mode label resizes."""
-        if hasattr(lbl, "_last_width") and lbl._last_width == event.width and lbl._last_height == event.height:
+        if (
+            hasattr(lbl, "_last_width")
+            and lbl._last_width == event.width
+            and lbl._last_height == event.height
+        ):
             return
 
         lbl._last_width = event.width
@@ -1079,7 +1112,9 @@ class SharpnessTool(ttk.Frame):
         if path and path.exists():
             # Pass sorted_files so FullscreenViewer can navigate via N/P keys
             file_list = getattr(self, "sorted_files", [])
-            FullscreenViewer(self, path, initial_mode=mode, focus_point=focus, file_list=file_list)
+            FullscreenViewer(
+                self, path, initial_mode=mode, focus_point=focus, file_list=file_list
+            )
 
     def browse_folder(self):
         folder = filedialog.askdirectory()
@@ -1094,10 +1129,9 @@ class SharpnessTool(ttk.Frame):
         self.update()
 
         p = Path(folder_path)
-        extensions = {
-            ".jpg", ".jpeg", ".tif", ".tiff", ".nef",
-            ".cr2", ".arw", ".dng", ".raw", ".heic", ".heif", ".png", ".webp"
-        }
+        from image_metadata_analyzer.reader import SUPPORTED_EXTENSIONS
+
+        extensions = SUPPORTED_EXTENSIONS
         files = [f for f in p.rglob("*") if f.suffix.lower() in extensions]
         files.sort(key=lambda x: x.name)
 
@@ -1124,7 +1158,9 @@ class SharpnessTool(ttk.Frame):
         else:
             self.notebook.tab(2, state="disabled")
             self.log("No supported images found in the selected folder.")
-            messagebox.showinfo("Folder Load", "No supported images found in the selected folder.")
+            messagebox.showinfo(
+                "Folder Load", "No supported images found in the selected folder."
+            )
 
         # Restore UI cursor
         self.config(cursor="")
@@ -1178,9 +1214,7 @@ class SharpnessTool(ttk.Frame):
         self.has_switched_to_review = False
 
         # Reset cache
-        self.image_cache.clear()
-        with self.preloader_queue.mutex:
-            self.preloader_queue.queue.clear()
+        self.cache_manager.clear()
 
         # Switch to review tab immediately as requested
         self.switch_to_review_mode()
@@ -1197,84 +1231,44 @@ class SharpnessTool(ttk.Frame):
         # Pass the tool configuration
         tools = {
             "sharpness": self.tool_sharpness_var.get(),
-            "noise": self.tool_noise_var.get()
+            "noise": self.tool_noise_var.get(),
         }
 
-        threading.Thread(
-            target=self.run_scan_thread, args=(folder, grid_size, tools), daemon=True
-        ).start()
+        self.scan_controller.run_scan(
+            files=self.sorted_files,
+            grid_size=grid_size,
+            tools=tools,
+            progress_callback=self._on_scan_progress,
+            finished_callback=self._on_scan_finished,
+            log_callback=self.log,
+        )
         self.after(100, self.update_log_view)
 
     def cancel_scan(self):
-        if self.is_scanning:
-            self.stop_event.set()
-            self.log("Stopping scan...")
+        self.scan_controller.cancel()
+        self.log("Stopping scan...")
 
-    def run_scan_thread(self, folder_path, grid_size, tools):
-        self.log(f"Scanning folder: {folder_path}")
+    def _on_scan_progress(self, result: ScanResult, current_idx: int, total_count: int):
+        # Result arriving from background thread, update via parent.after for thread safety
+        self.parent.after(
+            0, lambda: self.process_scan_result(result, current_idx, total_count)
+        )
 
-        try:
-            files = self.sorted_files
-
-            if not files:
-                self.log("No images to scan.")
-                self.parent.after(0, self.scan_finished)
-                return
-
-            self.log(f"Scanning {len(files)} images. Starting analysis...")
-
-            total = len(files)
-
-            for i, f in enumerate(files):
-                if self.stop_event.is_set():
-                    self.log("Scan cancelled.")
-                    break
-
-                self.log(f"Analyzing {f.name}...")
-
-                score = "N/A"
-                if tools.get("sharpness", False):
-                    score = calculate_sharpness(f, grid_size=grid_size)
-
-                noise_score = "N/A"
-                if tools.get("noise", False):
-                    noise_score = calculate_noise(f)
-
-                # Fetch EXIF
-                exif = get_exif_data(f) or {}
-
-                res = {"path": f, "score": score, "noise_score": noise_score, "exif": exif}
-
-                # Send result to main thread
-                self.parent.after(
-                    0,
-                    lambda r=res, idx=i + 1, t=total: self.process_scan_result(
-                        r, idx, t
-                    ),
-                )
-
-            self.log("Scan complete.")
-
-        except Exception as e:
-            self.log(f"Error during scan: {e}")
-            import traceback
-
-            traceback.print_exc()
-
+    def _on_scan_finished(self):
         self.parent.after(0, self.scan_finished)
 
-    def process_scan_result(self, result, current_idx, total_count):
+    def process_scan_result(
+        self, result: ScanResult, current_idx: int, total_count: int
+    ):
         if not self.is_scanning:
             return
 
-        # Update lists
-        # We replace the entry instead of appending it if it already exists
-        path = result["path"]
+        path = result.path
 
         # update scan results list
         found = False
         for i, r in enumerate(self.scan_results):
-            if r["path"] == path:
+            if r.path == path:
                 self.scan_results[i] = result
                 found = True
                 break
@@ -1295,11 +1289,8 @@ class SharpnessTool(ttk.Frame):
         # The file is already in candidates (from _load_folder_contents)
         if path in self.candidates:
             idx = self.candidates.index(path)
-            score_val = result['score']
-            if isinstance(score_val, float):
-                score_text = f"{score_val:.1f}"
-            else:
-                score_text = "N/A"
+            score_text = format_score(result["score"])
+            noise_text = format_score(result.get("noise_score", "N/A"))
 
             noise_val = result.get('noise_score', "N/A")
             if isinstance(noise_val, float):
@@ -1308,7 +1299,7 @@ class SharpnessTool(ttk.Frame):
                 noise_text = str(noise_val)
 
             # Delete and reinsert to update text, but maintain selection if it was selected
-            is_selected = (self.candidate_listbox.curselection() == (idx,))
+            is_selected = self.candidate_listbox.curselection() == (idx,)
             self.candidate_listbox.delete(idx)
 
             # Construct display string
@@ -1377,11 +1368,7 @@ class SharpnessTool(ttk.Frame):
 
     def preload_next_candidates(self, current_idx):
         # Clear queue to prioritize new requests (user jumped to new location)
-        with self.preloader_queue.mutex:
-            self.preloader_queue.queue.clear()
-
-        with self.full_res_queue.mutex:
-            self.full_res_queue.queue.clear()
+        self.cache_manager.clear_queues()
 
         # 1. Enqueue current and neighbors (prev 2, next 3) for full resolution loading IMMEDIATELY
         # This ensures the active image and neighbors are ready for fullscreen
@@ -1421,81 +1408,22 @@ class SharpnessTool(ttk.Frame):
                 f_idx = self.sorted_files.index(c_path)
 
                 # Prioritize: Candidate -> Next -> Prev
-                self.preloader_queue.put(c_path)
+                self.cache_manager.queue_preview(c_path)
 
                 if f_idx < len(self.sorted_files) - 1:
-                    self.preloader_queue.put(self.sorted_files[f_idx + 1])
+                    self.cache_manager.queue_preview(self.sorted_files[f_idx + 1])
 
                 if f_idx > 0:
-                    self.preloader_queue.put(self.sorted_files[f_idx - 1])
+                    self.cache_manager.queue_preview(self.sorted_files[f_idx - 1])
         except IndexError:
             pass
 
     def queue_full_res_candidate(self, path):
         if path is None:
             return
-        self.full_res_queue.put(path)
+        self.cache_manager.queue_full_res(path)
 
-    def start_preloader(self):
-        threading.Thread(target=self.run_preloader, daemon=True).start()
-
-    def start_full_res_preloader(self):
-        threading.Thread(target=self.run_full_res_preloader, daemon=True).start()
-
-    def run_preloader(self):
-        CACHE_SIZE = (1200, 900)
-        while True:
-            try:
-                path = self.preloader_queue.get()
-                if path is None:
-                    continue
-
-                with self.cache_lock:
-                    if path in self.image_cache:
-                        continue
-
-                try:
-                    img = load_image_preview(path, max_size=CACHE_SIZE)
-                    if img:
-                        with self.cache_lock:
-                            self.image_cache[path] = img
-                            # Prune
-                            if len(self.image_cache) > 30:
-                                first = next(iter(self.image_cache))
-                                del self.image_cache[first]
-                except Exception:
-                    pass
-            except Exception:
-                pass
-
-    def run_full_res_preloader(self):
-        # Limit full res cache to 10 images to accommodate current + prev 2 + next 3
-        CACHE_LIMIT = 10
-
-        while True:
-            try:
-                path = self.full_res_queue.get()
-                if path is None:
-                    continue
-
-                with self.full_res_lock:
-                    if path in self.full_res_cache:
-                        continue
-
-                try:
-                    # Load full resolution
-                    img = load_image_preview(path, full_res=True)
-                    if img:
-                        with self.full_res_lock:
-                            self.full_res_cache[path] = img
-                            # Prune (simple FIFO for now, or just random pop)
-                            if len(self.full_res_cache) > CACHE_LIMIT:
-                                first = next(iter(self.full_res_cache))
-                                del self.full_res_cache[first]
-                except Exception as e:
-                    logger.error(f"Full res load error: {e}")
-            except Exception:
-                pass
+    # Threading methods removed, handled by ImageCacheManager
 
     def update_button_states(self):
         sel = self.candidate_listbox.curselection()
@@ -1608,65 +1536,36 @@ class SharpnessTool(ttk.Frame):
         noise_txt = "N/A"
 
         if res:
-            score_val = res.get('score', "N/A")
-            if isinstance(score_val, float):
-                score_txt = f"{score_val:.1f}"
-            else:
-                score_txt = str(score_val)
+            score_txt = format_score(res.score)
+            noise_txt = format_score(res.noise_score)
 
-            noise_val = res.get('noise_score', "N/A")
-            if isinstance(noise_val, float):
-                noise_txt = f"{noise_val:.1f}"
-            else:
-                noise_txt = str(noise_val)
-
-        details.config(text=f"{path.name}\nSharpness: {score_txt}\nNoise: {noise_txt}", foreground="black")
+        details.config(
+            text=f"{path.name}\nSharpness: {score_txt}\nNoise: {noise_txt}",
+            foreground="black",
+        )
         lbl.config(image="", text="Loading...")
-
-    def _format_meta(self, val, unit=""):
-        if val is None or val == "N/A":
-            return "N/A"
-        if isinstance(val, float):
-            # Try to format nicely
-            if unit == "s":
-                if val < 1.0 and val > 0:
-                    # Fraction for shutter speed
-                    denom = int(round(1.0 / val))
-                    return f"1/{denom}s"
-                return f"{val}s"
-            if unit == "mm":
-                return f"{val:.0f}mm"
-            if unit == "f/":
-                return f"f/{val:.1f}"
-            return f"{val:.1f}"
-        return str(val)
 
     def update_metadata_label(self, current_path):
         res = self.files_map.get(current_path)
         if res:
-            exif = res.get("exif", {})
-            score_val = res.get("score", "N/A")
+            exif = res.exif
+            score_str = format_score(res.score)
+            noise_str = format_score(res.noise_score)
 
-            if isinstance(score_val, float):
-                score_str = f"{score_val:.1f}"
-            else:
-                score_str = str(score_val)
-
-            noise_val = res.get("noise_score", "N/A")
-            if isinstance(noise_val, float):
-                noise_str = f"{noise_val:.1f}"
-            else:
-                noise_str = str(noise_val)
-
-            iso = self._format_meta(exif.get("ISO"), "")
-            shutter = self._format_meta(exif.get("Shutter Speed"), "s")
-            aperture = self._format_meta(exif.get("Aperture"), "f/")
-            focal = self._format_meta(exif.get("Focal Length"), "mm")
+            iso = format_meta(exif.get("ISO"), "")
+            shutter = format_meta(exif.get("Shutter Speed"), "s")
+            aperture = format_meta(exif.get("Aperture"), "f/")
+            focal = format_meta(exif.get("Focal Length"), "mm")
 
             # ISO: 100 | 1/200s | f/2.8 | 50mm
             meta_str = f"ISO: {iso} | {shutter} | {aperture} | {focal}"
 
-            txt = f"File: {current_path.name}\n" f"Sharpness Score: {score_str}\n" f"Noise Level: {noise_str}\n" f"{meta_str}"
+            txt = (
+                f"File: {current_path.name}\n"
+                f"Sharpness Score: {score_str}\n"
+                f"Noise Level: {noise_str}\n"
+                f"{meta_str}"
+            )
             self.meta_lbl.config(text=txt)
 
             # Update Focus Mode labels if they exist
@@ -1689,26 +1588,18 @@ class SharpnessTool(ttk.Frame):
             if prev_path:
                 prev_res = self.files_map.get(prev_path)
                 if prev_res:
-                    prev_score_val = prev_res.get("score", "N/A")
-                    if isinstance(prev_score_val, float):
-                        prev_score_str = f"{prev_score_val:.1f}"
-                    else:
-                        prev_score_str = str(prev_score_val)
-
-                    prev_noise_val = prev_res.get("noise_score", "N/A")
-                    if isinstance(prev_noise_val, float):
-                        prev_noise_str = f"{prev_noise_val:.1f}"
-                    else:
-                        prev_noise_str = str(prev_noise_val)
-
-                    prev_exif = prev_res.get("exif", {})
-                    p_iso = self._format_meta(prev_exif.get("ISO"), "")
-                    p_shutter = self._format_meta(prev_exif.get("Shutter Speed"), "s")
-                    p_aperture = self._format_meta(prev_exif.get("Aperture"), "f/")
-                    p_focal = self._format_meta(prev_exif.get("Focal Length"), "mm")
+                    prev_score_str = format_score(prev_res.score)
+                    prev_noise_str = format_score(prev_res.noise_score)
+                    prev_exif = prev_res.exif
+                    p_iso = format_meta(prev_exif.get("ISO"), "")
+                    p_shutter = format_meta(prev_exif.get("Shutter Speed"), "s")
+                    p_aperture = format_meta(prev_exif.get("Aperture"), "f/")
+                    p_focal = format_meta(prev_exif.get("Focal Length"), "mm")
                     p_meta = f"{p_iso} | {p_shutter} | {p_aperture} | {p_focal}"
 
-                    self.focus_prev_overlay.config(text=f"Previous\n{prev_path.name}\nSharpness: {prev_score_str}\nNoise: {prev_noise_str}\n{p_meta}")
+                    self.focus_prev_overlay.config(
+                        text=f"Previous\n{prev_path.name}\nSharpness: {prev_score_str}\nNoise: {prev_noise_str}\n{p_meta}"
+                    )
                     self.focus_prev_overlay.place(relx=0.0, rely=0.0, anchor="nw")
             else:
                 self.focus_prev_overlay.place_forget()
@@ -1718,26 +1609,18 @@ class SharpnessTool(ttk.Frame):
             if next_path:
                 next_res = self.files_map.get(next_path)
                 if next_res:
-                    next_score_val = next_res.get("score", "N/A")
-                    if isinstance(next_score_val, float):
-                        next_score_str = f"{next_score_val:.1f}"
-                    else:
-                        next_score_str = str(next_score_val)
-
-                    next_noise_val = next_res.get("noise_score", "N/A")
-                    if isinstance(next_noise_val, float):
-                        next_noise_str = f"{next_noise_val:.1f}"
-                    else:
-                        next_noise_str = str(next_noise_val)
-
-                    next_exif = next_res.get("exif", {})
-                    n_iso = self._format_meta(next_exif.get("ISO"), "")
-                    n_shutter = self._format_meta(next_exif.get("Shutter Speed"), "s")
-                    n_aperture = self._format_meta(next_exif.get("Aperture"), "f/")
-                    n_focal = self._format_meta(next_exif.get("Focal Length"), "mm")
+                    next_score_str = format_score(next_res.score)
+                    next_noise_str = format_score(next_res.noise_score)
+                    next_exif = next_res.exif
+                    n_iso = format_meta(next_exif.get("ISO"), "")
+                    n_shutter = format_meta(next_exif.get("Shutter Speed"), "s")
+                    n_aperture = format_meta(next_exif.get("Aperture"), "f/")
+                    n_focal = format_meta(next_exif.get("Focal Length"), "mm")
                     n_meta = f"{n_iso} | {n_shutter} | {n_aperture} | {n_focal}"
 
-                    self.focus_next_overlay.config(text=f"Next\n{next_path.name}\nSharpness: {next_score_str}\nNoise: {next_noise_str}\n{n_meta}")
+                    self.focus_next_overlay.config(
+                        text=f"Next\n{next_path.name}\nSharpness: {next_score_str}\nNoise: {next_noise_str}\n{n_meta}"
+                    )
                     self.focus_next_overlay.place(relx=0.0, rely=0.0, anchor="nw")
             else:
                 self.focus_next_overlay.place_forget()
@@ -1754,20 +1637,15 @@ class SharpnessTool(ttk.Frame):
             img = None
 
             # 1. Try Cache
-            with self.cache_lock:
-                if path in self.image_cache:
-                    img = self.image_cache[path]
+            img = self.cache_manager.get_preview(path)
 
             # 2. Load if not in cache
             if not img:
                 try:
                     img = load_image_preview(path, max_size=CACHE_SIZE)
                     if img:
-                        with self.cache_lock:
-                            self.image_cache[path] = img
-                            if len(self.image_cache) > 30:
-                                first = next(iter(self.image_cache))
-                                del self.image_cache[first]
+                        with self.cache_manager.preview_lock:
+                            self.cache_manager.preview_cache[path] = img
                 except Exception as e:
                     logger.error(f"Error loading {path}: {e}")
 
@@ -1856,7 +1734,11 @@ class SharpnessTool(ttk.Frame):
 
     def show_delete_confirmation(self, path, idx):
         # Prevent multiple dialogs
-        if hasattr(self, "_delete_dialog") and self._delete_dialog and self._delete_dialog.winfo_exists():
+        if (
+            hasattr(self, "_delete_dialog")
+            and self._delete_dialog
+            and self._delete_dialog.winfo_exists()
+        ):
             return
 
         dialog = tk.Toplevel(self)
@@ -1873,7 +1755,9 @@ class SharpnessTool(ttk.Frame):
         dialog.geometry(f"+{x}+{y}")
 
         msg = f"Are you sure you want to move '{path.name}' and related files to trash?\n\n(Press Delete again to confirm)"
-        ttk.Label(dialog, text=msg, justify="center", wraplength=350).pack(pady=20, padx=20)
+        ttk.Label(dialog, text=msg, justify="center", wraplength=350).pack(
+            pady=20, padx=20
+        )
 
         btn_frame = ttk.Frame(dialog)
         btn_frame.pack(fill="x", padx=20, pady=10)
@@ -1935,7 +1819,7 @@ class SharpnessTool(ttk.Frame):
             if path in self.sorted_files:
                 self.sorted_files.remove(path)
             if path in self.files_map:
-                del self.files_map[path]
+                self.files_map.pop(path, None)
 
             # Select next if available, or prev
             if self.candidates:

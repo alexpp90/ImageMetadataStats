@@ -1,6 +1,10 @@
 import pytest
 from unittest.mock import patch, MagicMock
-from image_metadata_analyzer.duplicates import find_duplicates, move_to_trash, get_file_hash
+from image_metadata_analyzer.duplicates import (
+    find_duplicates,
+    move_to_trash,
+    get_file_hash,
+)
 
 
 @pytest.fixture
@@ -48,8 +52,8 @@ def test_find_duplicates(temp_image_folder):
     assert len(duplicates) == 1
     group = duplicates[0]
 
-    assert len(group['files']) == 3
-    filenames = {p.name for p in group['files']}
+    assert len(group["files"]) == 3
+    filenames = {p.name for p in group["files"]}
     assert "img1.jpg" in filenames
     assert "img2.jpg" in filenames
     assert "img5.heic" in filenames

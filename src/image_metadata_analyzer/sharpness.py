@@ -1,12 +1,16 @@
 import cv2
 import numpy as np
-import rawpy
+
+try:
+    import rawpy
+except ImportError:
+    rawpy = None
 from pathlib import Path
-from typing import Tuple, List, Optional
-import os
+from typing import List, Optional
 import logging
 
 logger = logging.getLogger(__name__)
+
 
 class SharpnessCategories:
     CRISP = 1
@@ -33,6 +37,7 @@ class SharpnessCategories:
             return "red"
         return "black"
 
+
 def get_image_data(filepath: Path) -> Optional[np.ndarray]:
     """
     Reads an image file and returns a numpy array (BGR or Grayscale).
@@ -43,16 +48,18 @@ def get_image_data(filepath: Path) -> Optional[np.ndarray]:
 
     try:
         # List of common raw extensions
-        raw_exts = {'.arw', '.nef', '.cr2', '.dng', '.orf', '.rw2', '.raf'}
+        raw_exts = {".arw", ".nef", ".cr2", ".dng", ".orf", ".rw2", ".raf"}
 
-        if ext in raw_exts:
+        if ext in raw_exts and rawpy is not None:
             try:
                 with rawpy.imread(path_str) as raw:
                     # Postprocess to get a usable RGB image
                     # use_camera_wb=True uses the camera's white balance
                     # no_auto_bright=True keeps original brightness
                     # bright=1.0 scales brightness
-                    rgb = raw.postprocess(use_camera_wb=True, no_auto_bright=True, bright=1.0)
+                    rgb = raw.postprocess(
+                        use_camera_wb=True, no_auto_bright=True, bright=1.0
+                    )
                     # Convert RGB (rawpy) to BGR (opencv)
                     return cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
             except Exception as e:
@@ -65,6 +72,7 @@ def get_image_data(filepath: Path) -> Optional[np.ndarray]:
     except Exception as e:
         logger.error(f"Error reading image {path_str}: {e}")
         return None
+
 
 def calculate_noise(filepath: Path) -> float:
     """
@@ -132,10 +140,10 @@ def calculate_sharpness(filepath: Path, grid_size: int = 1) -> float:
 
         # Ensure we have a valid crop
         if h_start >= h_end or w_start >= w_end:
-             # Fallback to full image if too small
-             cropped = gray
+            # Fallback to full image if too small
+            cropped = gray
         else:
-             cropped = gray[h_start:h_end, w_start:w_end]
+            cropped = gray[h_start:h_end, w_start:w_end]
 
         if grid_size <= 1:
             # Original behavior: Calculate Laplacian Variance for the whole crop
@@ -149,7 +157,7 @@ def calculate_sharpness(filepath: Path, grid_size: int = 1) -> float:
 
             # If blocks are too small, fallback to global
             if block_h < 10 or block_w < 10:
-                 return cv2.Laplacian(cropped, cv2.CV_64F).var()
+                return cv2.Laplacian(cropped, cv2.CV_64F).var()
 
             max_score = 0.0
 
@@ -171,7 +179,10 @@ def calculate_sharpness(filepath: Path, grid_size: int = 1) -> float:
         logger.error(f"Error calculating sharpness for {filepath}: {e}")
         return 0.0
 
-def categorize_sharpness(score: float, threshold_blur: float, threshold_sharp: float) -> int:
+
+def categorize_sharpness(
+    score: float, threshold_blur: float, threshold_sharp: float
+) -> int:
     """
     Categorizes the sharpness score.
     < threshold_blur -> Blurry (3)
@@ -184,6 +195,7 @@ def categorize_sharpness(score: float, threshold_blur: float, threshold_sharp: f
         return SharpnessCategories.ACCEPTABLE
     else:
         return SharpnessCategories.CRISP
+
 
 def find_related_files(filepath: Path) -> List[Path]:
     """

@@ -6,7 +6,12 @@ from pathlib import Path
 from collections import Counter
 from typing import List, Tuple, Optional
 from PIL import Image
-import rawpy
+
+try:
+    import rawpy
+except ImportError:
+    rawpy = None
+
 
 def resolve_path(path_str: str) -> Path:
     """
@@ -28,14 +33,14 @@ def resolve_path(path_str: str) -> Path:
         # We need to strip the leading slash to split easily, but keep it for logic
         full_path = parsed.path
         if not full_path:
-            return Path(path_str) # Should probably just return as is if malformed
+            return Path(path_str)  # Should probably just return as is if malformed
 
         # Unquote to handle spaces (%20)
         full_path_decoded = urllib.parse.unquote(full_path)
 
         # Split into share and relative path
         # full_path_decoded starts with /, e.g. /private/Bilder_Alben
-        parts = full_path_decoded.strip('/').split('/', 1)
+        parts = full_path_decoded.strip("/").split("/", 1)
         share_name = parts[0]
         remainder = parts[1] if len(parts) > 1 else ""
 
@@ -71,6 +76,7 @@ def resolve_path(path_str: str) -> Path:
     # Default: treat as local path
     return Path(path_str)
 
+
 def get_exiftool_path() -> str | None:
     """
     Returns the path to the exiftool executable.
@@ -86,7 +92,7 @@ def get_exiftool_path() -> str | None:
 
     # Check for bundled executable
     # If running as a PyInstaller bundle
-    if getattr(sys, 'frozen', False):
+    if getattr(sys, "frozen", False):
         base_path = Path(sys._MEIPASS)
     else:
         # If running from source, check a 'bin' folder in the package
@@ -107,7 +113,10 @@ def get_exiftool_path() -> str | None:
 
     return None
 
-def aggregate_focal_lengths(focal_lengths: List[float], max_buckets: int = 25) -> List[Tuple[str, int, float]]:
+
+def aggregate_focal_lengths(
+    focal_lengths: List[float], max_buckets: int = 25
+) -> List[Tuple[str, int, float]]:
     """
     Aggregates focal lengths into buckets based on percentage difference.
 
@@ -163,7 +172,7 @@ def aggregate_focal_lengths(focal_lengths: List[float], max_buckets: int = 25) -
 
     # Binary search for the smallest threshold that yields <= max_buckets
     low = 0.0
-    high = 2.0 # Allow up to 200% difference
+    high = 2.0  # Allow up to 200% difference
     best_threshold = high
 
     # We do a fixed number of iterations for precision
@@ -186,7 +195,7 @@ def aggregate_focal_lengths(focal_lengths: List[float], max_buckets: int = 25) -
         max_fl = max(group)
 
         def fmt(v):
-            return f"{int(v)}" if v.is_integer() else f"{v:.1f}".rstrip('0').rstrip('.')
+            return f"{int(v)}" if v.is_integer() else f"{v:.1f}".rstrip("0").rstrip(".")
 
         if len(group) == 1:
             label = f"{fmt(min_fl)} mm"
@@ -201,7 +210,10 @@ def aggregate_focal_lengths(focal_lengths: List[float], max_buckets: int = 25) -
 
     return result
 
-def load_image_preview(path: Path, max_size: Tuple[int, int] = (150, 150), full_res: bool = False) -> Optional[Image.Image]:
+
+def load_image_preview(
+    path: Path, max_size: Tuple[int, int] = (150, 150), full_res: bool = False
+) -> Optional[Image.Image]:
     """
     Loads an image for preview, handling both standard formats (via Pillow)
     and RAW formats (via rawpy). Resizes the image to fit within max_size.
@@ -216,19 +228,31 @@ def load_image_preview(path: Path, max_size: Tuple[int, int] = (150, 150), full_
     """
     try:
         ext = path.suffix.lower()
-        raw_exts = {'.arw', '.nef', '.cr2', '.dng', '.orf', '.rw2', '.raf', '.pef', '.srw'}
+        raw_exts = {
+            ".arw",
+            ".nef",
+            ".cr2",
+            ".dng",
+            ".orf",
+            ".rw2",
+            ".raf",
+            ".pef",
+            ".srw",
+        }
 
         img = None
 
         # Try rawpy for known RAW extensions
-        if ext in raw_exts:
+        if ext in raw_exts and rawpy is not None:
             try:
                 with rawpy.imread(str(path)) as raw:
                     # Fast processing for preview: half size, auto bright
                     # If full_res, disable half_size
-                    rgb = raw.postprocess(use_camera_wb=True, bright=1.0, half_size=not full_res)
+                    rgb = raw.postprocess(
+                        use_camera_wb=True, bright=1.0, half_size=not full_res
+                    )
                     img = Image.fromarray(rgb)
-            except Exception as e:
+            except Exception:
                 # Log or just fall through to Pillow
                 pass
 
@@ -241,7 +265,7 @@ def load_image_preview(path: Path, max_size: Tuple[int, int] = (150, 150), full_
             img.thumbnail(max_size)
         return img
 
-    except Exception as e:
+    except Exception:
         # In a real app we might want to log this
         # print(f"Failed to load image preview for {path}: {e}")
         return None

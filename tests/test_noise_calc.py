@@ -1,8 +1,7 @@
-import pytest
-from pathlib import Path
 import numpy as np
 import cv2
 from image_metadata_analyzer.sharpness import calculate_noise
+
 
 def test_noise_calc(tmp_path):
     img_path = tmp_path / "test.jpg"

@@ -8,15 +8,15 @@ from image_metadata_analyzer.reader import SUPPORTED_EXTENSIONS
 
 # Extend supported extensions for duplicates to include basic formats
 # not necessarily supported by the metadata analyzer (like GIF/BMP)
-IMAGE_EXTENSIONS = SUPPORTED_EXTENSIONS | {'.bmp', '.gif'}
+IMAGE_EXTENSIONS = SUPPORTED_EXTENSIONS | {".bmp", ".gif"}
 
 
 def get_file_hash(filepath, block_size=65536):
     """Calculates the MD5 hash of a file."""
     md5 = hashlib.md5()
     try:
-        with open(filepath, 'rb') as f:
-            for block in iter(lambda: f.read(block_size), b''):
+        with open(filepath, "rb") as f:
+            for block in iter(lambda: f.read(block_size), b""):
                 md5.update(block)
         return md5.hexdigest()
     except OSError:
@@ -87,11 +87,15 @@ def find_duplicates(root_folder, callback=None):
         # Add confirmed duplicates
         for h, paths in hash_groups.items():
             if len(paths) > 1:
-                duplicates.append({
-                    'hash': h,
-                    'size': os.path.getsize(paths[0]),  # Should be same as key of size_groups
-                    'files': sorted(paths)  # Sort for consistent display
-                })
+                duplicates.append(
+                    {
+                        "hash": h,
+                        "size": os.path.getsize(
+                            paths[0]
+                        ),  # Should be same as key of size_groups
+                        "files": sorted(paths),  # Sort for consistent display
+                    }
+                )
 
     return duplicates
 
