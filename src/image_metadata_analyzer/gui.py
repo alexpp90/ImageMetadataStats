@@ -271,7 +271,6 @@ class ImageLibraryStatistics(ttk.Frame):
 
         except Exception as e:
             print(f"An error occurred: {e}")
-
             traceback.print_exc()
         finally:
             sys.stdout = old_stdout
@@ -443,7 +442,6 @@ class DuplicateFinder(ttk.Frame):
             self.parent.after(0, lambda: self.display_results(results, thumbnails))
         except Exception as e:
             print(f"Error scanning: {e}")
-
             traceback.print_exc()
             self.parent.after(0, lambda err=e: messagebox.showerror("Error", str(err)))
         finally:
