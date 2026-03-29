@@ -52,15 +52,25 @@ def find_duplicates(root_folder, callback=None):
     # But checking size is also stat().
 
     # Initial scan
-    for root, _, files in os.walk(root_path):
-        for name in files:
-            path = Path(root) / name
-            if path.suffix.lower() in IMAGE_EXTENSIONS:
-                try:
-                    s = path.stat().st_size
-                    size_groups[s].append(path)
-                except OSError:
-                    pass
+    ext_tuple = tuple(IMAGE_EXTENSIONS)
+
+    def _scan(path):
+        try:
+            with os.scandir(path) as it:
+                for entry in it:
+                    if entry.is_file():
+                        if entry.name.lower().endswith(ext_tuple):
+                            try:
+                                s = entry.stat().st_size
+                                size_groups[s].append(Path(entry.path))
+                            except OSError:
+                                pass
+                    elif entry.is_dir(follow_symlinks=False):
+                        _scan(entry.path)
+        except OSError:
+            pass
+
+    _scan(root_path)
 
     # Filter for groups that have more than 1 file
     potential_groups = [paths for paths in size_groups.values() if len(paths) > 1]
