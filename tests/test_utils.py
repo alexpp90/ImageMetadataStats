@@ -2,11 +2,9 @@ import sys
 from unittest.mock import MagicMock
 
 # Mock dependencies that are not in the environment to allow importing utils
-mock_pil = MagicMock()
-mock_image = MagicMock()
-mock_pil.Image = mock_image
-sys.modules['PIL'] = mock_pil
-sys.modules['PIL.Image'] = mock_image
+# Remove this mock because poetry installed PIL during pytest-cov installation
+# and tests in test_visualizer fail because it tries to import PIL.PngImagePlugin
+# which this mock breaks
 sys.modules['rawpy'] = MagicMock()
 
 import unittest
@@ -59,6 +57,15 @@ class TestResolvePath(unittest.TestCase):
         """Tests handling of SMB URLs with no path component."""
         path_str = "smb://myserver"
         result = resolve_path(path_str)
+        self.assertEqual(result, Path(path_str))
+
+    @patch("sys.platform", "linux")
+    @patch("os.getuid", side_effect=AttributeError)
+    def test_smb_linux_no_getuid(self, mock_getuid):
+        """Tests SMB URL resolution on Linux when os.getuid is missing/raises AttributeError."""
+        path_str = "smb://myserver/myshare/path/to/image.jpg"
+        result = resolve_path(path_str)
+        # Should fall back to returning Path(path_str)
         self.assertEqual(result, Path(path_str))
 
 if __name__ == "__main__":
