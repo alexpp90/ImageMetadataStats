@@ -158,7 +158,6 @@ class ImageLibraryStatistics(ttk.Frame):
 
     def start_analysis(self):
         root_path = self.root_folder_var.get()
-        output_path = self.output_folder_var.get()
 
         if not root_path:
             messagebox.showerror("Error", "Please select an images folder.")
@@ -182,14 +181,14 @@ class ImageLibraryStatistics(ttk.Frame):
 
         # Start thread
         threading.Thread(
-            target=self.run_analysis, args=(root_path, output_path), daemon=True
+            target=self.run_analysis, args=(root_path,), daemon=True
         ).start()
         self.after(100, self.update_logs)
 
     def update_progress(self, value):
         self.progress_var.set(value)
 
-    def run_analysis(self, root_folder, output_folder):
+    def run_analysis(self, root_folder):
         # Redirect stdout
         old_stdout = sys.stdout
         sys.stdout = RedirectText(self.log_queue)
@@ -197,8 +196,6 @@ class ImageLibraryStatistics(ttk.Frame):
         try:
             # Resolve potential network paths (smb://) to local paths
             root_path = resolve_path(root_folder)
-            # output_path = Path(output_folder) # Not actually used in GUI for display,
-            # only passed if we wanted to save there
 
             if not root_path.is_dir():
                 print(f"Error: Folder not found at '{root_path}'")

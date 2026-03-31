@@ -19,7 +19,7 @@ except ImportError:
 import unittest
 from unittest.mock import patch
 from pathlib import Path
-from image_metadata_analyzer.utils import resolve_path, get_exiftool_path
+from image_metadata_analyzer.utils import resolve_path, get_exiftool_path, load_image_preview
 
 class TestGetExiftoolPath(unittest.TestCase):
 
