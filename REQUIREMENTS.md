@@ -27,7 +27,7 @@ The Image Metadata Analyzer is a cross-platform desktop application designed to 
 *   **URL Decoding:** The resolver must correctly unquote URL-encoded characters (e.g., `%20` to spaces) during the resolution process.
 
 ### 2.4 Duplicate Finder
-*   **Detection Logic:** Duplicate image detection utilizes MD5 hashing of file content.
+*   **Detection Logic:** Duplicate image detection utilizes SHA256 hashing of file content.
 *   **Deletion Strategy:** The utility first attempts to move files to the trash using `send2trash`.
 *   **Deletion Error Handling:** If `send2trash` fails (e.g., on network drives), the backend utility (`move_to_trash`) must raise an exception rather than returning a boolean status. The GUI layer is responsible for catching this exception and prompting the user for a fallback to permanent deletion (`Path.unlink()`).
 

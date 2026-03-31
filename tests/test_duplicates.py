@@ -41,7 +41,7 @@ def test_get_file_hash(temp_image_folder):
     img1 = temp_image_folder / "img1.jpg"
     h = get_file_hash(img1)
     assert h is not None
-    assert len(h) == 32  # MD5 hexdigest length
+    assert len(h) == 64  # SHA256 hexdigest length
 
 
 def test_find_duplicates(temp_image_folder):
