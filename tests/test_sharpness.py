@@ -134,3 +134,16 @@ def test_calculate_sharpness_crop(mock_get_data):
     score_center = calculate_sharpness(Path("center.jpg"))
 
     assert score_center > score_edges
+
+
+@patch.object(shp, "get_image_data")
+@patch.object(shp, "cv2")
+def test_calculate_sharpness_exception(mock_cv2, mock_get_data):
+    # Setup mock to return a valid dummy image
+    mock_get_data.return_value = np.zeros((100, 100, 3), dtype=np.uint8)
+    # Mock cvtColor to raise an exception
+    mock_cv2.cvtColor.side_effect = Exception("Mocked error")
+
+    # The function should catch the exception and return 0.0
+    score = calculate_sharpness(Path("error.jpg"))
+    assert score == 0.0
