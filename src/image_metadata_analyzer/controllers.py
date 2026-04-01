@@ -1,7 +1,8 @@
 import logging
 import queue
 import threading
-from typing import Dict, Optional, Callable, List
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from typing import Dict, Optional, Callable, List, Union
 from pathlib import Path
 from PIL import Image
 
@@ -147,6 +148,27 @@ class ImageCacheManager:
                 logger.debug(f"Full res load error for {path_str}: {e}")
 
 
+def _process_single_file(f: Path, grid_size: int, tools: Dict[str, bool]) -> ScanResult:
+    """Helper module function to process a single image for parallel execution."""
+    score: Union[float, str] = "N/A"
+    if tools.get("sharpness", False):
+        score = calculate_sharpness(f, grid_size=grid_size)
+
+    noise_score: Union[float, str] = "N/A"
+    if tools.get("noise", False):
+        noise_score = calculate_noise(f)
+
+    # Fetch EXIF
+    exif = get_exif_data(f) or {}
+
+    return ScanResult(
+        path=f,
+        score=score,
+        noise_score=noise_score,
+        exif=exif,
+    )
+
+
 class ScanController:
     """
     Handles background scanning of images for sharpness and noise.
@@ -209,33 +231,33 @@ class ScanController:
 
             log(f"Scanning {total} images. Starting analysis...")
 
-            for i, f in enumerate(files):
-                if self.stop_event.is_set():
-                    log("Scan cancelled.")
-                    break
+            with ProcessPoolExecutor() as executor:
+                # Submit all tasks
+                futures = {
+                    executor.submit(_process_single_file, f, grid_size, tools): f
+                    for f in files
+                }
 
-                log(f"Analyzing {f.name}...")
+                completed_count = 0
+                for future in as_completed(futures):
+                    if self.stop_event.is_set():
+                        log("Scan cancelled.")
+                        # Attempt to cancel pending futures
+                        for pending_future in futures:
+                            pending_future.cancel()
+                        break
 
-                score: Union[float, str] = "N/A"
-                if tools.get("sharpness", False):
-                    score = calculate_sharpness(f, grid_size=grid_size)
+                    f = futures[future]
+                    log(f"Analyzed {f.name}...")
 
-                noise_score: Union[float, str] = "N/A"
-                if tools.get("noise", False):
-                    noise_score = calculate_noise(f)
-
-                # Fetch EXIF
-                exif = get_exif_data(f) or {}
-
-                res = ScanResult(
-                    path=f,
-                    score=score,
-                    noise_score=noise_score,
-                    exif=exif,
-                )
-
-                # Notify progress
-                progress_callback(res, i + 1, total)
+                    try:
+                        res = future.result()
+                        completed_count += 1
+                        # Notify progress
+                        progress_callback(res, completed_count, total)
+                    except Exception as e:
+                        log(f"Error processing {f.name}: {e}")
+                        logger.exception(f"Error processing {f.name}")
 
             log("Scan complete.")
 
