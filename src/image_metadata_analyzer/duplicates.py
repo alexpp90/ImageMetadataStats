@@ -1,6 +1,7 @@
 import hashlib
 import os
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from send2trash import send2trash
 
@@ -81,20 +82,30 @@ def find_duplicates(root_folder, callback=None):
 
     duplicates = []
 
-    for group in potential_groups:
-        # Group by hash within this size group
-        hash_groups = defaultdict(list)
-
+    all_files = []
+    for group_id, group in enumerate(potential_groups):
         for filepath in group:
-            h = get_file_hash(filepath)
+            all_files.append((filepath, group_id))
+
+    def _hash_worker(item):
+        filepath, group_id = item
+        h = get_file_hash(filepath)
+        return filepath, group_id, h
+
+    hash_groups_by_id = defaultdict(lambda: defaultdict(list))
+
+    with ThreadPoolExecutor() as executor:
+        # executor.map yields results sequentially in the main thread
+        for filepath, group_id, h in executor.map(_hash_worker, all_files):
             processed_count += 1
             if callback:
                 callback(processed_count, total_files_to_hash)
 
             if h:
-                hash_groups[h].append(filepath)
+                hash_groups_by_id[group_id][h].append(filepath)
 
-        # Add confirmed duplicates
+    # Add confirmed duplicates
+    for group_id, hash_groups in hash_groups_by_id.items():
         for h, paths in hash_groups.items():
             if len(paths) > 1:
                 duplicates.append(
