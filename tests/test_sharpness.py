@@ -4,6 +4,7 @@ import numpy as np
 from unittest.mock import patch, MagicMock
 from image_metadata_analyzer.sharpness import (
     calculate_sharpness,
+    calculate_noise,
     categorize_sharpness,
     find_related_files,
     SharpnessCategories,
@@ -146,4 +147,17 @@ def test_calculate_sharpness_exception(mock_cv2, mock_get_data):
 
     # The function should catch the exception and return 0.0
     score = calculate_sharpness(Path("error.jpg"))
+    assert score == 0.0
+
+
+@patch.object(shp, "get_image_data")
+@patch.object(shp, "cv2")
+def test_calculate_noise_exception(mock_cv2, mock_get_data):
+    # Setup mock to return a valid dummy image
+    mock_get_data.return_value = np.zeros((100, 100, 3), dtype=np.uint8)
+    # Mock cvtColor to raise an exception
+    mock_cv2.cvtColor.side_effect = Exception("Mocked noise error")
+
+    # The function should catch the exception and return 0.0
+    score = calculate_noise(Path("error.jpg"))
     assert score == 0.0
