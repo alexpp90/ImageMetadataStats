@@ -229,15 +229,9 @@ def load_image_preview(
     try:
         ext = path.suffix.lower()
         raw_exts = {
-            ".arw",
-            ".nef",
-            ".cr2",
-            ".dng",
-            ".orf",
-            ".rw2",
-            ".raf",
-            ".pef",
-            ".srw",
+            ".arw", ".nef", ".cr2", ".dng", ".raw", ".cr3", 
+            ".raf", ".orf", ".rw2", ".pef", ".srw", ".sr2",
+            ".tif", ".tiff"
         }
 
         img = None
@@ -265,7 +259,8 @@ def load_image_preview(
             img.thumbnail(max_size)
         return img
 
-    except Exception:
+    except Exception as e:
         # In a real app we might want to log this
-        # print(f"Failed to load image preview for {path}: {e}")
+        if "path" in locals():
+            print(f"Failed to load image preview for {path}: {e}")
         return None

@@ -49,13 +49,20 @@ def test_categorize_sharpness():
     assert categorize_sharpness(600, blur_t, sharp_t) == SharpnessCategories.CRISP
 
 
-@patch.object(shp, "cv2")
-def test_get_image_data_standard(mock_cv2):
-    mock_cv2.imread.return_value = np.zeros((10, 10, 3))
+@patch.object(shp, "Image")
+def test_get_image_data_standard(mock_pil_image):
+    # Setup mock Pillow image
+    mock_img = MagicMock()
+    mock_img.__enter__.return_value = mock_img
+    # The return of convert("RGB") should be something that np.array() can handle
+    # A 10x10x3 uint8 array is perfect.
+    mock_img.convert.return_value = np.zeros((10, 10, 3), dtype=np.uint8)
+    mock_pil_image.open.return_value = mock_img
+
     path = Path("test.jpg")
     res = get_image_data(path)
     assert res is not None
-    mock_cv2.imread.assert_called_once_with("test.jpg")
+    mock_pil_image.open.assert_called_once_with(path)
 
 
 @pytest.mark.skipif(rawpy is None, reason="rawpy is not installed")
