@@ -1,4 +1,6 @@
 import argparse
+import concurrent.futures
+import os
 from pathlib import Path
 
 from tqdm import tqdm
@@ -54,11 +56,23 @@ def main():
 
     print(f"Found {len(image_files)} image files. Extracting metadata...")
 
-    all_metadata = [
-        data
-        for f in tqdm(image_files, desc="Processing images")
-        if (data := get_exif_data(f, debug=args.debug))
-    ]
+    # Parallelize EXIF extraction to speed up I/O-bound processing.
+    # We use a ThreadPoolExecutor with a worker count optimized for I/O operations.
+    all_metadata = []
+    max_workers = min(32, (os.cpu_count() or 1) + 4)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # We use executor.map with a lambda to preserve the original image order and update tqdm.
+        # However, to easily skip None results and keep tqdm responsive, we'll use submit/as_completed.
+        futures = {
+            executor.submit(get_exif_data, f, debug=args.debug): f for f in image_files
+        }
+
+        with tqdm(total=len(image_files), desc="Processing images") as pbar:
+            for future in concurrent.futures.as_completed(futures):
+                data = future.result()
+                if data:
+                    all_metadata.append(data)
+                pbar.update(1)
 
     if not all_metadata:
         print("Could not extract any valid EXIF metadata from the found images.")
