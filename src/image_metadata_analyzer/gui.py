@@ -3,6 +3,7 @@ from tkinter import ttk, filedialog, messagebox
 import threading
 import queue
 import sys
+import traceback
 from pathlib import Path
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from PIL import ImageTk
@@ -157,7 +158,6 @@ class ImageLibraryStatistics(ttk.Frame):
 
     def start_analysis(self):
         root_path = self.root_folder_var.get()
-        output_path = self.output_folder_var.get()
 
         if not root_path:
             messagebox.showerror("Error", "Please select an images folder.")
@@ -181,14 +181,14 @@ class ImageLibraryStatistics(ttk.Frame):
 
         # Start thread
         threading.Thread(
-            target=self.run_analysis, args=(root_path, output_path), daemon=True
+            target=self.run_analysis, args=(root_path,), daemon=True
         ).start()
         self.after(100, self.update_logs)
 
     def update_progress(self, value):
         self.progress_var.set(value)
 
-    def run_analysis(self, root_folder, output_folder):
+    def run_analysis(self, root_folder):
         # Redirect stdout
         old_stdout = sys.stdout
         sys.stdout = RedirectText(self.log_queue)
@@ -196,8 +196,6 @@ class ImageLibraryStatistics(ttk.Frame):
         try:
             # Resolve potential network paths (smb://) to local paths
             root_path = resolve_path(root_folder)
-            # output_path = Path(output_folder) # Not actually used in GUI for display,
-            # only passed if we wanted to save there
 
             if not root_path.is_dir():
                 print(f"Error: Folder not found at '{root_path}'")
@@ -270,8 +268,6 @@ class ImageLibraryStatistics(ttk.Frame):
 
         except Exception as e:
             print(f"An error occurred: {e}")
-            import traceback
-
             traceback.print_exc()
         finally:
             sys.stdout = old_stdout
@@ -428,23 +424,26 @@ class DuplicateFinder(ttk.Frame):
                 0, lambda: self.status_lbl.config(text="Generating previews...")
             )
 
-            thumbnails = []
-            for group in results:
-                thumb = None
+            def _load_thumb(group):
                 if group["files"]:
                     try:
-                        thumb = load_image_preview(
+                        return load_image_preview(
                             group["files"][0], max_size=(150, 150)
                         )
                     except Exception:
                         pass
-                thumbnails.append(thumb)
+                return None
+
+            import concurrent.futures
+            # Determine thread count: use at most 8 threads to balance performance and overhead
+            import os
+            max_workers = min(8, (os.cpu_count() or 1) + 4)
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+                thumbnails = list(executor.map(_load_thumb, results))
 
             self.parent.after(0, lambda: self.display_results(results, thumbnails))
         except Exception as e:
             print(f"Error scanning: {e}")
-            import traceback
-
             traceback.print_exc()
             self.parent.after(0, lambda err=e: messagebox.showerror("Error", str(err)))
         finally:

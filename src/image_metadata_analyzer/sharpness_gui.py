@@ -1292,6 +1292,12 @@ class SharpnessTool(ttk.Frame):
             score_text = format_score(result["score"])
             noise_text = format_score(result.get("noise_score", "N/A"))
 
+            noise_val = result.get('noise_score', "N/A")
+            if isinstance(noise_val, float):
+                noise_text = f"{noise_val:.1f}"
+            else:
+                noise_text = str(noise_val)
+
             # Delete and reinsert to update text, but maintain selection if it was selected
             is_selected = self.candidate_listbox.curselection() == (idx,)
             self.candidate_listbox.delete(idx)
