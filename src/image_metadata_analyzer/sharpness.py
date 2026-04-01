@@ -1,5 +1,17 @@
+import os
+
+# Suppress OpenCV terminal noise from its internal C++ decoders (like grfmt_tiff.cpp)
+# Must be set BEFORE importing cv2
+os.environ["OPENCV_LOG_LEVEL"] = "OFF"
+
 import cv2
 import numpy as np
+
+try:
+    if hasattr(cv2, 'utils') and hasattr(cv2.utils, 'logging'):
+        cv2.utils.logging.setLogLevel(cv2.utils.logging.LOG_LEVEL_SILENT)
+except Exception:
+    pass
 
 try:
     import rawpy
@@ -9,6 +21,7 @@ from pathlib import Path
 import glob
 from typing import List, Optional
 import logging
+from PIL import Image
 
 logger = logging.getLogger(__name__)
 
@@ -42,35 +55,45 @@ class SharpnessCategories:
 def get_image_data(filepath: Path) -> Optional[np.ndarray]:
     """
     Reads an image file and returns a numpy array (BGR or Grayscale).
-    Handles RAW files via rawpy and standard images via cv2.
+    Handles RAW files via rawpy and standard images via Pillow (falling back to cv2).
     """
     path_str = str(filepath)
     ext = filepath.suffix.lower()
 
     try:
-        # List of common raw extensions
-        raw_exts = {".arw", ".nef", ".cr2", ".dng", ".orf", ".rw2", ".raf"}
+        # 1. Try rawpy for known RAW formats
+        raw_exts = {
+            ".arw", ".nef", ".cr2", ".dng", ".raw", ".cr3", 
+            ".raf", ".orf", ".rw2", ".pef", ".srw", ".sr2"
+        }
 
         if ext in raw_exts and rawpy is not None:
             try:
                 with rawpy.imread(path_str) as raw:
-                    # Postprocess to get a usable RGB image
-                    # use_camera_wb=True uses the camera's white balance
-                    # no_auto_bright=True keeps original brightness
-                    # bright=1.0 scales brightness
                     rgb = raw.postprocess(
                         use_camera_wb=True, no_auto_bright=True, bright=1.0
                     )
-                    # Convert RGB (rawpy) to BGR (opencv)
                     return cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
             except Exception as e:
                 logger.warning(f"Failed to read RAW file {path_str} with rawpy: {e}")
-                # Fallback to OpenCV if rawpy fails (some raw formats might be supported by opencv)
-                return cv2.imread(path_str)
-        else:
-            # Standard image
-            return cv2.imread(path_str)
+                # Fallthrough to Pillow for fallback
+
+        # 2. Try Pillow (better TIFF support, much quieter than OpenCV)
+        try:
+            with Image.open(filepath) as img:
+                # Ensure it is in RGB mode for consistent conversion
+                rgb_img = img.convert("RGB")
+                numpy_img = np.array(rgb_img)
+                # Convert RGB (Pillow) to BGR (OpenCV)
+                return cv2.cvtColor(numpy_img, cv2.COLOR_RGB2BGR)
+        except Exception:
+            # If Pillow fails, we do NOT fall back to cv2.imread anymore because
+            # it is noisy on corrupted TIFFs and unlikely to succeed if Pillow failed.
+            logger.debug(f"Both rawpy and Pillow failed to read {path_str}")
+            return None
+
     except Exception as e:
+        # Restore logging for Python exceptions so we can see why a file is "skipped"
         logger.error(f"Error reading image {path_str}: {e}")
         return None
 

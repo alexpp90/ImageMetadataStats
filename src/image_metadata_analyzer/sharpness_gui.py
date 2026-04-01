@@ -1144,7 +1144,7 @@ class SharpnessTool(ttk.Frame):
 
         for f in self.sorted_files:
             # Initialize with N/A score and empty EXIF (fetch EXIF asynchronously if needed later)
-            res = {"path": f, "score": "N/A", "noise_score": "N/A", "exif": {}}
+            res = ScanResult(path=f)
             self.files_map[f] = res
             self.candidate_listbox.insert("end", f"{f.name} (Sharpness: N/A)")
 
@@ -1289,10 +1289,10 @@ class SharpnessTool(ttk.Frame):
         # The file is already in candidates (from _load_folder_contents)
         if path in self.candidates:
             idx = self.candidates.index(path)
-            score_text = format_score(result["score"])
-            noise_text = format_score(result.get("noise_score", "N/A"))
+            score_text = format_score(result.score)
+            noise_text = format_score(result.noise_score)
 
-            noise_val = result.get('noise_score', "N/A")
+            noise_val = result.noise_score
             if isinstance(noise_val, float):
                 noise_text = f"{noise_val:.1f}"
             else:

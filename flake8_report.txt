@@ -1,0 +1,73 @@
+src/image_metadata_analyzer/analyzer.py:40:14: E111 indentation is not a multiple of 4
+src/image_metadata_analyzer/analyzer.py:40:14: E117 over-indented
+src/image_metadata_analyzer/analyzer.py:43:5: E303 too many blank lines (2)
+src/image_metadata_analyzer/gui.py:8:1: F401 'PIL.Image' imported but unused
+src/image_metadata_analyzer/gui.py:275:29: E261 at least two spaces before inline comment
+src/image_metadata_analyzer/gui.py:327:121: E501 line too long (122 > 120 characters)
+src/image_metadata_analyzer/gui.py:384:76: F821 undefined name 'e'
+src/image_metadata_analyzer/gui.py:402:121: E501 line too long (125 > 120 characters)
+src/image_metadata_analyzer/gui.py:413:50: E261 at least two spaces before inline comment
+src/image_metadata_analyzer/gui.py:417:22: E111 indentation is not a multiple of 4
+src/image_metadata_analyzer/gui.py:417:22: E117 over-indented
+src/image_metadata_analyzer/gui.py:440:121: E501 line too long (134 > 120 characters)
+src/image_metadata_analyzer/sharpness.py:5:1: F401 'typing.Tuple' imported but unused
+src/image_metadata_analyzer/sharpness.py:6:1: F401 'os' imported but unused
+src/image_metadata_analyzer/sharpness.py:11:1: E302 expected 2 blank lines, found 1
+src/image_metadata_analyzer/sharpness.py:36:1: E302 expected 2 blank lines, found 1
+src/image_metadata_analyzer/sharpness.py:69:1: E302 expected 2 blank lines, found 1
+src/image_metadata_analyzer/sharpness.py:101:14: E114 indentation is not a multiple of 4 (comment)
+src/image_metadata_analyzer/sharpness.py:101:14: E117 over-indented (comment)
+src/image_metadata_analyzer/sharpness.py:102:14: E111 indentation is not a multiple of 4
+src/image_metadata_analyzer/sharpness.py:102:14: E117 over-indented
+src/image_metadata_analyzer/sharpness.py:104:14: E111 indentation is not a multiple of 4
+src/image_metadata_analyzer/sharpness.py:104:14: E117 over-indented
+src/image_metadata_analyzer/sharpness.py:118:18: E111 indentation is not a multiple of 4
+src/image_metadata_analyzer/sharpness.py:118:18: E117 over-indented
+src/image_metadata_analyzer/sharpness.py:140:1: E302 expected 2 blank lines, found 1
+src/image_metadata_analyzer/sharpness.py:154:1: E302 expected 2 blank lines, found 1
+src/image_metadata_analyzer/sharpness_gui.py:392:121: E501 line too long (125 > 120 characters)
+src/image_metadata_analyzer/utils.py:11:1: E302 expected 2 blank lines, found 1
+src/image_metadata_analyzer/utils.py:31:34: E261 at least two spaces before inline comment
+src/image_metadata_analyzer/utils.py:74:1: E302 expected 2 blank lines, found 1
+src/image_metadata_analyzer/utils.py:110:1: E302 expected 2 blank lines, found 1
+src/image_metadata_analyzer/utils.py:166:15: E261 at least two spaces before inline comment
+src/image_metadata_analyzer/utils.py:204:1: E302 expected 2 blank lines, found 1
+src/image_metadata_analyzer/utils.py:204:121: E501 line too long (124 > 120 characters)
+src/image_metadata_analyzer/utils.py:231:13: F841 local variable 'e' is assigned to but never used
+src/image_metadata_analyzer/utils.py:244:5: F841 local variable 'e' is assigned to but never used
+src/image_metadata_analyzer/visualizer.py:72:43: E261 at least two spaces before inline comment
+src/image_metadata_analyzer/visualizer.py:93:43: E261 at least two spaces before inline comment
+src/image_metadata_analyzer/visualizer.py:143:45: E261 at least two spaces before inline comment
+src/image_metadata_analyzer/visualizer.py:164:14: E111 indentation is not a multiple of 4
+src/image_metadata_analyzer/visualizer.py:164:14: E117 over-indented
+src/image_metadata_analyzer/visualizer.py:174:45: E261 at least two spaces before inline comment
+src/image_metadata_analyzer/visualizer.py:214:14: E111 indentation is not a multiple of 4
+src/image_metadata_analyzer/visualizer.py:214:14: E117 over-indented
+tests/test_aggregation.py:4:1: E302 expected 2 blank lines, found 1
+tests/test_aggregation.py:56:37: E261 at least two spaces before inline comment
+tests/test_aggregation.py:57:41: E261 at least two spaces before inline comment
+tests/test_aggregation.py:72:1: E305 expected 2 blank lines after class or function definition, found 1
+tests/test_analyzer.py:8:1: E302 expected 2 blank lines, found 1
+tests/test_sharpness.py:14:1: E302 expected 2 blank lines, found 1
+tests/test_sharpness.py:19:5: F841 local variable 'cv2_mock' is assigned to but never used
+tests/test_sharpness.py:24:1: E302 expected 2 blank lines, found 1
+tests/test_sharpness.py:29:1: E302 expected 2 blank lines, found 1
+tests/test_sharpness.py:35:1: E302 expected 2 blank lines, found 1
+tests/test_sharpness.py:44:1: E302 expected 2 blank lines, found 1
+tests/test_sharpness.py:46:44: E231 missing whitespace after ','
+tests/test_sharpness.py:46:47: E231 missing whitespace after ','
+tests/test_sharpness.py:52:1: E302 expected 2 blank lines, found 1
+tests/test_sharpness.py:57:57: E231 missing whitespace after ','
+tests/test_sharpness.py:57:60: E231 missing whitespace after ','
+tests/test_sharpness.py:67:1: E302 expected 2 blank lines, found 1
+tests/test_sharpness.py:83:1: E302 expected 2 blank lines, found 1
+tests/test_sharpness.py:98:1: E302 expected 2 blank lines, found 1
+tests/test_sharpness.py:109:29: E261 at least two spaces before inline comment
+tests/test_visualizer.py:1:1: F401 'unittest.mock.MagicMock' imported but unused
+tests/test_visualizer.py:7:1: E302 expected 2 blank lines, found 1
+tests/test_visualizer.py:12:1: E302 expected 2 blank lines, found 1
+tests/test_visualizer.py:17:1: E302 expected 2 blank lines, found 1
+tests/test_visualizer.py:22:1: E302 expected 2 blank lines, found 1
+tests/test_visualizer.py:27:1: E302 expected 2 blank lines, found 1
+tests/test_visualizer.py:32:1: E302 expected 2 blank lines, found 1
+tests/test_visualizer.py:37:1: E302 expected 2 blank lines, found 1
