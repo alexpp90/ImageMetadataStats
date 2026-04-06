@@ -1,7 +1,5 @@
-import sys
 from pathlib import Path
 from unittest.mock import patch, MagicMock
-
 from image_metadata_analyzer.visualizer import (
     get_shutter_speed_plot,
     get_aperture_plot,
@@ -59,7 +57,7 @@ def test_get_equivalent_focal_length_plot_empty():
 
 
 def test_get_apsc_equivalent_focal_length_plot():
-    data = [{"Focal Length (35mm)": 75}, {"Focal Length (35mm)": 50}]
+    data = [{"Focal Length (35mm)": 75.0}, {"Focal Length (35mm)": 50.0}]
     fig = get_apsc_equivalent_focal_length_plot(data)
     assert fig is not None
 
@@ -74,8 +72,6 @@ def test_get_apsc_equivalent_focal_length_plot_missing_key():
     data = [{"Aperture": 2.8}]
     fig = get_apsc_equivalent_focal_length_plot(data)
     assert fig is None
-
-
 def test_get_lens_plot():
     data = [{"Lens": "Lens A"}, {"Lens": "Lens B"}]
     fig = get_lens_plot(data)

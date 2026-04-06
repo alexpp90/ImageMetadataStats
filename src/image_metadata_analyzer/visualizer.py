@@ -131,19 +131,12 @@ def get_focal_length_plot(data: List[Dict]) -> Optional[Figure]:
     return fig
 
 
-def get_equivalent_focal_length_plot(data: List[Dict]) -> Optional[Figure]:
-    values = [
-        d["Focal Length (35mm)"]
-        for d in data
-        if d.get("Focal Length (35mm)") is not None
-    ]
-    if not values:
-        return None
-
+def _create_equivalent_focal_length_plot(values: List[float], title: str) -> Figure:
+    """Helper to create equivalent focal length plots."""
     # Round to nearest integer for cleaner plotting
-    values = [int(round(v)) for v in values]
+    rounded_values = [int(round(v)) for v in values]
 
-    counter = Counter(values)
+    counter = Counter(rounded_values)
     top_items = dict(counter.most_common(25))
     sorted_items = sorted(top_items.items())  # Sort by focal length value
     x_vals = [str(x[0]) for x in sorted_items]
@@ -153,11 +146,25 @@ def get_equivalent_focal_length_plot(data: List[Dict]) -> Optional[Figure]:
     ax = fig.add_subplot(111)
     ax.bar(x_vals, y_vals)
     ax.tick_params(axis="x", rotation=45)
-    ax.set_title("Top 25 Most Used Equivalent Focal Lengths (35mm)")
+    ax.set_title(title)
     ax.set_xlabel("Equivalent Focal Length (mm)")
     ax.set_ylabel("Count")
     fig.tight_layout()
     return fig
+
+
+def get_equivalent_focal_length_plot(data: List[Dict]) -> Optional[Figure]:
+    values = [
+        d["Focal Length (35mm)"]
+        for d in data
+        if d.get("Focal Length (35mm)") is not None
+    ]
+    if not values:
+        return None
+
+    return _create_equivalent_focal_length_plot(
+        values, "Top 25 Most Used Equivalent Focal Lengths (35mm)"
+    )
 
 
 def get_apsc_equivalent_focal_length_plot(data: List[Dict]) -> Optional[Figure]:
@@ -171,24 +178,9 @@ def get_apsc_equivalent_focal_length_plot(data: List[Dict]) -> Optional[Figure]:
     if not values:
         return None
 
-    # Round to nearest integer
-    values = [int(round(v)) for v in values]
-
-    counter = Counter(values)
-    top_items = dict(counter.most_common(25))
-    sorted_items = sorted(top_items.items())  # Sort by focal length value
-    x_vals = [str(x[0]) for x in sorted_items]
-    y_vals = [x[1] for x in sorted_items]
-
-    fig = Figure(figsize=(12, 7), dpi=100)
-    ax = fig.add_subplot(111)
-    ax.bar(x_vals, y_vals)
-    ax.tick_params(axis="x", rotation=45)
-    ax.set_title("Top 25 Most Used Equivalent Focal Lengths (APS-C)")
-    ax.set_xlabel("Equivalent Focal Length (mm)")
-    ax.set_ylabel("Count")
-    fig.tight_layout()
-    return fig
+    return _create_equivalent_focal_length_plot(
+        values, "Top 25 Most Used Equivalent Focal Lengths (APS-C)"
+    )
 
 
 def get_lens_plot(data: List[Dict]) -> Optional[Figure]:
