@@ -254,8 +254,8 @@ def load_image_preview(
                         use_camera_wb=True, bright=1.0, half_size=not full_res
                     )
                     img = Image.fromarray(rgb)
-            except rawpy.LibRawError as e:
-                # Catch all rawpy failures and fall through to Pillow
+            except (rawpy.LibRawError, OSError, ValueError) as e:
+                # Catch common rawpy failures and fall through to Pillow
                 logger.debug("rawpy failed to load %s: %s", path, e)
 
         # Fallback to Pillow if not RAW or rawpy failed
