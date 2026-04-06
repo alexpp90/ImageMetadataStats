@@ -1,6 +1,6 @@
 import sys
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from image_metadata_analyzer.visualizer import (
     get_shutter_speed_plot,
