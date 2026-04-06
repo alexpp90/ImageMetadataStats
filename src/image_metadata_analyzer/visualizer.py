@@ -235,78 +235,25 @@ def create_plots(data: List[Dict], output_dir: Path, show_plots: bool = False):
 
     plt.style.use("seaborn-v0_8-whitegrid")
 
-    # Shutter Speed
-    fig = get_shutter_speed_plot(data)
-    if fig:
-        fig.savefig(output_dir / "shutter_speed_distribution.png")
-    else:
-        print("Skipping Shutter Speed plot: No data available.")
+    plot_configs = [
+        ("Shutter Speed", get_shutter_speed_plot, "shutter_speed_distribution.png", False),
+        ("Aperture", get_aperture_plot, "aperture_distribution.png", True),
+        ("ISO", get_iso_plot, "iso_distribution.png", False),
+        ("Focal Length", get_focal_length_plot, "focal_length_distribution.png", True),
+        ("Equivalent Focal Length (35mm)", get_equivalent_focal_length_plot, "equivalent_focal_length_35mm_distribution.png", True),
+        ("Equivalent Focal Length (APS-C)", get_apsc_equivalent_focal_length_plot, "equivalent_focal_length_apsc_distribution.png", True),
+        ("Lens", get_lens_plot, "lens_usage.png", True),
+        ("Aperture & Focal Length combination", get_combination_plot, "aperture_focal_length_combinations.png", True),
+    ]
 
-    # Aperture
-    fig = get_aperture_plot(data)
-    if fig:
-        aperture_path = output_dir / "aperture_distribution.png"
-        fig.savefig(aperture_path)
-        if show_plots:
-            _open_file_for_user(aperture_path)
-    else:
-        print("Skipping Aperture plot: No data available.")
-
-    # ISO
-    fig = get_iso_plot(data)
-    if fig:
-        fig.savefig(output_dir / "iso_distribution.png")
-    else:
-        print("Skipping ISO plot: No data available.")
-
-    # Focal Length
-    fig = get_focal_length_plot(data)
-    if fig:
-        focal_length_path = output_dir / "focal_length_distribution.png"
-        fig.savefig(focal_length_path)
-        if show_plots:
-            _open_file_for_user(focal_length_path)
-    else:
-        print("Skipping Focal Length plot: No data available.")
-
-    # Equivalent Focal Length (35mm)
-    fig = get_equivalent_focal_length_plot(data)
-    if fig:
-        eq_fl_path = output_dir / "equivalent_focal_length_35mm_distribution.png"
-        fig.savefig(eq_fl_path)
-        if show_plots:
-            _open_file_for_user(eq_fl_path)
-    else:
-        print("Skipping Equivalent Focal Length (35mm) plot: No data available.")
-
-    # Equivalent Focal Length (APS-C)
-    fig = get_apsc_equivalent_focal_length_plot(data)
-    if fig:
-        apsc_fl_path = output_dir / "equivalent_focal_length_apsc_distribution.png"
-        fig.savefig(apsc_fl_path)
-        if show_plots:
-            _open_file_for_user(apsc_fl_path)
-    else:
-        print("Skipping Equivalent Focal Length (APS-C) plot: No data available.")
-
-    # Lens
-    fig = get_lens_plot(data)
-    if fig:
-        lens_path = output_dir / "lens_usage.png"
-        fig.savefig(lens_path)
-        if show_plots:
-            _open_file_for_user(lens_path)
-    else:
-        print("Skipping Lens plot: No data available.")
-
-    # Aperture & Focal Length Combinations
-    fig = get_combination_plot(data)
-    if fig:
-        combo_path = output_dir / "aperture_focal_length_combinations.png"
-        fig.savefig(combo_path)
-        if show_plots:
-            _open_file_for_user(combo_path)
-    else:
-        print("Skipping Aperture & Focal Length combination plot: No data available.")
+    for name, getter, filename, should_show in plot_configs:
+        fig = getter(data)
+        if fig:
+            path = output_dir / filename
+            fig.savefig(path)
+            if show_plots and should_show:
+                _open_file_for_user(path)
+        else:
+            print(f"Skipping {name} plot: No data available.")
 
     print("Plots saved successfully.")
