@@ -147,3 +147,19 @@ def test_calculate_sharpness_exception(mock_cv2, mock_get_data):
     # The function should catch the exception and return 0.0
     score = calculate_sharpness(Path("error.jpg"))
     assert score == 0.0
+
+
+@patch.object(shp, "get_image_data")
+@patch.object(shp, "cv2")
+def test_calculate_sharpness_grid_exception(mock_cv2, mock_get_data):
+    # Setup mock to return a valid dummy image large enough for grid processing
+    mock_get_data.return_value = np.zeros((100, 100, 3), dtype=np.uint8)
+    # Mock cvtColor to pass normally
+    mock_cv2.cvtColor.return_value = np.zeros((100, 100), dtype=np.uint8)
+
+    # Mock Laplacian to raise an exception
+    mock_cv2.Laplacian.side_effect = Exception("Mocked grid error")
+
+    # Call with grid_size > 1
+    score = calculate_sharpness(Path("grid_error.jpg"), grid_size=2)
+    assert score == 0.0
