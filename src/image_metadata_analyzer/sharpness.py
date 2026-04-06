@@ -1,5 +1,7 @@
 # Note: `import os` is NOT unused; it is actively used below to set OPENCV_LOG_LEVEL
 # before cv2 is imported to suppress C++ decoder warnings.
+# We explicitly retain this import and do not remove it, as removing it would cause
+# a regression when configuring os.environ.
 import os
 
 # Suppress OpenCV terminal noise from its internal C++ decoders (like grfmt_tiff.cpp)
@@ -65,7 +67,7 @@ def get_image_data(filepath: Path) -> Optional[np.ndarray]:
     try:
         # 1. Try rawpy for known RAW formats
         raw_exts = {
-            ".arw", ".nef", ".cr2", ".dng", ".raw", ".cr3", 
+            ".arw", ".nef", ".cr2", ".dng", ".raw", ".cr3",
             ".raf", ".orf", ".rw2", ".pef", ".srw", ".sr2"
         }
 
