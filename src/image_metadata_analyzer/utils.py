@@ -3,6 +3,7 @@ import sys
 import os
 import urllib.parse
 import logging
+import functools
 from pathlib import Path
 from collections import Counter
 from typing import List, Tuple, Optional
@@ -80,6 +81,7 @@ def resolve_path(path_str: str) -> Path:
     return Path(path_str)
 
 
+@functools.lru_cache()
 def get_exiftool_path() -> str | None:
     """
     Returns the path to the exiftool executable.

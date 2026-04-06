@@ -33,6 +33,10 @@ from image_metadata_analyzer.utils import resolve_path, get_exiftool_path, load_
 
 class TestGetExiftoolPath(unittest.TestCase):
 
+    def setUp(self):
+        # Clear the lru_cache before each test to ensure tests don't interfere with each other
+        get_exiftool_path.cache_clear()
+
     @patch('shutil.which')
     def test_found_in_path(self, mock_which):
         """Tests that 'exiftool' is returned if found in system PATH."""
