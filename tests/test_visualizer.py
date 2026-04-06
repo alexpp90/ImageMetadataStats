@@ -8,6 +8,7 @@ from image_metadata_analyzer.visualizer import (
     get_iso_plot,
     get_focal_length_plot,
     get_equivalent_focal_length_plot,
+    get_apsc_equivalent_focal_length_plot,
     get_lens_plot,
     get_combination_plot,
     create_plots,
@@ -54,6 +55,24 @@ def test_get_equivalent_focal_length_plot():
 def test_get_equivalent_focal_length_plot_empty():
     data = [{"Focal Length": 50}]
     fig = get_equivalent_focal_length_plot(data)
+    assert fig is None
+
+
+def test_get_apsc_equivalent_focal_length_plot():
+    data = [{"Focal Length (35mm)": 75}, {"Focal Length (35mm)": 50}]
+    fig = get_apsc_equivalent_focal_length_plot(data)
+    assert fig is not None
+
+
+def test_get_apsc_equivalent_focal_length_plot_empty():
+    data = []
+    fig = get_apsc_equivalent_focal_length_plot(data)
+    assert fig is None
+
+
+def test_get_apsc_equivalent_focal_length_plot_missing_key():
+    data = [{"Aperture": 2.8}]
+    fig = get_apsc_equivalent_focal_length_plot(data)
     assert fig is None
 
 

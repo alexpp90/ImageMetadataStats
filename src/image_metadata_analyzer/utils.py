@@ -229,15 +229,9 @@ def load_image_preview(
     try:
         ext = path.suffix.lower()
         raw_exts = {
-            ".arw",
-            ".nef",
-            ".cr2",
-            ".dng",
-            ".orf",
-            ".rw2",
-            ".raf",
-            ".pef",
-            ".srw",
+            ".arw", ".nef", ".cr2", ".dng", ".raw", ".cr3", 
+            ".raf", ".orf", ".rw2", ".pef", ".srw", ".sr2",
+            ".tif", ".tiff"
         }
 
         img = None
@@ -253,7 +247,7 @@ def load_image_preview(
                     )
                     img = Image.fromarray(rgb)
             except Exception:
-                # Log or just fall through to Pillow
+                # Catch all rawpy failures and fall through to Pillow
                 pass
 
         # Fallback to Pillow if not RAW or rawpy failed
@@ -265,7 +259,7 @@ def load_image_preview(
             img.thumbnail(max_size)
         return img
 
-    except Exception:
-        # In a real app we might want to log this
-        # print(f"Failed to load image preview for {path}: {e}")
+    except (Image.UnidentifiedImageError, OSError, ValueError) as e:
+        # Catch common image loading/processing errors
+        print(f"Failed to load image preview for {path}: {e}")
         return None
