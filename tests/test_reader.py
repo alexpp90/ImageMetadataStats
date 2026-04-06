@@ -101,7 +101,7 @@ def test_get_exif_data_exiftool_general_error(image_dir, capsys):
 
     def mock_import(name, *args, **kwargs):
         if name == "exiftool":
-            raise Exception("Mocked general error for exiftool")
+            raise OSError("Mocked general error for exiftool")
         return real_import(name, *args, **kwargs)
 
     with patch("builtins.__import__", side_effect=mock_import):
@@ -126,7 +126,7 @@ def test_get_exif_data_exifread_general_error(image_dir, capsys):
         if name == "exiftool":
             raise ImportError("Mocked ImportError for exiftool")
         if name == "exifread":
-            raise Exception("Mocked general error for exifread")
+            raise OSError("Mocked general error for exifread")
         return real_import(name, *args, **kwargs)
 
     with patch("builtins.__import__", side_effect=mock_import):
