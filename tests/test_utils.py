@@ -19,7 +19,11 @@ except ImportError:
 try:
     import rawpy
 except ImportError:
-    sys.modules['rawpy'] = MagicMock()
+    class MockLibRawError(Exception):
+        pass
+    mock_rawpy = MagicMock()
+    mock_rawpy.LibRawError = MockLibRawError
+    sys.modules['rawpy'] = mock_rawpy
 
 import unittest
 from unittest.mock import patch
@@ -191,7 +195,8 @@ class TestLoadImagePreview(unittest.TestCase):
     @patch('image_metadata_analyzer.utils.rawpy.imread')
     def test_raw_fallback_to_pillow(self, mock_imread, mock_open):
         """Test that Pillow is used if rawpy fails."""
-        mock_imread.side_effect = Exception("rawpy failed")
+        import rawpy
+        mock_imread.side_effect = rawpy.LibRawError("rawpy failed to read file")
 
         mock_img = MagicMock()
         mock_open.return_value = mock_img

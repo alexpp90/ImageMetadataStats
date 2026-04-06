@@ -246,8 +246,8 @@ def load_image_preview(
                         use_camera_wb=True, bright=1.0, half_size=not full_res
                     )
                     img = Image.fromarray(rgb)
-            except Exception:
-                # Catch all rawpy failures and fall through to Pillow
+            except (rawpy.LibRawError, OSError, ValueError):
+                # Catch common rawpy failures and fall through to Pillow
                 pass
 
         # Fallback to Pillow if not RAW or rawpy failed
@@ -259,7 +259,7 @@ def load_image_preview(
             img.thumbnail(max_size)
         return img
 
-    except (Image.UnidentifiedImageError, OSError, ValueError) as e:
+    except (Image.UnidentifiedImageError, IOError, ValueError) as e:
         # Catch common image loading/processing errors
         print(f"Failed to load image preview for {path}: {e}")
         return None
