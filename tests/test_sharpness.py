@@ -20,7 +20,6 @@ def mock_image():
     # Create a simple 100x100 black image with a white square in center
     # This should have some edges and thus variance
     img = np.zeros((100, 100, 3), dtype=np.uint8)
-    MagicMock()
     # Drawing logic would depend on actual cv2, but here we just return array
     img[25:75, 25:75] = 255
     return img
