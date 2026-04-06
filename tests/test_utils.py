@@ -4,17 +4,27 @@ from unittest.mock import MagicMock
 # Mock dependencies that are not in the environment to allow importing utils
 try:
     import PIL
+    import PIL.Image
 except ImportError:
+    class MockUnidentifiedImageError(Exception):
+        pass
     mock_pil = MagicMock()
     mock_image = MagicMock()
+    mock_image.UnidentifiedImageError = MockUnidentifiedImageError
     mock_pil.Image = mock_image
     sys.modules['PIL'] = mock_pil
     sys.modules['PIL.Image'] = mock_image
+    PIL = mock_pil
 
 try:
     import rawpy
 except ImportError:
-    sys.modules['rawpy'] = MagicMock()
+    class MockLibRawError(Exception):
+        pass
+    mock_rawpy = MagicMock()
+    mock_rawpy.LibRawError = MockLibRawError
+    sys.modules['rawpy'] = mock_rawpy
+    rawpy = mock_rawpy
 
 import unittest
 from unittest.mock import patch
@@ -22,6 +32,10 @@ from pathlib import Path
 from image_metadata_analyzer.utils import resolve_path, get_exiftool_path, load_image_preview
 
 class TestGetExiftoolPath(unittest.TestCase):
+
+    def setUp(self):
+        # Clear the lru_cache before each test to ensure tests don't interfere with each other
+        get_exiftool_path.cache_clear()
 
     @patch('shutil.which')
     def test_found_in_path(self, mock_which):
@@ -186,7 +200,7 @@ class TestLoadImagePreview(unittest.TestCase):
     @patch('image_metadata_analyzer.utils.rawpy.imread')
     def test_raw_fallback_to_pillow(self, mock_imread, mock_open):
         """Test that Pillow is used if rawpy fails."""
-        mock_imread.side_effect = Exception("rawpy failed")
+        mock_imread.side_effect = rawpy.LibRawError("rawpy failed")
 
         mock_img = MagicMock()
         mock_open.return_value = mock_img
@@ -201,8 +215,18 @@ class TestLoadImagePreview(unittest.TestCase):
 
     @patch('image_metadata_analyzer.utils.Image.open')
     def test_exception_handling(self, mock_open):
-        """Test that None is returned on general exception."""
-        mock_open.side_effect = Exception("General failure")
+        """Test that None is returned on common image loading exceptions."""
+        mock_open.side_effect = OSError("File not found or access denied")
+
+        path = Path('test.jpg')
+        result = load_image_preview(path)
+
+        self.assertIsNone(result)
+
+    @patch('image_metadata_analyzer.utils.Image.open')
+    def test_unidentified_image_error(self, mock_open):
+        """Test that None is returned when Pillow cannot identify the image."""
+        mock_open.side_effect = PIL.Image.UnidentifiedImageError("Cannot identify image file")
 
         path = Path('test.jpg')
         result = load_image_preview(path)

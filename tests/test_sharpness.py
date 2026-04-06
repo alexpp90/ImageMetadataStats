@@ -4,6 +4,7 @@ import numpy as np
 from unittest.mock import patch, MagicMock
 from image_metadata_analyzer.sharpness import (
     calculate_sharpness,
+    calculate_noise,
     categorize_sharpness,
     find_related_files,
     SharpnessCategories,
@@ -48,13 +49,20 @@ def test_categorize_sharpness():
     assert categorize_sharpness(600, blur_t, sharp_t) == SharpnessCategories.CRISP
 
 
-@patch.object(shp, "cv2")
-def test_get_image_data_standard(mock_cv2):
-    mock_cv2.imread.return_value = np.zeros((10, 10, 3))
+@patch.object(shp, "Image")
+def test_get_image_data_standard(mock_pil_image):
+    # Setup mock Pillow image
+    mock_img = MagicMock()
+    mock_img.__enter__.return_value = mock_img
+    # The return of convert("RGB") should be something that np.array() can handle
+    # A 10x10x3 uint8 array is perfect.
+    mock_img.convert.return_value = np.zeros((10, 10, 3), dtype=np.uint8)
+    mock_pil_image.open.return_value = mock_img
+
     path = Path("test.jpg")
     res = get_image_data(path)
     assert res is not None
-    mock_cv2.imread.assert_called_once_with("test.jpg")
+    mock_pil_image.open.assert_called_once_with(path)
 
 
 @pytest.mark.skipif(rawpy is None, reason="rawpy is not installed")
@@ -162,4 +170,17 @@ def test_calculate_sharpness_grid_exception(mock_cv2, mock_get_data):
 
     # Call with grid_size > 1
     score = calculate_sharpness(Path("grid_error.jpg"), grid_size=2)
+    assert score == 0.0
+
+
+@patch.object(shp, "get_image_data")
+@patch.object(shp, "cv2")
+def test_calculate_noise_exception(mock_cv2, mock_get_data):
+    # Setup mock to return a valid dummy image
+    mock_get_data.return_value = np.zeros((100, 100, 3), dtype=np.uint8)
+    # Mock cvtColor to raise an exception
+    mock_cv2.cvtColor.side_effect = Exception("Mocked noise error")
+
+    # The function should catch the exception and return 0.0
+    score = calculate_noise(Path("error.jpg"))
     assert score == 0.0
