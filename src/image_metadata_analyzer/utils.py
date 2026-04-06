@@ -117,6 +117,53 @@ def get_exiftool_path() -> str | None:
     return None
 
 
+def _get_focal_length_groups(unique_fls: List[float], threshold: float) -> List[List[float]]:
+    groups = []
+    if not unique_fls:
+        return groups
+
+    current_group = [unique_fls[0]]
+
+    for fl in unique_fls[1:]:
+        if (fl - current_group[0]) / current_group[0] <= threshold:
+            current_group.append(fl)
+        else:
+            groups.append(current_group)
+            current_group = [fl]
+    groups.append(current_group)
+    return groups
+
+
+def _find_best_threshold(unique_fls: List[float], max_buckets: int) -> float:
+    low = 0.0
+    high = 2.0  # Allow up to 200% difference
+    best_threshold = high
+
+    for _ in range(20):
+        mid = (low + high) / 2
+        groups = _get_focal_length_groups(unique_fls, mid)
+        if len(groups) <= max_buckets:
+            best_threshold = mid
+            high = mid
+        else:
+            low = mid
+
+    return best_threshold
+
+
+def _format_focal_length_label(min_fl: float, max_fl: float) -> str:
+    def fmt(v):
+        return f"{int(v)}" if v.is_integer() else f"{v:.1f}".rstrip("0").rstrip(".")
+
+    if min_fl == max_fl:
+        return f"{fmt(min_fl)} mm"
+
+    if fmt(min_fl) == fmt(max_fl):
+        return f"{fmt(min_fl)} mm"
+
+    return f"{fmt(min_fl)}-{fmt(max_fl)} mm"
+
+
 def aggregate_focal_lengths(
     focal_lengths: List[float], max_buckets: int = 25
 ) -> List[Tuple[str, int, float]]:
@@ -155,59 +202,15 @@ def aggregate_focal_lengths(
             result.append((label, counts[fl], fl))
         return result
 
-    def get_groups(threshold):
-        groups = []
-        if not unique_fls:
-            return groups
-
-        current_group = [unique_fls[0]]
-
-        for fl in unique_fls[1:]:
-            # Check if current value is within threshold of the group start
-            # logic: (fl - start) / start <= threshold
-            if (fl - current_group[0]) / current_group[0] <= threshold:
-                current_group.append(fl)
-            else:
-                groups.append(current_group)
-                current_group = [fl]
-        groups.append(current_group)
-        return groups
-
-    # Binary search for the smallest threshold that yields <= max_buckets
-    low = 0.0
-    high = 2.0  # Allow up to 200% difference
-    best_threshold = high
-
-    # We do a fixed number of iterations for precision
-    for _ in range(20):
-        mid = (low + high) / 2
-        groups = get_groups(mid)
-        if len(groups) <= max_buckets:
-            best_threshold = mid
-            high = mid
-        else:
-            low = mid
-
-    # Generate final groups with best_threshold
-    final_groups = get_groups(best_threshold)
+    best_threshold = _find_best_threshold(unique_fls, max_buckets)
+    final_groups = _get_focal_length_groups(unique_fls, best_threshold)
 
     result = []
     for group in final_groups:
         group_count = sum(counts[fl] for fl in group)
         min_fl = min(group)
         max_fl = max(group)
-
-        def fmt(v):
-            return f"{int(v)}" if v.is_integer() else f"{v:.1f}".rstrip("0").rstrip(".")
-
-        if len(group) == 1:
-            label = f"{fmt(min_fl)} mm"
-        else:
-            # If min and max round to same int, show one
-            if fmt(min_fl) == fmt(max_fl):
-                label = f"{fmt(min_fl)} mm"
-            else:
-                label = f"{fmt(min_fl)}-{fmt(max_fl)} mm"
+        label = _format_focal_length_label(min_fl, max_fl)
 
         result.append((label, group_count, min_fl))
 
@@ -232,7 +235,7 @@ def load_image_preview(
     try:
         ext = path.suffix.lower()
         raw_exts = {
-            ".arw", ".nef", ".cr2", ".dng", ".raw", ".cr3", 
+            ".arw", ".nef", ".cr2", ".dng", ".raw", ".cr3",
             ".raf", ".orf", ".rw2", ".pef", ".srw", ".sr2",
             ".tif", ".tiff"
         }
