@@ -385,7 +385,7 @@ def get_exif_data(image_path: Path, debug: bool = False) -> dict | None:
             "ISO": iso,
             "Lens": lens_model,
         }
-    except Exception as e:
+    except (Image.UnidentifiedImageError, OSError, ValueError) as e:
         # Catch all other exceptions from opening/reading files (e.g., not an image, corrupt file)
         if debug:
             print(
