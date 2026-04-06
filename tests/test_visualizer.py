@@ -1,12 +1,11 @@
-import sys
 from pathlib import Path
-from unittest.mock import patch, MagicMock
-
+from unittest.mock import patch
 from image_metadata_analyzer.visualizer import (
     get_shutter_speed_plot,
     get_aperture_plot,
     get_iso_plot,
     get_focal_length_plot,
+    get_equivalent_focal_length_plot,
     get_apsc_equivalent_focal_length_plot,
     get_lens_plot,
     get_combination_plot,
@@ -45,8 +44,20 @@ def test_get_focal_length_plot():
     assert fig is not None
 
 
+def test_get_equivalent_focal_length_plot():
+    data = [{"Focal Length (35mm)": 50.2}, {"Focal Length (35mm)": 84.8}]
+    fig = get_equivalent_focal_length_plot(data)
+    assert fig is not None
+
+
+def test_get_equivalent_focal_length_plot_empty():
+    data = [{"Focal Length": 50}]
+    fig = get_equivalent_focal_length_plot(data)
+    assert fig is None
+
+
 def test_get_apsc_equivalent_focal_length_plot():
-    data = [{"Focal Length (35mm)": 75}, {"Focal Length (35mm)": 50}]
+    data = [{"Focal Length (35mm)": 75.0}, {"Focal Length (35mm)": 50.0}]
     fig = get_apsc_equivalent_focal_length_plot(data)
     assert fig is not None
 
@@ -61,8 +72,6 @@ def test_get_apsc_equivalent_focal_length_plot_missing_key():
     data = [{"Aperture": 2.8}]
     fig = get_apsc_equivalent_focal_length_plot(data)
     assert fig is None
-
-
 def test_get_lens_plot():
     data = [{"Lens": "Lens A"}, {"Lens": "Lens B"}]
     fig = get_lens_plot(data)

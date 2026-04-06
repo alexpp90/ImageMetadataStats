@@ -702,6 +702,14 @@ class SharpnessTool(ttk.Frame):
         )  # Image Center (Prominent)
         self.focus_frame.columnconfigure(2, weight=1, uniform="col")  # Controls Right
 
+        self._setup_focus_left_panel()
+        self._setup_focus_center_panel()
+        self._setup_focus_right_panel()
+        self._setup_focus_bottom_panel()
+
+        # Keyboard bindings are now handled globally in SharpnessTool init
+
+    def _setup_focus_left_panel(self):
         # --- Row 0: Main Area ---
 
         # Left (Row 0, Col 0) - Metadata
@@ -744,6 +752,7 @@ class SharpnessTool(ttk.Frame):
         )
         self.focus_meta_lbl.pack(side="top", pady=5, anchor="w")
 
+    def _setup_focus_center_panel(self):
         # Center (Row 0, Col 1) - Current Candidate
         self.focus_curr_container = ttk.Frame(self.focus_frame)
         self.focus_curr_container.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
@@ -760,6 +769,12 @@ class SharpnessTool(ttk.Frame):
             "<Button-1>", lambda e: self.on_image_click(self.panel_curr.path)
         )
 
+        self.focus_curr_lbl.container = self.focus_curr_container
+        self.focus_curr_container.bind(
+            "<Configure>", lambda e: self.on_focus_label_resize(e, self.focus_curr_lbl)
+        )
+
+    def _setup_focus_right_panel(self):
         # Right (Row 0, Col 2) - Controls
         self.focus_right_panel = ttk.Frame(self.focus_frame)
         self.focus_right_panel.grid(row=0, column=2, sticky="nsew", padx=10, pady=10)
@@ -794,6 +809,7 @@ class SharpnessTool(ttk.Frame):
         )
         self.focus_del_btn.pack(side="top", pady=20, fill="x")
 
+    def _setup_focus_bottom_panel(self):
         # --- Row 1: Bottom Strip ---
         self.focus_bottom_frame = ttk.Frame(self.focus_frame)
         self.focus_bottom_frame.grid(
@@ -862,22 +878,16 @@ class SharpnessTool(ttk.Frame):
         )
 
         # Store container references on labels
-        self.focus_curr_lbl.container = self.focus_curr_container
         self.focus_prev_lbl.container = self.focus_prev_container
         self.focus_next_lbl.container = self.focus_next_container
 
         # Add resize handlers to containers
-        self.focus_curr_container.bind(
-            "<Configure>", lambda e: self.on_focus_label_resize(e, self.focus_curr_lbl)
-        )
         self.focus_prev_container.bind(
             "<Configure>", lambda e: self.on_focus_label_resize(e, self.focus_prev_lbl)
         )
         self.focus_next_container.bind(
             "<Configure>", lambda e: self.on_focus_label_resize(e, self.focus_next_lbl)
         )
-
-        # Keyboard bindings are now handled globally in SharpnessTool init
 
     def toggle_focus_mode(self):
         self.focus_mode = not self.focus_mode
@@ -1263,9 +1273,17 @@ class SharpnessTool(ttk.Frame):
         if not self.is_scanning:
             return
 
-        path = result.path
+        self._update_scan_state(result)
+        self._update_scan_progress_ui(current_idx, total_count)
+        self._update_candidate_listbox_ui(result)
+        self._handle_review_lookahead(result.path)
 
-        # update scan results list
+        # Update button states
+        self.update_button_states()
+
+    def _update_scan_state(self, result: ScanResult):
+        """Update internal collections with a new ScanResult."""
+        path = result.path
         found = False
         for i, r in enumerate(self.scan_results):
             if r.path == path:
@@ -1277,7 +1295,8 @@ class SharpnessTool(ttk.Frame):
 
         self.files_map[path] = result
 
-        # Update Progress
+    def _update_scan_progress_ui(self, current_idx: int, total_count: int):
+        """Update progress variables and labels based on scan progress."""
         pct = (current_idx / total_count) * 100
         self.progress_var.set(pct)
         self.review_progress_var.set(pct)
@@ -1285,18 +1304,13 @@ class SharpnessTool(ttk.Frame):
             text=f"Scan Progress: {int(pct)}% ({current_idx}/{total_count})"
         )
 
-        # Update listbox entry
-        # The file is already in candidates (from _load_folder_contents)
+    def _update_candidate_listbox_ui(self, result: ScanResult):
+        """Update the listbox display for a scanned candidate."""
+        path = result.path
         if path in self.candidates:
             idx = self.candidates.index(path)
             score_text = format_score(result.score)
             noise_text = format_score(result.noise_score)
-
-            noise_val = result.noise_score
-            if isinstance(noise_val, float):
-                noise_text = f"{noise_val:.1f}"
-            else:
-                noise_text = str(noise_val)
 
             # Delete and reinsert to update text, but maintain selection if it was selected
             is_selected = self.candidate_listbox.curselection() == (idx,)
@@ -1311,18 +1325,17 @@ class SharpnessTool(ttk.Frame):
                 # Refresh metadata label
                 self.update_metadata_label(path)
 
-        # If we are already reviewing, this new candidate might be the "Next" one for the current view.
+    def _handle_review_lookahead(self, path):
+        """Queue the candidate if it is within the lookahead window in Review Mode."""
         if self.has_switched_to_review:
             sel = self.candidate_listbox.curselection()
             if sel:
                 cur_sel_idx = sel[0]
-                new_idx = self.candidates.index(path)
-                # If the new candidate is within the lookahead window (next 3), queue it
-                if cur_sel_idx < new_idx <= cur_sel_idx + 3:
-                    self.queue_candidate(new_idx)
-
-        # Update button states
-        self.update_button_states()
+                if path in self.candidates:
+                    new_idx = self.candidates.index(path)
+                    # If the new candidate is within the lookahead window (next 3), queue it
+                    if cur_sel_idx < new_idx <= cur_sel_idx + 3:
+                        self.queue_candidate(new_idx)
 
     def switch_to_review_mode(self):
         self.has_switched_to_review = True

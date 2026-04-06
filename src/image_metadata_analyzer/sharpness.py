@@ -1,3 +1,5 @@
+# Note: `import os` is NOT unused; it is actively used below to set OPENCV_LOG_LEVEL
+# before cv2 is imported to suppress C++ decoder warnings.
 import os
 
 # Suppress OpenCV terminal noise from its internal C++ decoders (like grfmt_tiff.cpp)

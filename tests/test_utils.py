@@ -24,6 +24,7 @@ except ImportError:
     mock_rawpy = MagicMock()
     mock_rawpy.LibRawError = MockLibRawError
     sys.modules['rawpy'] = mock_rawpy
+    rawpy = mock_rawpy
 
 import unittest
 from unittest.mock import patch
@@ -31,6 +32,10 @@ from pathlib import Path
 from image_metadata_analyzer.utils import resolve_path, get_exiftool_path, load_image_preview
 
 class TestGetExiftoolPath(unittest.TestCase):
+
+    def setUp(self):
+        # Clear the lru_cache before each test to ensure tests don't interfere with each other
+        get_exiftool_path.cache_clear()
 
     @patch('shutil.which')
     def test_found_in_path(self, mock_which):
@@ -195,8 +200,7 @@ class TestLoadImagePreview(unittest.TestCase):
     @patch('image_metadata_analyzer.utils.rawpy.imread')
     def test_raw_fallback_to_pillow(self, mock_imread, mock_open):
         """Test that Pillow is used if rawpy fails."""
-        import rawpy
-        mock_imread.side_effect = rawpy.LibRawError("rawpy failed to read file")
+        mock_imread.side_effect = rawpy.LibRawError("rawpy failed")
 
         mock_img = MagicMock()
         mock_open.return_value = mock_img
