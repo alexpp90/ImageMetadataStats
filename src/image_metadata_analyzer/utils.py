@@ -81,6 +81,9 @@ def resolve_path(path_str: str) -> Path:
     return Path(path_str)
 
 
+_cached_which = functools.lru_cache(maxsize=None)(shutil.which)
+
+
 @functools.lru_cache()
 def get_exiftool_path() -> str | None:
     """
@@ -92,7 +95,7 @@ def get_exiftool_path() -> str | None:
     3. The PyInstaller temp directory (sys._MEIPASS).
     """
     # Check system PATH first
-    if shutil.which("exiftool"):
+    if _cached_which("exiftool"):
         return "exiftool"
 
     # Check for bundled executable
