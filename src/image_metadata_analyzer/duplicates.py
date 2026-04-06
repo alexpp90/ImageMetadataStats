@@ -86,37 +86,35 @@ def find_duplicates(root_folder, callback=None):
     duplicates = []
 
     all_files = []
-    group_sizes = {}
-    for group_id, (size, group) in enumerate(potential_groups):
-        group_sizes[group_id] = size
+    for size, group in potential_groups:
         for filepath in group:
-            all_files.append((filepath, group_id))
+            all_files.append((filepath, size))
 
     def _hash_worker(item):
-        filepath, group_id = item
+        filepath, size = item
         h = get_file_hash(filepath)
-        return filepath, group_id, h
+        return filepath, size, h
 
-    hash_groups_by_id = defaultdict(lambda: defaultdict(list))
+    hash_groups_by_size = defaultdict(lambda: defaultdict(list))
 
     with ThreadPoolExecutor() as executor:
         # executor.map yields results sequentially in the main thread
-        for filepath, group_id, h in executor.map(_hash_worker, all_files):
+        for filepath, size, h in executor.map(_hash_worker, all_files):
             processed_count += 1
             if callback:
                 callback(processed_count, total_files_to_hash)
 
             if h:
-                hash_groups_by_id[group_id][h].append(filepath)
+                hash_groups_by_size[size][h].append(filepath)
 
     # Add confirmed duplicates
-    for group_id, hash_groups in hash_groups_by_id.items():
+    for size, hash_groups in hash_groups_by_size.items():
         for h, paths in hash_groups.items():
             if len(paths) > 1:
                 duplicates.append(
                     {
                         "hash": h,
-                        "size": group_sizes[group_id],
+                        "size": size,
                         "files": sorted(paths),  # Sort for consistent display
                     }
                 )
