@@ -6,7 +6,6 @@ try:
 except ImportError:
     rawpy = None
 from pathlib import Path
-import glob
 from typing import List, Optional
 import logging
 
@@ -211,28 +210,15 @@ def find_related_files(filepath: Path) -> List[Path]:
     parent = filepath.parent
     stem = filepath.stem
 
+    # We want to be case-insensitive but efficient.
+    # Since we are iterating the dir, we can check.
     try:
-        # Use glob for efficient filtering instead of O(N) directory iteration.
-        # Escape the stem to handle filenames with glob-special characters (e.g. '[', ']', '*').
-        escaped_stem = glob.escape(stem)
-
-        # glob with f"{escaped_stem}.*" matches files with the same stem.
-        # We also check that they are files, not directories.
-        for f in parent.glob(f"{escaped_stem}.*"):
-            if f.is_file() and f.stem == stem:
+        for f in parent.iterdir():
+            if f.stem == stem and f.is_file():
                 related.append(f)
-
-        # If the file has no extension (e.g. "DSC001"), glob f"{escaped_stem}.*" won't find it.
-        # But we must ensure we include the exact match. We don't need glob for it,
-        # since we know the exact filename.
-        exact_match = parent / stem
-        if exact_match.is_file() and exact_match not in related:
-            related.append(exact_match)
-
     except Exception as e:
         logger.warning(f"Error scanning for related files in {parent}: {e}")
         # Fallback: just return the file itself if scan fails
-        if filepath not in related:
-            related.append(filepath)
+        related.append(filepath)
 
     return related

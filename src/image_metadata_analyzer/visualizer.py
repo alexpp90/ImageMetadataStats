@@ -14,13 +14,12 @@ from image_metadata_analyzer.utils import aggregate_focal_lengths
 def _open_file_for_user(filepath: Path):
     """Opens a file in the default application in a cross-platform way."""
     try:
-        abs_filepath = filepath.absolute()
         if sys.platform == "win32":
-            os.startfile(abs_filepath)
+            os.startfile(filepath)
         elif sys.platform == "darwin":
-            subprocess.run(["open", str(abs_filepath)], check=True)
+            subprocess.run(["open", str(filepath)], check=True)
         else:
-            subprocess.run(["xdg-open", str(abs_filepath)], check=True)
+            subprocess.run(["xdg-open", str(filepath)], check=True)
     except (FileNotFoundError, subprocess.CalledProcessError) as e:
         print(f"Could not open file '{filepath}'. Please open it manually.")
         print(f"Error: {e}")
