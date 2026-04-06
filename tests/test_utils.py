@@ -31,13 +31,14 @@ from unittest.mock import patch
 from pathlib import Path
 from image_metadata_analyzer.utils import resolve_path, get_exiftool_path, load_image_preview
 
+
 class TestGetExiftoolPath(unittest.TestCase):
 
     def setUp(self):
         # Clear the lru_cache before each test to ensure tests don't interfere with each other
         get_exiftool_path.cache_clear()
 
-    @patch('shutil.which')
+    @patch('image_metadata_analyzer.utils._cached_which')
     def test_found_in_path(self, mock_which):
         """Tests that 'exiftool' is returned if found in system PATH."""
         mock_which.return_value = "/usr/bin/exiftool"
@@ -45,7 +46,7 @@ class TestGetExiftoolPath(unittest.TestCase):
 
     @patch('pathlib.Path.exists')
     @patch('sys.platform', 'linux')
-    @patch('shutil.which', return_value=None)
+    @patch('image_metadata_analyzer.utils._cached_which', return_value=None)
     def test_found_in_source_bin(self, mock_which, mock_exists):
         """Tests that it checks the bundled 'bin' directory when run from source."""
         mock_exists.return_value = True
@@ -56,7 +57,7 @@ class TestGetExiftoolPath(unittest.TestCase):
 
     @patch('pathlib.Path.exists')
     @patch('sys.platform', 'win32')
-    @patch('shutil.which', return_value=None)
+    @patch('image_metadata_analyzer.utils._cached_which', return_value=None)
     def test_found_in_source_bin_windows(self, mock_which, mock_exists):
         """Tests that it checks for 'exiftool.exe' on Windows."""
         mock_exists.return_value = True
@@ -67,7 +68,7 @@ class TestGetExiftoolPath(unittest.TestCase):
 
     @patch('pathlib.Path.exists')
     @patch('sys.platform', 'win32')
-    @patch('shutil.which', return_value=None)
+    @patch('image_metadata_analyzer.utils._cached_which', return_value=None)
     def test_found_in_source_bin_windows_no_ext(self, mock_which, mock_exists):
         """Tests fallback to 'exiftool' without extension on Windows."""
         mock_exists.side_effect = [False, True]
@@ -79,7 +80,7 @@ class TestGetExiftoolPath(unittest.TestCase):
 
     @patch('pathlib.Path.exists')
     @patch('sys.platform', 'linux')
-    @patch('shutil.which', return_value=None)
+    @patch('image_metadata_analyzer.utils._cached_which', return_value=None)
     def test_not_found(self, mock_which, mock_exists):
         """Tests that it returns None if not found anywhere."""
         mock_exists.return_value = False
@@ -87,7 +88,7 @@ class TestGetExiftoolPath(unittest.TestCase):
 
     @patch('pathlib.Path.exists')
     @patch('sys.platform', 'linux')
-    @patch('shutil.which', return_value=None)
+    @patch('image_metadata_analyzer.utils._cached_which', return_value=None)
     def test_found_in_meipass_frozen(self, mock_which, mock_exists):
         """Tests that it checks sys._MEIPASS when frozen (PyInstaller)."""
         mock_exists.return_value = True
@@ -98,6 +99,7 @@ class TestGetExiftoolPath(unittest.TestCase):
             self.assertIsNotNone(path)
             expected = str(Path('/tmp/_MEI12345') / 'exiftool')
             self.assertEqual(path, expected)
+
 
 class TestResolvePath(unittest.TestCase):
     def test_local_path(self):
