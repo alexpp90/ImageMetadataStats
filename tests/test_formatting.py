@@ -14,6 +14,8 @@ def test_format_meta():
     assert format_meta(None) == "N/A"
     assert format_meta(0.5, "s") == "1/2s"
     assert format_meta(0.333, "s") == "1/3s"
+    assert format_meta(1.0, "s") == "1.0s"
+    assert format_meta(0.0, "s") == "0.0s"
     assert format_meta(2.5, "s") == "2.5s"
     assert format_meta(50.0, "mm") == "50mm"
     assert format_meta(50.4, "mm") == "50mm"
