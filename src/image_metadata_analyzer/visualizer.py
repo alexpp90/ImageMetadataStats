@@ -64,13 +64,13 @@ def get_shutter_speed_plot(data: List[Dict]) -> Optional[Figure]:
     return fig
 
 
-def get_aperture_plot(data: List[Dict]) -> Optional[Figure]:
-    values = [d["Aperture"] for d in data if d.get("Aperture") is not None]
+def _get_distribution_plot(data: List[Dict], key: str, title: str, xlabel: str) -> Optional[Figure]:
+    values = [d[key] for d in data if d.get(key) is not None]
     if not values:
         return None
 
     counter = Counter(values)
-    sorted_items = sorted(counter.items())  # Sort by aperture value
+    sorted_items = sorted(counter.items())  # Sort by value
     x_vals = [str(x[0]) for x in sorted_items]
     y_vals = [x[1] for x in sorted_items]
 
@@ -78,32 +78,29 @@ def get_aperture_plot(data: List[Dict]) -> Optional[Figure]:
     ax = fig.add_subplot(111)
     ax.bar(x_vals, y_vals)
     ax.tick_params(axis="x", rotation=45)
-    ax.set_title("Aperture (F-Number) Distribution")
-    ax.set_xlabel("Aperture (f-stop)")
+    ax.set_title(title)
+    ax.set_xlabel(xlabel)
     ax.set_ylabel("Count")
     fig.tight_layout()
     return fig
+
+
+def get_aperture_plot(data: List[Dict]) -> Optional[Figure]:
+    return _get_distribution_plot(
+        data=data,
+        key="Aperture",
+        title="Aperture (F-Number) Distribution",
+        xlabel="Aperture (f-stop)"
+    )
 
 
 def get_iso_plot(data: List[Dict]) -> Optional[Figure]:
-    values = [d["ISO"] for d in data if d.get("ISO") is not None]
-    if not values:
-        return None
-
-    counter = Counter(values)
-    sorted_items = sorted(counter.items())  # Sort by ISO value
-    x_vals = [str(x[0]) for x in sorted_items]
-    y_vals = [x[1] for x in sorted_items]
-
-    fig = Figure(figsize=(12, 6), dpi=100)
-    ax = fig.add_subplot(111)
-    ax.bar(x_vals, y_vals)
-    ax.tick_params(axis="x", rotation=45)
-    ax.set_title("ISO Distribution")
-    ax.set_xlabel("ISO")
-    ax.set_ylabel("Count")
-    fig.tight_layout()
-    return fig
+    return _get_distribution_plot(
+        data=data,
+        key="ISO",
+        title="ISO Distribution",
+        xlabel="ISO"
+    )
 
 
 def get_focal_length_plot(data: List[Dict]) -> Optional[Figure]:
