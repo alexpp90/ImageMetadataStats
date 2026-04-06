@@ -45,13 +45,13 @@ def test_get_focal_length_plot():
 
 
 def test_get_equivalent_focal_length_plot():
-    data = [{"Focal Length (35mm)": 50.0}, {"Focal Length (35mm)": 85.0}]
+    data = [{"Focal Length (35mm)": 50.2}, {"Focal Length (35mm)": 84.8}]
     fig = get_equivalent_focal_length_plot(data)
     assert fig is not None
 
 
 def test_get_equivalent_focal_length_plot_empty():
-    data = []
+    data = [{"Focal Length": 50}]
     fig = get_equivalent_focal_length_plot(data)
     assert fig is None
 
