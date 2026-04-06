@@ -74,16 +74,21 @@ def find_duplicates(root_folder, callback=None):
     _scan(root_path)
 
     # Filter for groups that have more than 1 file
-    potential_groups = [paths for paths in size_groups.values() if len(paths) > 1]
+    # Store as (size, paths) to avoid redundant stat calls later
+    potential_groups = [
+        (size, paths) for size, paths in size_groups.items() if len(paths) > 1
+    ]
 
     # Count total files to hash
-    total_files_to_hash = sum(len(g) for g in potential_groups)
+    total_files_to_hash = sum(len(item[1]) for item in potential_groups)
     processed_count = 0
 
     duplicates = []
 
     all_files = []
-    for group_id, group in enumerate(potential_groups):
+    group_sizes = {}
+    for group_id, (size, group) in enumerate(potential_groups):
+        group_sizes[group_id] = size
         for filepath in group:
             all_files.append((filepath, group_id))
 
@@ -111,9 +116,7 @@ def find_duplicates(root_folder, callback=None):
                 duplicates.append(
                     {
                         "hash": h,
-                        "size": os.path.getsize(
-                            paths[0]
-                        ),  # Should be same as key of size_groups
+                        "size": group_sizes[group_id],
                         "files": sorted(paths),  # Sort for consistent display
                     }
                 )
