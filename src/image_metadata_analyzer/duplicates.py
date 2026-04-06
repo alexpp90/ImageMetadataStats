@@ -1,6 +1,7 @@
 import hashlib
 import os
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from send2trash import send2trash
 
@@ -73,36 +74,49 @@ def find_duplicates(root_folder, callback=None):
     _scan(root_path)
 
     # Filter for groups that have more than 1 file
-    potential_groups = [paths for paths in size_groups.values() if len(paths) > 1]
+    # Store as (size, paths) to avoid redundant stat calls later
+    potential_groups = [
+        (size, paths) for size, paths in size_groups.items() if len(paths) > 1
+    ]
 
     # Count total files to hash
-    total_files_to_hash = sum(len(g) for g in potential_groups)
+    total_files_to_hash = sum(len(item[1]) for item in potential_groups)
     processed_count = 0
 
     duplicates = []
 
-    for group in potential_groups:
-        # Group by hash within this size group
-        hash_groups = defaultdict(list)
-
+    all_files = []
+    group_sizes = {}
+    for group_id, (size, group) in enumerate(potential_groups):
+        group_sizes[group_id] = size
         for filepath in group:
-            h = get_file_hash(filepath)
+            all_files.append((filepath, group_id))
+
+    def _hash_worker(item):
+        filepath, group_id = item
+        h = get_file_hash(filepath)
+        return filepath, group_id, h
+
+    hash_groups_by_id = defaultdict(lambda: defaultdict(list))
+
+    with ThreadPoolExecutor() as executor:
+        # executor.map yields results sequentially in the main thread
+        for filepath, group_id, h in executor.map(_hash_worker, all_files):
             processed_count += 1
             if callback:
                 callback(processed_count, total_files_to_hash)
 
             if h:
-                hash_groups[h].append(filepath)
+                hash_groups_by_id[group_id][h].append(filepath)
 
-        # Add confirmed duplicates
+    # Add confirmed duplicates
+    for group_id, hash_groups in hash_groups_by_id.items():
         for h, paths in hash_groups.items():
             if len(paths) > 1:
                 duplicates.append(
                     {
                         "hash": h,
-                        "size": os.path.getsize(
-                            paths[0]
-                        ),  # Should be same as key of size_groups
+                        "size": group_sizes[group_id],
                         "files": sorted(paths),  # Sort for consistent display
                     }
                 )

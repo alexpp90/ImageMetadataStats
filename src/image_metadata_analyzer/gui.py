@@ -223,18 +223,24 @@ class ImageLibraryStatistics(ttk.Frame):
             print(f"Found {total_files} image files. Extracting metadata...")
 
             all_metadata = []
-            for i, f in enumerate(image_files):
-                if self.stop_event.is_set():
-                    print("Analysis cancelled by user.")
-                    break
+            import concurrent.futures
+            import os
 
-                data = get_exif_data(f)
-                if data:
-                    all_metadata.append(data)
+            # Determine thread count: use at most 8 threads to balance performance and overhead
+            max_workers = min(8, (os.cpu_count() or 1) + 4)
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+                for i, data in enumerate(executor.map(get_exif_data, image_files)):
+                    if self.stop_event.is_set():
+                        print("Analysis cancelled by user.")
+                        # Need to cancel running futures if possible, but map will just let them finish
+                        break
 
-                # Update progress
-                progress = ((i + 1) / total_files) * 100
-                self.parent.after(0, self.update_progress, progress)
+                    if data:
+                        all_metadata.append(data)
+
+                    # Update progress
+                    progress = ((i + 1) / total_files) * 100
+                    self.parent.after(0, self.update_progress, progress)
 
             if not all_metadata:
                 print(
