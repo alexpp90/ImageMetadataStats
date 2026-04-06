@@ -702,6 +702,14 @@ class SharpnessTool(ttk.Frame):
         )  # Image Center (Prominent)
         self.focus_frame.columnconfigure(2, weight=1, uniform="col")  # Controls Right
 
+        self._setup_focus_left_panel()
+        self._setup_focus_center_panel()
+        self._setup_focus_right_panel()
+        self._setup_focus_bottom_panel()
+
+        # Keyboard bindings are now handled globally in SharpnessTool init
+
+    def _setup_focus_left_panel(self):
         # --- Row 0: Main Area ---
 
         # Left (Row 0, Col 0) - Metadata
@@ -744,6 +752,7 @@ class SharpnessTool(ttk.Frame):
         )
         self.focus_meta_lbl.pack(side="top", pady=5, anchor="w")
 
+    def _setup_focus_center_panel(self):
         # Center (Row 0, Col 1) - Current Candidate
         self.focus_curr_container = ttk.Frame(self.focus_frame)
         self.focus_curr_container.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
@@ -760,6 +769,12 @@ class SharpnessTool(ttk.Frame):
             "<Button-1>", lambda e: self.on_image_click(self.panel_curr.path)
         )
 
+        self.focus_curr_lbl.container = self.focus_curr_container
+        self.focus_curr_container.bind(
+            "<Configure>", lambda e: self.on_focus_label_resize(e, self.focus_curr_lbl)
+        )
+
+    def _setup_focus_right_panel(self):
         # Right (Row 0, Col 2) - Controls
         self.focus_right_panel = ttk.Frame(self.focus_frame)
         self.focus_right_panel.grid(row=0, column=2, sticky="nsew", padx=10, pady=10)
@@ -794,6 +809,7 @@ class SharpnessTool(ttk.Frame):
         )
         self.focus_del_btn.pack(side="top", pady=20, fill="x")
 
+    def _setup_focus_bottom_panel(self):
         # --- Row 1: Bottom Strip ---
         self.focus_bottom_frame = ttk.Frame(self.focus_frame)
         self.focus_bottom_frame.grid(
@@ -862,22 +878,16 @@ class SharpnessTool(ttk.Frame):
         )
 
         # Store container references on labels
-        self.focus_curr_lbl.container = self.focus_curr_container
         self.focus_prev_lbl.container = self.focus_prev_container
         self.focus_next_lbl.container = self.focus_next_container
 
         # Add resize handlers to containers
-        self.focus_curr_container.bind(
-            "<Configure>", lambda e: self.on_focus_label_resize(e, self.focus_curr_lbl)
-        )
         self.focus_prev_container.bind(
             "<Configure>", lambda e: self.on_focus_label_resize(e, self.focus_prev_lbl)
         )
         self.focus_next_container.bind(
             "<Configure>", lambda e: self.on_focus_label_resize(e, self.focus_next_lbl)
         )
-
-        # Keyboard bindings are now handled globally in SharpnessTool init
 
     def toggle_focus_mode(self):
         self.focus_mode = not self.focus_mode
