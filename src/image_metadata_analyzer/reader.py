@@ -156,7 +156,7 @@ def get_exif_data(image_path: Path, debug: bool = False) -> dict | None:
         except ImportError:
             if debug:
                 print("PyExifTool not installed or found.")
-        except Exception as e:
+        except (OSError, ValueError) as e:
             if debug:
                 print(f"exiftool failed on {image_path.name}: {e}")
 
@@ -226,7 +226,7 @@ def get_exif_data(image_path: Path, debug: bool = False) -> dict | None:
                     "Falling back to Pillow for raw files. "
                     "For better raw file support, `pip install exifread`"
                 )
-        except Exception as e:
+        except (OSError, ValueError) as e:
             if debug:
                 print(f"\nexifread failed on {image_path.name}: {e}")
 
@@ -385,7 +385,7 @@ def get_exif_data(image_path: Path, debug: bool = False) -> dict | None:
             "ISO": iso,
             "Lens": lens_model,
         }
-    except (Image.UnidentifiedImageError, OSError, ValueError) as e:
+    except (Image.UnidentifiedImageError, OSError, IOError, ValueError) as e:
         # Catch all other exceptions from opening/reading files (e.g., not an image, corrupt file)
         if debug:
             print(
