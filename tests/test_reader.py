@@ -135,3 +135,21 @@ def test_get_exif_data_exifread_general_error(image_dir, capsys):
     captured = capsys.readouterr()
     assert "exifread failed on test.dng: Mocked general error for exifread" in captured.out
     assert result is None
+
+def test_get_exif_data_pillow_exception(image_dir, capsys):
+    from unittest.mock import patch, MagicMock
+
+    p = image_dir / "test.jpg"
+    p.write_text("dummy")
+
+    with patch('image_metadata_analyzer.reader.Image.open') as mock_open:
+        mock_img = MagicMock()
+        mock_img.getexif.side_effect = ValueError("Mocked Pillow Error")
+        mock_open.return_value = mock_img
+
+        result = get_exif_data(p, debug=True)
+
+    captured = capsys.readouterr()
+    assert "Debugging (Pillow) failed extraction for: test.jpg" in captured.out
+    assert "Mocked Pillow Error" in captured.out
+    assert result is None
