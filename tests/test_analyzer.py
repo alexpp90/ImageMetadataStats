@@ -42,3 +42,22 @@ def test_analyzer_basic_stats(capsys):
     assert "100: 2" in captured.out
     assert "200: 1" in captured.out
     assert "f/2.8 @ 50mm: 1" in captured.out
+
+
+def test_analyzer_empty_dicts(capsys):
+    from image_metadata_analyzer.analyzer import analyze_data
+
+    analyze_data([{}, {}])
+    captured = capsys.readouterr()
+    assert "Total images with EXIF data analyzed: 2" in captured.out
+    assert "Shutter Speed: No data" in captured.out
+    assert "Aperture: No data" in captured.out
+
+
+def test_analyzer_invalid_data():
+    import pytest
+    from image_metadata_analyzer.analyzer import analyze_data
+
+    # Should raise AttributeError since ints don't have a `.get` method
+    with pytest.raises(AttributeError):
+        analyze_data([1, 2, 3])
