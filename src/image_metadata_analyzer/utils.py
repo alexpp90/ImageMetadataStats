@@ -166,6 +166,30 @@ def _format_focal_length_label(min_fl: float, max_fl: float) -> str:
     return f"{fmt(min_fl)}-{fmt(max_fl)} mm"
 
 
+def _generate_exact_buckets(unique_fls: List[float], counts: Counter) -> List[Tuple[str, int, float]]:
+    result = []
+    for fl in unique_fls:
+        label = f"{int(fl)} mm" if fl.is_integer() else f"{fl:.1f} mm"
+        result.append((label, counts[fl], fl))
+    return result
+
+
+def _generate_aggregated_buckets(unique_fls: List[float], counts: Counter, max_buckets: int) -> List[Tuple[str, int, float]]:
+    best_threshold = _find_best_threshold(unique_fls, max_buckets)
+    final_groups = _get_focal_length_groups(unique_fls, best_threshold)
+
+    result = []
+    for group in final_groups:
+        group_count = sum(counts[fl] for fl in group)
+        min_fl = min(group)
+        max_fl = max(group)
+        label = _format_focal_length_label(min_fl, max_fl)
+
+        result.append((label, group_count, min_fl))
+
+    return result
+
+
 def aggregate_focal_lengths(
     focal_lengths: List[float], max_buckets: int = 25
 ) -> List[Tuple[str, int, float]]:
@@ -197,26 +221,9 @@ def aggregate_focal_lengths(
 
     if len(unique_fls) <= max_buckets:
         # No aggregation needed
-        # Return exact matches, format as integer if possible
-        result = []
-        for fl in unique_fls:
-            label = f"{int(fl)} mm" if fl.is_integer() else f"{fl:.1f} mm"
-            result.append((label, counts[fl], fl))
-        return result
+        return _generate_exact_buckets(unique_fls, counts)
 
-    best_threshold = _find_best_threshold(unique_fls, max_buckets)
-    final_groups = _get_focal_length_groups(unique_fls, best_threshold)
-
-    result = []
-    for group in final_groups:
-        group_count = sum(counts[fl] for fl in group)
-        min_fl = min(group)
-        max_fl = max(group)
-        label = _format_focal_length_label(min_fl, max_fl)
-
-        result.append((label, group_count, min_fl))
-
-    return result
+    return _generate_aggregated_buckets(unique_fls, counts, max_buckets)
 
 
 def load_image_preview(
