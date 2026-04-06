@@ -2,10 +2,13 @@ import shutil
 import sys
 import os
 import urllib.parse
+import logging
 from pathlib import Path
 from collections import Counter
 from typing import List, Tuple, Optional
 from PIL import Image
+
+logger = logging.getLogger(__name__)
 
 try:
     import rawpy
@@ -246,9 +249,9 @@ def load_image_preview(
                         use_camera_wb=True, bright=1.0, half_size=not full_res
                     )
                     img = Image.fromarray(rgb)
-            except Exception:
+            except Exception as e:
                 # Catch all rawpy failures and fall through to Pillow
-                pass
+                logger.debug("rawpy failed to load %s: %s", path, e)
 
         # Fallback to Pillow if not RAW or rawpy failed
         if img is None:
