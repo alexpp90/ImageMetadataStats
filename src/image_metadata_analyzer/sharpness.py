@@ -43,17 +43,6 @@ class SharpnessCategories:
             return "Blurry"
         return "Unknown"
 
-    @staticmethod
-    def get_color(category: int) -> str:
-        if category == SharpnessCategories.CRISP:
-            return "green"
-        elif category == SharpnessCategories.ACCEPTABLE:
-            return "orange"
-        elif category == SharpnessCategories.BLURRY:
-            return "red"
-        return "black"
-
-
 def get_image_data(filepath: Path) -> Optional[np.ndarray]:
     """
     Reads an image file and returns a numpy array (BGR or Grayscale).
