@@ -580,6 +580,10 @@ class SharpnessTool(ttk.Frame):
         self.paned = ttk.PanedWindow(self.review_frame, orient="horizontal")
         self.paned.pack(fill="both", expand=True)
 
+        self._setup_review_sidebar()
+        self._setup_review_main_area()
+
+    def _setup_review_sidebar(self):
         # Sidebar
         self.sidebar = ttk.Frame(self.paned, width=250, padding=5)
         self.paned.add(self.sidebar, weight=1)
@@ -613,10 +617,15 @@ class SharpnessTool(ttk.Frame):
 
         self.candidate_listbox.bind("<<ListboxSelect>>", self.on_candidate_select)
 
+    def _setup_review_main_area(self):
         # Main Preview Area
         self.preview_area = ttk.Frame(self.paned, padding=10)
         self.paned.add(self.preview_area, weight=4)
 
+        self._setup_review_top_container()
+        self._setup_review_bottom_container()
+
+    def _setup_review_top_container(self):
         # --- Top Container: Main Candidate + Controls ---
         self.top_container = ttk.Frame(self.preview_area)
         self.top_container.pack(side="top", fill="both", expand=True, pady=(0, 10))
@@ -630,6 +639,9 @@ class SharpnessTool(ttk.Frame):
         # Using sticky="nsew" so it expands and centers properly if window shrinks
         self.panel_curr.grid(row=0, column=0, padx=10, sticky="nsew")
 
+        self._setup_review_controls()
+
+    def _setup_review_controls(self):
         # Info & Actions (Right)
         self.info_frame = ttk.Frame(self.top_container, padding=5)
         self.info_frame.grid(row=0, column=1, sticky="ns", padx=10)
@@ -674,6 +686,7 @@ class SharpnessTool(ttk.Frame):
         )
         self.focus_toggle_btn.pack(side="top", fill="x", pady=2)
 
+    def _setup_review_bottom_container(self):
         # --- Bottom Container: Neighbors ---
         self.bottom_container = ttk.Frame(self.preview_area)
         self.bottom_container.pack(side="bottom", fill="both", expand=True, ipady=5)
