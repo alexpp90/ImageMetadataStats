@@ -138,33 +138,33 @@ def test_create_plots_empty_data(mock_open, tmp_path):
         assert not mock_open.called
 
 
-@patch("image_metadata_analyzer.visualizer.subprocess.run")
+@patch("image_metadata_analyzer.visualizer.webbrowser.open")
 @patch("image_metadata_analyzer.visualizer.os.startfile", create=True)
-def test_open_file_for_user_absolute_path(mock_startfile, mock_run):
+def test_open_file_for_user_absolute_path(mock_startfile, mock_open):
     """Test that _open_file_for_user always resolves paths to absolute before calling system commands."""
     test_path = Path("-test_file.png")
-    absolute_test_path = test_path.absolute()
+    absolute_test_path = test_path.resolve()
 
     # Test Windows
     with patch("image_metadata_analyzer.visualizer.sys.platform", "win32"):
         _open_file_for_user(test_path)
         mock_startfile.assert_called_once_with(absolute_test_path)
-        mock_run.assert_not_called()
+        mock_open.assert_not_called()
 
     mock_startfile.reset_mock()
-    mock_run.reset_mock()
+    mock_open.reset_mock()
 
     # Test Darwin
     with patch("image_metadata_analyzer.visualizer.sys.platform", "darwin"):
         _open_file_for_user(test_path)
-        mock_run.assert_called_once_with(["open", str(absolute_test_path)], check=True)
+        mock_open.assert_called_once_with(absolute_test_path.as_uri())
         mock_startfile.assert_not_called()
 
     mock_startfile.reset_mock()
-    mock_run.reset_mock()
+    mock_open.reset_mock()
 
     # Test Linux/Other
     with patch("image_metadata_analyzer.visualizer.sys.platform", "linux"):
         _open_file_for_user(test_path)
-        mock_run.assert_called_once_with(["xdg-open", str(absolute_test_path)], check=True)
+        mock_open.assert_called_once_with(absolute_test_path.as_uri())
         mock_startfile.assert_not_called()
