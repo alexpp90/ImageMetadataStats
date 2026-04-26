@@ -10,8 +10,8 @@ from pathlib import Path
 from generate_notices import generate_notices
 
 # Constants
-EXIFTOOL_VERSION = "13.51"
-SF_BASE_URL = "https://sourceforge.net/projects/exiftool/files"
+EXIFTOOL_VERSION = "13.57"
+SF_BASE_URL = "https://exiftool.org"
 
 PROJECT_ROOT = Path(__file__).parent.parent
 BIN_DIR = PROJECT_ROOT / "src" / "image_metadata_analyzer" / "bin"
@@ -37,8 +37,8 @@ def setup_exiftool():
     system = platform.system()
 
     if system == "Windows":
-        filename = f"exiftool-{EXIFTOOL_VERSION}_64.zip"
-        url = f"{SF_BASE_URL}/{filename}/download"
+        filename = f"exiftool-{EXIFTOOL_VERSION}.zip"
+        url = f"{SF_BASE_URL}/{filename}"
         dest = BIN_DIR / filename
 
         download_file(url, dest)
@@ -70,7 +70,7 @@ def setup_exiftool():
 
     elif system in ["Linux", "Darwin"]:
         filename = f"Image-ExifTool-{EXIFTOOL_VERSION}.tar.gz"
-        url = f"{SF_BASE_URL}/{filename}/download"
+        url = f"{SF_BASE_URL}/{filename}"
         dest = BIN_DIR / filename
 
         download_file(url, dest)
