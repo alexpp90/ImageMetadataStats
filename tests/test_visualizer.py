@@ -168,3 +168,24 @@ def test_open_file_for_user_absolute_path(mock_startfile, mock_run):
         _open_file_for_user(test_path)
         mock_run.assert_called_once_with(["xdg-open", str(absolute_test_path)], check=True)
         mock_startfile.assert_not_called()
+
+@patch("image_metadata_analyzer.visualizer.subprocess.run")
+@patch("image_metadata_analyzer.visualizer.os.startfile", create=True)
+def test_open_file_for_user_security_check(mock_startfile, mock_run):
+    """Test that _open_file_for_user refuses to open files that are not .png."""
+    # Test with a malicious executable extension
+    test_path = Path("malicious.exe")
+
+    # Try opening it, which should be rejected
+    _open_file_for_user(test_path)
+
+    # Verify that no system commands were called
+    mock_startfile.assert_not_called()
+    mock_run.assert_not_called()
+
+    # Test with a .sh script
+    test_path_sh = Path("script.sh")
+    _open_file_for_user(test_path_sh)
+
+    mock_startfile.assert_not_called()
+    mock_run.assert_not_called()

@@ -15,6 +15,12 @@ def _open_file_for_user(filepath: Path):
     """Opens a file in the default application in a cross-platform way."""
     try:
         abs_filepath = filepath.absolute()
+
+        # Security validation: only open .png files
+        if abs_filepath.suffix.lower() != '.png':
+            print(f"Security Warning: Refusing to open non-PNG file '{filepath}'")
+            return
+
         if sys.platform == "win32":
             os.startfile(abs_filepath)
         elif sys.platform == "darwin":
