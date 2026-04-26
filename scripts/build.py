@@ -37,7 +37,7 @@ def setup_exiftool():
     system = platform.system()
 
     if system == "Windows":
-        filename = f"exiftool-{EXIFTOOL_VERSION}.zip"
+        filename = f"exiftool-{EXIFTOOL_VERSION}_64.zip"
         url = f"{SF_BASE_URL}/{filename}"
         dest = BIN_DIR / filename
 
