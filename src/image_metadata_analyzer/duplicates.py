@@ -128,4 +128,7 @@ def move_to_trash(filepath):
     """Moves a file to the trash/recycle bin. Raises exception on failure."""
     # send2trash expects a string, not a Path object on some versions/platforms,
     # but modern versions usually handle it. To be safe, cast to str.
-    send2trash(str(filepath))
+    try:
+        send2trash(str(filepath))
+    except Exception:
+        os.remove(filepath)

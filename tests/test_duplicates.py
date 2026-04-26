@@ -96,8 +96,22 @@ def test_move_to_trash(mock_send2trash, tmp_path):
 
 
 @patch("image_metadata_analyzer.duplicates.send2trash")
-def test_move_to_trash_failure(mock_send2trash, tmp_path):
-    mock_send2trash.side_effect = OSError("Access denied")
+@patch("os.remove")
+def test_move_to_trash_fallback(mock_remove, mock_send2trash, tmp_path):
+    mock_send2trash.side_effect = Exception("send2trash failed")
+    f = tmp_path / "delete_me.txt"
+    f.touch()
+
+    move_to_trash(f)
+
+    mock_send2trash.assert_called_once_with(str(f))
+    mock_remove.assert_called_once_with(f)
+
+@patch("image_metadata_analyzer.duplicates.send2trash")
+@patch("os.remove")
+def test_move_to_trash_failure(mock_remove, mock_send2trash, tmp_path):
+    mock_send2trash.side_effect = Exception("send2trash failed")
+    mock_remove.side_effect = OSError("Access denied")
     f = tmp_path / "delete_me.txt"
 
     with pytest.raises(OSError):
