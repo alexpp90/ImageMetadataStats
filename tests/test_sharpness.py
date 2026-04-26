@@ -33,8 +33,6 @@ def mock_flat_image():
 
 
 def test_sharpness_categories():
-    assert SharpnessCategories.get_name(1) == "Sharp"
-    assert SharpnessCategories.get_name(3) == "Blurry"
     assert SharpnessCategories.get_color(1) == "green"
     assert SharpnessCategories.get_color(3) == "red"
 

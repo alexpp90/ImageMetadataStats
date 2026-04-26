@@ -34,16 +34,6 @@ class SharpnessCategories:
     BLURRY = 3
 
     @staticmethod
-    def get_name(category: int) -> str:
-        if category == SharpnessCategories.CRISP:
-            return "Sharp"
-        elif category == SharpnessCategories.ACCEPTABLE:
-            return "Acceptable"
-        elif category == SharpnessCategories.BLURRY:
-            return "Blurry"
-        return "Unknown"
-
-    @staticmethod
     def get_color(category: int) -> str:
         if category == SharpnessCategories.CRISP:
             return "green"
