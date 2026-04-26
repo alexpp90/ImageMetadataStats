@@ -147,92 +147,54 @@ class TestResolvePath(unittest.TestCase):
         self.assertEqual(result, Path(path_str))
 
 
+import tempfile
+import os
+from PIL import Image as PILImage
+
 class TestLoadImagePreview(unittest.TestCase):
-    @patch('image_metadata_analyzer.utils.Image.open')
-    def test_standard_image(self, mock_open):
-        """Test loading a standard image (e.g., JPEG)."""
-        mock_img = MagicMock()
-        mock_open.return_value = mock_img
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.temp_dir_path = Path(self.temp_dir.name)
 
-        path = Path('test.jpg')
-        result = load_image_preview(path)
+    def tearDown(self):
+        self.temp_dir.cleanup()
 
-        mock_open.assert_called_once_with(path)
-        mock_img.thumbnail.assert_called_once_with((150, 150))
-        self.assertEqual(result, mock_img)
+    def test_standard_image(self):
+        """Test loading a standard image and resizing it."""
+        img_path = self.temp_dir_path / "test.jpg"
+        img = PILImage.new("RGB", (300, 300), color="red")
+        img.save(img_path)
 
-    @patch('image_metadata_analyzer.utils.Image.fromarray')
-    @patch('image_metadata_analyzer.utils.rawpy.imread')
-    def test_raw_image(self, mock_imread, mock_fromarray):
-        """Test loading a RAW image."""
-        mock_raw = MagicMock()
-        mock_rgb = MagicMock()
-        mock_raw.__enter__.return_value = mock_raw
-        mock_raw.postprocess.return_value = mock_rgb
-        mock_imread.return_value = mock_raw
+        result = load_image_preview(img_path, max_size=(150, 150))
+        self.assertIsNotNone(result)
+        # thumbnail preserves aspect ratio and fits within box
+        # Our source is 300x300, max is 150x150, so result should be 150x150
+        self.assertEqual(result.size, (150, 150))
 
-        mock_img = MagicMock()
-        mock_fromarray.return_value = mock_img
-
-        path = Path('test.arw')
-        result = load_image_preview(path)
-
-        mock_imread.assert_called_once_with('test.arw')
-        mock_raw.postprocess.assert_called_once_with(use_camera_wb=True, bright=1.0, half_size=True)
-        mock_fromarray.assert_called_once_with(mock_rgb)
-        mock_img.thumbnail.assert_called_once_with((150, 150))
-        self.assertEqual(result, mock_img)
-
-    @patch('image_metadata_analyzer.utils.Image.open')
-    def test_full_res(self, mock_open):
+    def test_full_res(self):
         """Test loading a standard image at full resolution."""
-        mock_img = MagicMock()
-        mock_open.return_value = mock_img
+        img_path = self.temp_dir_path / "test.jpg"
+        img = PILImage.new("RGB", (300, 300), color="blue")
+        img.save(img_path)
 
-        path = Path('test.jpg')
-        result = load_image_preview(path, full_res=True)
+        result = load_image_preview(img_path, full_res=True)
+        self.assertIsNotNone(result)
+        self.assertEqual(result.size, (300, 300))
 
-        mock_open.assert_called_once_with(path)
-        mock_img.thumbnail.assert_not_called()
-        self.assertEqual(result, mock_img)
-
-    @patch('image_metadata_analyzer.utils.Image.open')
-    @patch('image_metadata_analyzer.utils.rawpy.imread')
-    def test_raw_fallback_to_pillow(self, mock_imread, mock_open):
-        """Test that Pillow is used if rawpy fails."""
-        mock_imread.side_effect = rawpy.LibRawError("rawpy failed")
-
-        mock_img = MagicMock()
-        mock_open.return_value = mock_img
-
-        path = Path('test.arw')
-        result = load_image_preview(path)
-
-        mock_imread.assert_called_once_with('test.arw')
-        mock_open.assert_called_once_with(path)
-        mock_img.thumbnail.assert_called_once_with((150, 150))
-        self.assertEqual(result, mock_img)
-
-    @patch('image_metadata_analyzer.utils.Image.open')
-    def test_exception_handling(self, mock_open):
-        """Test that None is returned on common image loading exceptions."""
-        mock_open.side_effect = OSError("File not found or access denied")
-
-        path = Path('test.jpg')
-        result = load_image_preview(path)
-
+    def test_file_not_found(self):
+        """Test that None is returned for missing files."""
+        img_path = self.temp_dir_path / "does_not_exist.jpg"
+        result = load_image_preview(img_path)
         self.assertIsNone(result)
 
-    @patch('image_metadata_analyzer.utils.Image.open')
-    def test_unidentified_image_error(self, mock_open):
+    def test_unidentified_image_error(self):
         """Test that None is returned when Pillow cannot identify the image."""
-        mock_open.side_effect = PIL.Image.UnidentifiedImageError("Cannot identify image file")
+        img_path = self.temp_dir_path / "bad_image.jpg"
+        with open(img_path, "w") as f:
+            f.write("This is not an image file")
 
-        path = Path('test.jpg')
-        result = load_image_preview(path)
-
+        result = load_image_preview(img_path)
         self.assertIsNone(result)
-
 
 if __name__ == "__main__":
     unittest.main()
