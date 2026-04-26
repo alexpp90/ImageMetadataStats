@@ -1,6 +1,7 @@
 import pytest
 from pathlib import Path
 import numpy as np
+import cv2
 from unittest.mock import patch, MagicMock
 from image_metadata_analyzer.sharpness import (
     calculate_sharpness,
@@ -150,7 +151,7 @@ def test_calculate_sharpness_exception(mock_cv2, mock_get_data):
     # Setup mock to return a valid dummy image
     mock_get_data.return_value = np.zeros((100, 100, 3), dtype=np.uint8)
     # Mock cvtColor to raise an exception
-    mock_cv2.cvtColor.side_effect = Exception("Mocked error")
+    mock_cv2.cvtColor.side_effect = cv2.error("Mocked error")
 
     # The function should catch the exception and return 0.0
     score = calculate_sharpness(Path("error.jpg"))
@@ -166,7 +167,7 @@ def test_calculate_sharpness_grid_exception(mock_cv2, mock_get_data):
     mock_cv2.cvtColor.return_value = np.zeros((100, 100), dtype=np.uint8)
 
     # Mock Laplacian to raise an exception
-    mock_cv2.Laplacian.side_effect = Exception("Mocked grid error")
+    mock_cv2.Laplacian.side_effect = cv2.error("Mocked grid error")
 
     # Call with grid_size > 1
     score = calculate_sharpness(Path("grid_error.jpg"), grid_size=2)
@@ -179,7 +180,7 @@ def test_calculate_noise_exception(mock_cv2, mock_get_data):
     # Setup mock to return a valid dummy image
     mock_get_data.return_value = np.zeros((100, 100, 3), dtype=np.uint8)
     # Mock cvtColor to raise an exception
-    mock_cv2.cvtColor.side_effect = Exception("Mocked noise error")
+    mock_cv2.cvtColor.side_effect = cv2.error("Mocked noise error")
 
     # The function should catch the exception and return 0.0
     score = calculate_noise(Path("error.jpg"))
