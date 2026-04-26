@@ -1,5 +1,5 @@
 import os
-import subprocess
+import webbrowser
 import sys
 from pathlib import Path
 from typing import Optional, List, Dict
@@ -14,14 +14,12 @@ from image_metadata_analyzer.utils import aggregate_focal_lengths
 def _open_file_for_user(filepath: Path):
     """Opens a file in the default application in a cross-platform way."""
     try:
-        abs_filepath = filepath.absolute()
+        abs_filepath = filepath.resolve()
         if sys.platform == "win32":
             os.startfile(abs_filepath)
-        elif sys.platform == "darwin":
-            subprocess.run(["open", str(abs_filepath)], check=True)
         else:
-            subprocess.run(["xdg-open", str(abs_filepath)], check=True)
-    except (FileNotFoundError, subprocess.CalledProcessError) as e:
+            webbrowser.open(abs_filepath.as_uri())
+    except Exception as e:
         print(f"Could not open file '{filepath}'. Please open it manually.")
         print(f"Error: {e}")
 
