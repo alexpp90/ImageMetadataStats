@@ -100,6 +100,15 @@ class TestGetExiftoolPath(unittest.TestCase):
             self.assertEqual(path, expected)
 
 class TestResolvePath(unittest.TestCase):
+
+    def test_frozen_environment(self):
+        """Tests that it prepends sys._MEIPASS when running in a PyInstaller frozen environment."""
+        path_str = "test.jpg"
+        with patch.object(sys, '_MEIPASS', '/tmp/_MEI12345', create=True):
+            result = resolve_path(path_str)
+            expected = Path('/tmp/_MEI12345') / path_str
+            self.assertEqual(result, expected)
+
     def test_local_path(self):
         """Tests that standard local paths are correctly converted to Path objects."""
         path_str = "/tmp/test.jpg"

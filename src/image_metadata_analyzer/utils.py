@@ -28,6 +28,9 @@ def resolve_path(path_str: str) -> Path:
     Returns:
         Path object pointing to the local file system location.
     """
+    if hasattr(sys, '_MEIPASS') and not path_str.startswith("smb://") and not os.path.isabs(path_str):
+        return Path(sys._MEIPASS) / path_str
+
     # Check if it looks like an SMB URL
     if path_str.startswith("smb://"):
         # Parse the URL
