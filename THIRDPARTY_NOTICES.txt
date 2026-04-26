@@ -128,6 +128,12 @@ Apache Software License; BSD License
 Gustavo Niemeyer
 https://github.com/dateutil/dateutil
 
+rawpy
+0.26.1
+MIT License
+Maik Riechert
+https://github.com/letmaik/rawpy
+
 six
 1.17.0
 MIT License
