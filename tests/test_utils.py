@@ -234,5 +234,17 @@ class TestLoadImagePreview(unittest.TestCase):
         self.assertIsNone(result)
 
 
+
+    @patch('image_metadata_analyzer.utils.Image.open')
+    def test_value_error_handling(self, mock_open):
+        """Test that None is returned when a ValueError is raised."""
+        mock_open.side_effect = ValueError("Invalid image parameter")
+
+        path = Path('test.jpg')
+        result = load_image_preview(path)
+
+        self.assertIsNone(result)
+
+
 if __name__ == "__main__":
     unittest.main()
