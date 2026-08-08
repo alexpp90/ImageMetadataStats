@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.photoselectortoolbox.domain.format.ActionLabel
 import com.photoselectortoolbox.domain.format.SelectionActionLabels
+import com.photoselectortoolbox.domain.format.SelectorLabels
 import com.photoselectortoolbox.domain.interaction.FilingAction
 import com.photoselectortoolbox.ui.theme.Indigo500
 import com.photoselectortoolbox.ui.theme.PanelSurface
@@ -89,6 +90,7 @@ fun SelectorControlBlock(
     onNavigatePrevious: () -> Unit,
     onNavigateNext: () -> Unit,
     modifier: Modifier = Modifier,
+    stillEnumerating: Boolean = false,
 ) {
     Column(
         modifier = modifier.padding(horizontal = 10.dp).testTag("control_block"),
@@ -200,21 +202,30 @@ fun SelectorControlBlock(
             )
             ViewToggle(
                 icon = Icons.Default.Keyboard,
-                description = "Keyboard shortcuts and gestures",
+                description = "Shortcuts and layout guide",
                 onClick = actions.onShowShortcuts,
                 modifier = Modifier.testTag("shortcuts_button"),
             )
         }
 
+        // `127 / 842+` while the folder is still enumerating. Discovery streams,
+        // so the total is a running total for the first seconds of a large
+        // shoot; printing it bare would state a folder size nobody has counted.
         Text(
-            text = "$position / $total",
+            text = SelectorLabels.position(position, total, stillEnumerating),
             fontSize = 12.sp,
             fontFamily = FontFamily.Monospace,
             color = Zinc400,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 2.dp)
-                .semantics { contentDescription = "Image $position of $total" }
+                .semantics {
+                    contentDescription = if (stillEnumerating) {
+                        "Image $position of $total so far, still loading"
+                    } else {
+                        "Image $position of $total"
+                    }
+                }
                 .testTag("position_counter"),
         )
     }

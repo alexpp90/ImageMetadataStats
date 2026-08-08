@@ -5,14 +5,15 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -35,6 +36,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -49,22 +51,39 @@ import com.photoselectortoolbox.ui.theme.Zinc700
 import com.photoselectortoolbox.ui.theme.Zinc800
 import com.photoselectortoolbox.ui.theme.Zinc900
 
-/** Total height of the filmstrip, including its border and padding. */
-val FilmstripHeight = 76.dp
+/**
+ * Width of the strip, decided by the frame solver rather than here.
+ *
+ * Kept as an alias so call sites read as geometry and there is still exactly
+ * one number — see [FrameGeometry.FilmstripWidth] for why it is 72 dp.
+ */
+val FilmstripWidth = FrameGeometry.FilmstripWidth
 
-private val ThumbnailHeight = 56.dp
-private val LandscapeThumbnailWidth = 78.dp
-private val PortraitThumbnailWidth = 44.dp
+/**
+ * Thumbnail width. Constant, because in a vertical strip width is the cross
+ * axis: a column of ragged-width thumbnails is a column that cannot be scanned.
+ */
+private val ThumbnailWidth = 60.dp
+private val LandscapeThumbnailHeight = 40.dp
+private val PortraitThumbnailHeight = 80.dp
 
 /** Extra space that separates one burst from the next. */
 private val BurstGap = 10.dp
 
 /**
- * The filmstrip along the bottom edge: where the current frame sits in the
- * folder, and roughly how good its neighbours are.
+ * The filmstrip down the outer edge of the control flank: where the current
+ * frame sits in the folder, and roughly how good its neighbours are.
  *
- * Thumbnails carry a single score dot rather than text. At 56dp there is no
- * room for a legible number, and the question the strip answers is "is there
+ * **Vertical, not horizontal, and that is the whole point.** This layout is
+ * height-bound and width-surplus ([FrameGeometry]), so a bar across the bottom
+ * is the most expensive place on the screen to put anything — measured, 76 dp
+ * of full-width strip took the reference frames from 675 × 450 to 618 × 412. A
+ * column in the flank costs the frames nothing *and* shows more of the folder:
+ * 72 dp of width against a 450 dp flank carries ~10 thumbnails where the
+ * horizontal strip squeezed into the same flank carried four.
+ *
+ * Thumbnails carry a single score dot rather than text. At this size there is
+ * no room for a legible number, and the question the strip answers is "is there
  * anything better nearby", which a colour answers faster than digits. Sharpness
  * is the metric shown because it is the one that most often decides a cull.
  */
@@ -94,7 +113,7 @@ fun CandidateStrip(
     val currentGroup = indexToGroup[currentIndex]
 
     // Keep the current frame visible without yanking the strip about: scrolling
-    // to a fixed offset puts it left-of-centre, where the frames the user is
+    // to a fixed offset puts it above centre, where the frames the user is
     // about to reach are still on screen.
     LaunchedEffect(currentIndex) {
         if (images.isNotEmpty() && currentIndex in images.indices) {
@@ -111,58 +130,69 @@ fun CandidateStrip(
 
     Box(
         modifier = modifier
-            .fillMaxWidth()
-            .height(FilmstripHeight)
+            .fillMaxHeight()
+            .width(FilmstripWidth)
             .background(Zinc900)
             .testTag("filmstrip"),
     ) {
+        // A 1 dp rule on the leading edge, not a shadow. Surfaces on this screen
+        // separate by outline and value step (DESIGN §3); a horizontal strip put
+        // this rule along its top, a vertical one puts it down its left.
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(1.dp)
+                .width(1.dp)
+                .fillMaxHeight()
                 .background(Zinc800)
                 .align(Alignment.TopStart),
         )
 
-        LazyRow(
-            modifier = Modifier.fillMaxWidth().align(Alignment.CenterStart),
-            state = listState,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            contentPadding = PaddingValues(horizontal = 8.dp),
-        ) {
-            itemsIndexed(
-                items = images,
-                key = { _, image -> image.uri },
-            ) { index, image ->
-                val group = indexToGroup[index]
-                val startsNewBurst = group != null && group != indexToGroup[index - 1]
+        Column(modifier = Modifier.fillMaxHeight().fillMaxWidth()) {
+            LazyColumn(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                state = listState,
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                contentPadding = PaddingValues(vertical = 8.dp),
+            ) {
+                itemsIndexed(
+                    items = images,
+                    key = { _, image -> image.uri },
+                ) { index, image ->
+                    val group = indexToGroup[index]
+                    val startsNewBurst = group != null && group != indexToGroup[index - 1]
 
-                CandidateThumbnail(
-                    image = image,
-                    isCurrent = index == currentIndex,
-                    inCurrentBurst = group != null && group == currentGroup,
-                    position = index + 1,
-                    total = images.size,
-                    onClick = { onImageSelected(index) },
-                    modifier = Modifier.padding(
-                        start = if (startsNewBurst) BurstGap else 0.dp,
-                    ),
+                    CandidateThumbnail(
+                        image = image,
+                        isCurrent = index == currentIndex,
+                        inCurrentBurst = group != null && group == currentGroup,
+                        position = index + 1,
+                        total = images.size,
+                        onClick = { onImageSelected(index) },
+                        modifier = Modifier.padding(
+                            top = if (startsNewBurst) BurstGap else 0.dp,
+                        ),
+                    )
+                }
+            }
+
+            // The caption sits below the list rather than over it. Overlaid on a
+            // 72 dp column it would cover a thumbnail outright, which a caption
+            // reporting what is visible has no business doing. `115–156 of 842`
+            // wraps to two lines at this width, which is why it is centred.
+            visibleRange?.let { (first, last) ->
+                Text(
+                    text = SelectorLabels.filmstripRange(first, last, images.size),
+                    fontSize = 9.sp,
+                    lineHeight = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                    color = Zinc500,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp, vertical = 4.dp)
+                        .testTag("filmstrip_range"),
                 )
             }
-        }
-
-        visibleRange?.let { (first, last) ->
-            Text(
-                text = SelectorLabels.filmstripRange(first, last, images.size),
-                fontSize = 10.sp,
-                fontFamily = FontFamily.Monospace,
-                color = Zinc500,
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .background(Zinc900)
-                    .padding(horizontal = 8.dp),
-            )
         }
     }
 }
@@ -178,18 +208,18 @@ private fun CandidateThumbnail(
     modifier: Modifier = Modifier,
 ) {
     val shape = RoundedCornerShape(3.dp)
-    val width = if (image.isLandscape) LandscapeThumbnailWidth else PortraitThumbnailWidth
+    val height = if (image.isLandscape) LandscapeThumbnailHeight else PortraitThumbnailHeight
 
     Box(
         modifier = modifier
-            .height(ThumbnailHeight + if (inCurrentBurst) 4.dp else 0.dp)
-            .width(width),
-        contentAlignment = Alignment.TopStart,
+            .width(ThumbnailWidth + if (inCurrentBurst) 4.dp else 0.dp)
+            .height(height),
+        contentAlignment = Alignment.TopEnd,
     ) {
         Box(
             modifier = Modifier
-                .height(ThumbnailHeight)
-                .width(width)
+                .width(ThumbnailWidth)
+                .height(height)
                 // Neighbours are held back a little so the current frame reads
                 // first, but never so far that their content is unreadable.
                 .alpha(if (isCurrent) 1f else 0.85f)
@@ -225,15 +255,17 @@ private fun CandidateThumbnail(
             }
         }
 
-        // Burst underline: the frames that belong to the same series as the
-        // current one, so a photographer can see the shape of the burst they
-        // are inside without reading filenames.
+        // Burst marker: the frames that belong to the same series as the current
+        // one, so a photographer can see the shape of the burst they are inside
+        // without reading filenames. It ran under the thumbnails when the strip
+        // ran across the screen; down the strip's leading edge it is the same
+        // 2 dp Indigo-600 rule reading the same way — a bracket around a run.
         if (inCurrentBurst) {
             Box(
                 modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .width(width)
-                    .height(2.dp)
+                    .align(Alignment.TopStart)
+                    .width(2.dp)
+                    .height(height)
                     .background(Indigo600),
             )
         }

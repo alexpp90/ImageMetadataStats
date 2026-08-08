@@ -161,6 +161,32 @@ class SelectorUiStateTest {
         assertNull(state.nextImage)
     }
 
+    @Test
+    fun `a fresh folder is neither enumerating nor queueing anything`() {
+        val state = SelectorUiState()
+        assertFalse(state.isEnumerating)
+        assertFalse(state.isGroupingRunning)
+        assertNull(state.queuedWork)
+        assertNull(state.snackbarMessage)
+        assertNull(state.undoOperation)
+        assertNull(state.pendingDeletion)
+    }
+
+    @Test
+    fun `listState hands the list and the index to the pure curation logic as one value`() {
+        // The index and the list it indexes into must travel together; every bug
+        // in this area has been an index that outlived its list.
+        val state = SelectorUiState(images = threeImages, currentIndex = 1)
+        assertEquals(threeImages, state.listState.images)
+        assertEquals(1, state.listState.currentIndex)
+        assertEquals("uri2", state.listState.currentUri)
+    }
+
+    @Test
+    fun `an empty list has no current URI rather than an out-of-range one`() {
+        assertNull(SelectorUiState().listState.currentUri)
+    }
+
     private val threeImages = listOf(
         ImageItem("uri1", "a.jpg", 100, 1000, "image/jpeg"),
         ImageItem("uri2", "b.jpg", 200, 2000, "image/jpeg"),

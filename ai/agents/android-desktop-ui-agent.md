@@ -1,6 +1,6 @@
 ---
 name: android-desktop-ui-agent
-description: "Compose UI specialist for the Android Desktop product only (products/android/android-desktop/src/com/photoselectortoolbox/ui/ and .../viewmodel/). Material 3 theming for large screens, NavigationRail, the three-column and focused selector layouts, DeX keyboard/pointer support. Use proactively for any :app UI work. Never touches :phototok."
+description: "Compose UI specialist for the Android Desktop product only (products/android/android-desktop/src/com/photoselectortoolbox/ui/ and .../viewmodel/). Material 3 theming for large screens, the 88dp labelled sidebar, the single one-over-two comparison layout and its geometry solver, DeX keyboard and pointer support. Use proactively for any :android-desktop UI work. Never touches :phototok."
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: inherit
 hooks:
@@ -46,14 +46,23 @@ for `:android-desktop` screens.
 
 ## Rules
 
-1. **Adaptive layout is mandatory.** Handle `WindowWidthSizeClass.Expanded` (≥ 840 dp) and
-   `Medium` (600–840 dp). The focused (stacked) layout is the default; the three-column
-   side-by-side layout is the alternative. The chosen layout persists in DataStore.
-2. **Obey the layout maths in `DESIGN.md`.** The equal-frame sizing rule in the focused
-   layout is non-negotiable — all three frames resolve to the same height.
-3. **Never overlap controls on images.** Each comparison layout owns its layout toggle
-   inside its own control group. The only permitted image overlay is the one-time
-   first-run navigation hint.
+1. **Adaptive layout is mandatory, and there is exactly one comparison layout.** Handle
+   `WindowWidthSizeClass.Expanded` (≥ 840 dp) and `Medium` (600–840 dp) with three equal
+   frames arranged **one over two**, the current frame centred. There is no second comparison
+   layout, no layout toggle and no top app bar; the row arrangement is prohibited
+   (REQUIREMENTS § 2). Nothing about the arrangement is persisted.
+2. **Obey the layout maths in `DESIGN.md`.** Frame size is computed once per composition by
+   `FrameGeometry.threeUpLayout` from both constraints and the active image's aspect ratio,
+   and the same `DpSize` is handed to all three tiles — never a per-tile `aspectRatio`
+   modifier. Any surface that must align to the frames (coach marks, hint cards) calls that
+   same solver rather than re-deriving the geometry.
+3. **Controls never overlap, and guidance never enters a frame.** No two interactive controls
+   may share bounds, asserted by a UI test across the whole control block. The one-time
+   first-run navigation pill is the only *guidance* element permitted inside a frame's bounds;
+   the coach-mark guide and every hint card must be placed in the horizontal slack, with a
+   test asserting their bounds do not intersect any of the three frames. Neighbour value
+   overlays and the maximise badge are chrome, not guidance, and are governed by REQUIREMENTS
+   § 2 instead.
 4. **DeX and pointer support.** Resizable windows; hardware keyboard shortcuts
    (`←`/`→`, `M`, `C`, `Del`/`Backspace`, `F`, `Esc`); `PointerIcon.Hand` on interactive
    widgets; folder drag-and-drop.

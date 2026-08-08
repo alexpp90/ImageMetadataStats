@@ -19,16 +19,30 @@ import com.photoselectortoolbox.domain.interaction.FilingAction
  * [secondary]. Neither is hidden: a photographer who wants to copy this one
  * frame while normally moving must not have to open Settings to do it.
  *
+ * The second rule is newer and comes from the same family of defect: **the
+ * destination is a setting, not a constant.** Every function here takes the
+ * configured `selection_folder_name`, exactly as
+ * [com.photoselectortoolbox.domain.guidance.SelectorHintText.message] does, so
+ * the hint card and the snackbar that fire alongside each other cannot name
+ * different folders. The parameter defaults to
+ * [FilingAction.DEFAULT_SELECTION_FOLDER] for call sites that genuinely have no
+ * settings in hand.
+ *
  * Kept free of Compose and Android types so the wording is unit-testable.
  */
 object SelectionActionLabels {
 
     /** The configured verb: the emphasised control. */
-    fun primary(filingAction: FilingAction): ActionLabel = labelFor(filingAction, isPrimary = true)
+    fun primary(
+        filingAction: FilingAction,
+        selectionFolderName: String = FilingAction.DEFAULT_SELECTION_FOLDER,
+    ): ActionLabel = labelFor(filingAction, selectionFolderName, isPrimary = true)
 
     /** The other verb: present, labelled, visually quieter. */
-    fun secondary(filingAction: FilingAction): ActionLabel =
-        labelFor(filingAction.other, isPrimary = false)
+    fun secondary(
+        filingAction: FilingAction,
+        selectionFolderName: String = FilingAction.DEFAULT_SELECTION_FOLDER,
+    ): ActionLabel = labelFor(filingAction.other, selectionFolderName, isPrimary = false)
 
     /**
      * Both controls in the order they are rendered, configured verb first.
@@ -37,14 +51,26 @@ object SelectionActionLabels {
      * ordering rule lives in one place and the control block cannot disagree
      * with the context menu.
      */
-    fun both(filingAction: FilingAction): List<ActionLabel> =
-        listOf(primary(filingAction), secondary(filingAction))
+    fun both(
+        filingAction: FilingAction,
+        selectionFolderName: String = FilingAction.DEFAULT_SELECTION_FOLDER,
+    ): List<ActionLabel> = listOf(
+        primary(filingAction, selectionFolderName),
+        secondary(filingAction, selectionFolderName),
+    )
 
-    /** The snackbar shown after the action succeeds. */
-    fun confirmation(action: FilingAction): String = when (action) {
-        FilingAction.COPY -> "Copied to Selection"
-        FilingAction.MOVE -> "Moved to Selection"
-    }
+    /**
+     * The snackbar shown after the action succeeds.
+     *
+     * Names [selectionFolderName], because "Moved to Selection" is simply false
+     * for a photographer who renamed the folder — and the snackbar is the only
+     * thing on screen that says where the photograph went.
+     */
+    fun confirmation(
+        action: FilingAction,
+        selectionFolderName: String = FilingAction.DEFAULT_SELECTION_FOLDER,
+    ): String =
+        "${action.pastTense} to ${FilingAction.selectionFolderOrDefault(selectionFolderName)}"
 
     /**
      * Whether the frame advances after this action.
@@ -55,10 +81,14 @@ object SelectionActionLabels {
      */
     fun advancesAfter(action: FilingAction): Boolean = action == FilingAction.MOVE
 
-    private fun labelFor(action: FilingAction, isPrimary: Boolean) = ActionLabel(
+    private fun labelFor(
+        action: FilingAction,
+        selectionFolderName: String,
+        isPrimary: Boolean,
+    ) = ActionLabel(
         action = action,
         verb = action.verb,
-        phrase = action.phrase,
+        phrase = action.phraseFor(selectionFolderName),
         shortcut = action.shortcut,
         isPrimary = isPrimary,
     )
@@ -69,6 +99,12 @@ object SelectionActionLabels {
  *
  * [verb] goes on the button, [phrase] into the accessibility description and
  * the context menu, [shortcut] onto the permanent key cap beside the verb.
+ *
+ * Only [phrase] names the destination folder, and that split is deliberate: the
+ * control block is 190dp wide with two filing buttons side by side, so a folder
+ * called "2026 — client selects" would either wrap or truncate on the button
+ * while being perfectly readable in a menu row or read aloud in full. The button
+ * keeps the verb; the screen reader and the menu get the whole sentence.
  */
 data class ActionLabel(
     val action: FilingAction,

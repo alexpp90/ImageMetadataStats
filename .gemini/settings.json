@@ -15,7 +15,7 @@
       "enable_write_tools": true
     },
     "android-desktop-ui-agent": {
-      "description": "Compose UI specialist for the Android Desktop product only (products/android/android-desktop/src/com/photoselectortoolbox/ui/ and .../viewmodel/). Material 3 theming for large screens, NavigationRail, the three-column and focused selector layouts, DeX keyboard/pointer support. Use proactively for any :app UI work. Never touches :phototok.",
+      "description": "Compose UI specialist for the Android Desktop product only (products/android/android-desktop/src/com/photoselectortoolbox/ui/ and .../viewmodel/). Material 3 theming for large screens, the 88dp labelled sidebar, the single one-over-two comparison layout and its geometry solver, DeX keyboard and pointer support. Use proactively for any :android-desktop UI work. Never touches :phototok.",
       "tools": [
         "Read",
         "Grep",

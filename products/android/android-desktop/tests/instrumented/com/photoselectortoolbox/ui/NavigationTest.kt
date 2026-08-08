@@ -1,15 +1,12 @@
 package com.photoselectortoolbox.ui
 
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.hasAnyDescendant
-import androidx.compose.ui.test.hasClickAction
-import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
-import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -74,10 +71,7 @@ class NavigationTest {
         }
 
         // Tap on the Statistics nav item
-        composeRule.onNode(
-            hasClickAction() and hasAnyDescendant(hasContentDescription("Statistics")),
-            useUnmergedTree = true
-        ).performClick()
+        composeRule.onNodeWithTag("nav_statistics").performClick()
 
         composeRule.waitForIdle()
 
@@ -103,10 +97,7 @@ class NavigationTest {
             return
         }
 
-        composeRule.onNode(
-            hasClickAction() and hasAnyDescendant(hasContentDescription("Duplicates")),
-            useUnmergedTree = true
-        ).performClick()
+        composeRule.onNodeWithTag("nav_duplicates").performClick()
 
         composeRule.waitForIdle()
 
@@ -132,10 +123,7 @@ class NavigationTest {
             return
         }
 
-        composeRule.onNode(
-            hasClickAction() and hasAnyDescendant(hasContentDescription("Settings")),
-            useUnmergedTree = true
-        ).performClick()
+        composeRule.onNodeWithTag("nav_settings").performClick()
 
         composeRule.waitForIdle()
 
@@ -162,17 +150,11 @@ class NavigationTest {
         }
 
         // Navigate away first
-        composeRule.onNode(
-            hasClickAction() and hasAnyDescendant(hasContentDescription("Settings")),
-            useUnmergedTree = true
-        ).performClick()
+        composeRule.onNodeWithTag("nav_settings").performClick()
         composeRule.waitForIdle()
 
         // Navigate back to Selector
-        composeRule.onNode(
-            hasClickAction() and hasAnyDescendant(hasContentDescription("Selector")),
-            useUnmergedTree = true
-        ).performClick()
+        composeRule.onNodeWithTag("nav_selector").performClick()
         composeRule.waitForIdle()
 
         composeRule.onNodeWithText("Choose a shoot folder to start comparing and culling frames.", substring = true, ignoreCase = true)

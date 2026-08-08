@@ -13,11 +13,17 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.PhotoCamera
@@ -101,8 +107,7 @@ fun SelectorScreen(
     var showMenu by remember { mutableStateOf(false) }
     var showDrivePicker by remember { mutableStateOf(false) }
     var showScoreLegend by remember { mutableStateOf(false) }
-    var showShortcuts by remember { mutableStateOf(false) }
-    var snackbarMessage by remember { mutableStateOf<String?>(null) }
+    var showGuide by remember { mutableStateOf(false) }
     var contextMenuAt by remember { mutableStateOf<Offset?>(null) }
     var lastPointerPosition by remember { mutableStateOf(Offset.Zero) }
 
@@ -110,11 +115,34 @@ fun SelectorScreen(
     val isMedium = windowSizeClass.widthSizeClass == WindowWidthSizeClass.Medium
     val useExpandedLayout = isExpanded || isMedium
 
+    // The guide opens by itself once, at first launch, and on demand thereafter.
+    // Both routes are the same overlay and the same dismissal, so there is one
+    // "seen" fact rather than two that can disagree.
+    //
+    // Never while a frame is maximised: the overlay reserves the three-up
+    // footprints, so over a single filled frame its callouts would land on the
+    // photograph — the one thing it exists not to do. Opening it therefore
+    // leaves the maximised state first.
+    val guideOpen = useExpandedLayout &&
+        uiState.images.isNotEmpty() &&
+        uiState.maximisedFrame == null &&
+        (showGuide || uiState.showIntroTour)
+
+    val openGuide: () -> Unit = {
+        viewModel.clearMaximised()
+        showGuide = true
+    }
+
     // Any open sheet swallows the shortcuts, so a stray M while configuring a
     // scan cannot move the frame behind the sheet. Esc is the exception — it is
     // what closes the sheet.
-    val sheetOpen = showScanConfig || showScoreLegend || showDrivePicker || showShortcuts ||
+    val sheetOpen = showScanConfig || showScoreLegend || showDrivePicker || guideOpen ||
         uiState.showDeleteConfirmation
+
+    val dismissGuide: () -> Unit = {
+        showGuide = false
+        viewModel.markGuideSeen()
+    }
 
     val dragAndDropTarget = remember(context, viewModel) {
         object : DragAndDropTarget {
@@ -160,28 +188,26 @@ fun SelectorScreen(
     // Move and Delete advance to the next frame; Copy stays put. That asymmetry
     // is the culling loop: a moved or deleted frame is finished with, a copied
     // one may still be compared against its neighbours.
+    //
+    // The confirmation wording no longer lives here. The message and its UNDO
+    // are one fact about one operation, so they are decided together in the
+    // ViewModel — a message set by the composable could outlive, or disagree
+    // with, the operation it claims to describe.
     val actions = SelectorActions(
-        onMove = {
-            viewModel.moveToSelection()
-            snackbarMessage = "Moved to Selection"
-        },
-        onCopy = {
-            viewModel.copyToSelection()
-            snackbarMessage = "Copied to Selection"
-        },
+        onMove = viewModel::moveToSelection,
+        onCopy = viewModel::copyToSelection,
         onDelete = { viewModel.requestDelete() },
         onFullscreen = { showFullscreen = true },
         onToggleDetails = viewModel::toggleDetails,
         onToggleFilmstrip = viewModel::toggleFilmstrip,
         onToggleOverlayValues = viewModel::toggleOverlayValues,
-        onShowShortcuts = { showShortcuts = true },
+        onShowShortcuts = openGuide,
     )
 
+    // Errors already reached the snackbar through the ViewModel; the sticky
+    // field is cleared so the same failure does not re-announce itself.
     LaunchedEffect(uiState.error) {
-        uiState.error?.let { error ->
-            snackbarMessage = error
-            viewModel.clearError()
-        }
+        if (uiState.error != null) viewModel.clearError()
     }
 
     LaunchedEffect(uiState.images.isNotEmpty()) {
@@ -203,10 +229,7 @@ fun SelectorScreen(
             },
             confirmButton = {
                 TextButton(
-                    onClick = {
-                        viewModel.deleteCurrentImage()
-                        snackbarMessage = SelectorLabels.deletedMessage(1)
-                    },
+                    onClick = { viewModel.deleteCurrentImage() },
                     modifier = Modifier.testTag("dialog_confirm_delete"),
                 ) {
                     Text("Delete", color = MaterialTheme.colorScheme.error)
@@ -234,13 +257,6 @@ fun SelectorScreen(
         ScoreLegendSheet(onDismiss = { showScoreLegend = false })
     }
 
-    if (showShortcuts) {
-        ShortcutSheet(
-            filingAction = uiState.filingAction,
-            onDismiss = { showShortcuts = false },
-        )
-    }
-
     if (showScanConfig) {
         ScanConfigSheet(
             onStartScan = { config ->
@@ -264,12 +280,10 @@ fun SelectorScreen(
             onMoveToSelection = { index ->
                 viewModel.navigateToImage(index)
                 viewModel.moveToSelection()
-                snackbarMessage = "Moved to Selection"
             },
             onCopyToSelection = { index ->
                 viewModel.navigateToImage(index)
                 viewModel.copyToSelection()
-                snackbarMessage = "Copied to Selection"
             },
             windowSizeClass = windowSizeClass,
             onPageSelected = viewModel::navigateToImage,
@@ -284,6 +298,18 @@ fun SelectorScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Zinc900)
+            // Horizontal insets only, and that is a priced decision rather than
+            // an omission. A display cutout or a rotated navigation bar clips
+            // content on the *width*, which this layout has to spare. The
+            // vertical system bars are 36 dp + 32 dp on the reference device
+            // (measured); padding for them would cost 34 dp of height on all
+            // three frames and put the reference frame at 416 dp, below the
+            // documented floor. They are transparent under `enableEdgeToEdge()`
+            // and overlay the outer 28 dp / 24 dp of the top and bottom frames;
+            // a photographer who wants an unobstructed look has maximise and
+            // fullscreen, both of which are already immersive. See
+            // REQUIREMENTS §2 Edge-to-Edge and DESIGN §7.2.
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
             .dragAndDropTarget(
                 shouldStartDragAndDrop = { true },
                 target = dragAndDropTarget,
@@ -305,14 +331,14 @@ fun SelectorScreen(
                                 onPrevious = viewModel::navigatePrevious,
                                 onNext = viewModel::navigateNext,
                                 onMaximise = viewModel::toggleMaximised,
-                                onShowShortcuts = { showShortcuts = true },
+                                onShowShortcuts = openGuide,
                                 onCloseOverlays = {
                                     when {
                                         showFullscreen -> showFullscreen = false
                                         contextMenuAt != null -> contextMenuAt = null
                                         showScanConfig -> showScanConfig = false
                                         showScoreLegend -> showScoreLegend = false
-                                        showShortcuts -> showShortcuts = false
+                                        guideOpen -> dismissGuide()
                                         uiState.maximisedFrame != null -> viewModel.clearMaximised()
                                     }
                                 },
@@ -337,6 +363,9 @@ fun SelectorScreen(
                     driveSignedIn = viewModel.driveAuth.isSignedIn,
                     isScanning = uiState.isScanRunning,
                     scanStatusText = uiState.scanStatusText,
+                    isGrouping = uiState.isGroupingRunning,
+                    queuedWork = uiState.queuedWork,
+                    onCancelQueued = viewModel::cancelQueuedWork,
                     onOpenFolder = { folderPickerLauncher.launch(null) },
                     onOpenDrive = openDrive,
                     onScan = { showScanConfig = true },
@@ -369,8 +398,8 @@ fun SelectorScreen(
                                 enabled = uiState.hasAnyScores,
                             )
                             DropdownMenuItem(
-                                text = { Text("Keyboard shortcuts") },
-                                onClick = { showMenu = false; showShortcuts = true },
+                                text = { Text("Shortcuts and guide") },
+                                onClick = { showMenu = false; openGuide() },
                             )
                         }
                     },
@@ -384,7 +413,17 @@ fun SelectorScreen(
                         onOpenDrive = openDrive,
                     )
                 } else {
-                    Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    // Tagged because the height budget is the thing this screen
+                    // is judged on: a test can measure what the frames were
+                    // actually offered, rather than inferring it from the frame
+                    // that came out. Two revisions shipped small because the
+                    // arithmetic was reasoned about instead of measured.
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .testTag("image_region"),
+                    ) {
                         if (useExpandedLayout) {
                             ThreeUpSelectorLayout(
                                 current = uiState.currentImage,
@@ -407,6 +446,33 @@ fun SelectorScreen(
                                 onLongPressFrame = { contextMenuAt = lastPointerPosition },
                                 showFirstRunHint = !uiState.hasSeenNavHint,
                                 onDismissFirstRunHint = viewModel::markNavHintSeen,
+                                stillEnumerating = uiState.isEnumerating,
+                                // Suppressed while the guide is up: the guide is
+                                // already explaining this screen, and two
+                                // explanations of it at once is neither.
+                                pendingHint = uiState.pendingHintText.takeIf { !guideOpen },
+                                onDismissHint = viewModel::dismissHint,
+                                // Passed as a slot and drawn as a vertical column
+                                // at the outer edge of the control flank. It
+                                // used to span the bottom of the window, which
+                                // measured 38 dp off the height of every frame
+                                // on the reference device — see FrameGeometry.
+                                // The maximised state does not draw the flanks
+                                // at all, so the strip disappears there without
+                                // a second condition.
+                                filmstrip = {
+                                    CandidateStrip(
+                                        images = uiState.images,
+                                        currentIndex = uiState.currentIndex,
+                                        onImageSelected = viewModel::navigateToImage,
+                                        groups = if (uiState.groupingEnabled) {
+                                            uiState.groups
+                                        } else {
+                                            null
+                                        },
+                                        modifier = Modifier.fillMaxHeight(),
+                                    )
+                                },
                             )
                         } else {
                             CompactSelectorLayout(
@@ -421,34 +487,34 @@ fun SelectorScreen(
                             )
                         }
                     }
-
-                    // The filmstrip is the one thing still allowed to take
-                    // height, because the user asked for it explicitly and it
-                    // costs nothing while hidden. It is off the critical path:
-                    // maximised, it goes.
-                    if (useExpandedLayout &&
-                        uiState.filmstripVisible &&
-                        uiState.maximisedFrame == null
-                    ) {
-                        CandidateStrip(
-                            images = uiState.images,
-                            currentIndex = uiState.currentIndex,
-                            onImageSelected = viewModel::navigateToImage,
-                            groups = if (uiState.groupingEnabled) uiState.groups else null,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
                 }
             }
         }
 
+        // `onUndo` is non-null only where `UndoPolicy` found something genuinely
+        // reversible: a deferred delete, a trashable committed delete, or a move
+        // that reported where the file went. A copy gets none — undoing it could
+        // only mean deleting the file the photographer just asked for.
         SelectorSnackbar(
-            message = snackbarMessage,
-            onUndo = null,
-            onDismiss = { snackbarMessage = null },
+            message = uiState.snackbarMessage,
+            onUndo = if (uiState.undoOperation != null) viewModel::undoLastOperation else null,
+            onDismiss = viewModel::dismissSnackbar,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 96.dp),
+        )
+
+        // Last in the Box, so it is above every piece of chrome it labels —
+        // that is what makes it a coach mark rather than a diagram. It reserves
+        // the real geometry itself (see [SelectorCoachOverlay]), so no callout
+        // can land on a frame.
+        SelectorCoachOverlay(
+            visible = guideOpen,
+            filingAction = uiState.filingAction,
+            detailsVisible = uiState.detailsVisible,
+            filmstripVisible = uiState.filmstripVisible && uiState.maximisedFrame == null,
+            aspect = currentFrameAspect(uiState),
+            onDismiss = dismissGuide,
         )
 
         contextMenuAt?.let { offset ->
@@ -542,6 +608,20 @@ internal fun handleSelectorKey(
         Key.Slash -> { onShowShortcuts(); true }
         else -> false
     }
+}
+
+/**
+ * The aspect ratio the frame solver is currently using, landscape-normalised.
+ *
+ * Extracted so the coach-mark overlay reserves the same footprints the layout
+ * drew — the solver is shared, so the *input* has to be shared too, or the
+ * overlay would reserve 4:3 boxes over 3:2 frames and its callouts would drift
+ * onto the photographs.
+ */
+internal fun currentFrameAspect(uiState: com.photoselectortoolbox.viewmodel.SelectorUiState): Float {
+    val active = uiState.currentImage ?: uiState.previousImage ?: uiState.nextImage
+    val raw = active?.aspectRatio ?: return FrameGeometry.DefaultLandscapeAspect
+    return if (raw < 1f) 1f / raw else raw
 }
 
 /**

@@ -64,4 +64,23 @@ class SelectorLabelsTest {
     fun `scan completion names the count`() {
         assertEquals("Scan complete · 842 images analysed", SelectorLabels.scanCompleteMessage(842))
     }
+
+    @Test
+    fun `the position readout is bare once the folder has finished enumerating`() {
+        assertEquals(
+            "127 / 842",
+            SelectorLabels.position(position = 127, total = 842, stillEnumerating = false),
+        )
+    }
+
+    @Test
+    fun `a still-growing folder says so rather than stating a total nobody counted`() {
+        // Discovery streams. During the first seconds of a large shoot the total
+        // is a running total, and "24 / 24" is a claim about the folder's size
+        // that happens to be false.
+        assertEquals(
+            "127 / 842+",
+            SelectorLabels.position(position = 127, total = 842, stillEnumerating = true),
+        )
+    }
 }

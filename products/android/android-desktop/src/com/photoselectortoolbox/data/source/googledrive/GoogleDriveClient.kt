@@ -287,25 +287,37 @@ class GoogleDriveClient @Inject constructor(
         }
 
     /** Delete a file from Drive (move to trash). */
-    suspend fun trashFile(fileId: String): Boolean = withContext(Dispatchers.IO) {
-        try {
-            val token = auth.getAccessToken() ?: return@withContext false
-            val body = JSONObject().apply { put("trashed", true) }
+    suspend fun trashFile(fileId: String): Boolean = setTrashed(fileId, trashed = true)
 
-            val url = URL("$BASE_URL/files/$fileId")
-            val conn = url.openConnection() as HttpURLConnection
-            conn.requestMethod = "PATCH"
-            conn.doOutput = true
-            conn.setRequestProperty("Authorization", "Bearer $token")
-            conn.setRequestProperty("Content-Type", "application/json")
+    /**
+     * Bring a trashed file back out of the Drive trash.
+     *
+     * The inverse of [trashFile] and the reason a Drive delete can offer a real
+     * UNDO where a SAF delete cannot: same endpoint, same scope, one flag
+     * flipped — no additional data leaves the device.
+     */
+    suspend fun untrashFile(fileId: String): Boolean = setTrashed(fileId, trashed = false)
 
-            conn.outputStream.use { it.write(body.toString().toByteArray()) }
-            conn.responseCode in 200..299
-        } catch (e: Exception) {
-            Log.e(TAG, "Trash failed for $fileId", e)
-            false
+    private suspend fun setTrashed(fileId: String, trashed: Boolean): Boolean =
+        withContext(Dispatchers.IO) {
+            try {
+                val token = auth.getAccessToken() ?: return@withContext false
+                val body = JSONObject().apply { put("trashed", trashed) }
+
+                val url = URL("$BASE_URL/files/$fileId")
+                val conn = url.openConnection() as HttpURLConnection
+                conn.requestMethod = "PATCH"
+                conn.doOutput = true
+                conn.setRequestProperty("Authorization", "Bearer $token")
+                conn.setRequestProperty("Content-Type", "application/json")
+
+                conn.outputStream.use { it.write(body.toString().toByteArray()) }
+                conn.responseCode in 200..299
+            } catch (e: Exception) {
+                Log.e(TAG, "Setting trashed=$trashed failed for $fileId", e)
+                false
+            }
         }
-    }
 
     /** Copy a file to a different folder on Drive. Returns the new file's ID. */
     suspend fun copyFile(fileId: String, destFolderId: String, newName: String? = null): String? =
@@ -339,13 +351,65 @@ class GoogleDriveClient @Inject constructor(
             }
         }
 
-    /** Move a file to a different folder (remove old parent, add new parent). */
-    suspend fun moveFile(fileId: String, oldParentId: String, newParentId: String): Boolean =
+    /**
+     * The folders this file currently lives in.
+     *
+     * Returns `null` when the answer could not be obtained — no token, a
+     * transport error, an HTTP failure — and an **empty list** when the request
+     * succeeded and the file genuinely has no parent (an orphan, or a
+     * shared-with-me file that was never added to a folder). The caller must
+     * distinguish the two: "I do not know the parents" and "there are none" lead
+     * to opposite decisions in [moveFile].
+     *
+     * `files.get` with `fields=parents` is the same endpoint family and the same
+     * OAuth scope as the metadata reads discovery already performs, and asking
+     * for a field sends nothing additional off the device.
+     */
+    suspend fun parentsOf(fileId: String): List<String>? = withContext(Dispatchers.IO) {
+        val url = "$BASE_URL/files/$fileId?fields=${URLEncoder.encode("parents", "UTF-8")}"
+        val json = httpGet(url) ?: return@withContext null
+        val parents = json.optJSONArray("parents") ?: return@withContext emptyList()
+        (0 until parents.length())
+            .mapNotNull { i -> parents.optString(i).takeIf { it.isNotEmpty() } }
+    }
+
+    /**
+     * Move a file: add [newParentId], remove every folder in [removeParentIds].
+     *
+     * [removeParentIds] is a collection and not a single id on purpose. It used
+     * to be one `oldParentId`, and the one call site passed the *destination*
+     * folder — so Drive removed a parent the file did not have and the "move"
+     * added a second parent instead of relocating the file, leaving the
+     * photograph in the source folder after the selector had already taken it
+     * off the list. Drive files may legitimately have several parents (legacy
+     * multi-parenting), so the caller resolves them with [parentsOf] and passes
+     * all of them; a signature that can only express one parent is a signature
+     * that invites the same bug back.
+     *
+     * [newParentId] is filtered out of the removals: Drive rejects a PATCH that
+     * both adds and removes the same parent.
+     */
+    suspend fun moveFile(
+        fileId: String,
+        removeParentIds: Collection<String>,
+        newParentId: String,
+    ): Boolean =
         withContext(Dispatchers.IO) {
             try {
                 val token = auth.getAccessToken() ?: return@withContext false
+                val toRemove = removeParentIds.filter { it.isNotEmpty() && it != newParentId }
                 val url = URL(
-                    "$BASE_URL/files/$fileId?addParents=$newParentId&removeParents=$oldParentId"
+                    buildString {
+                        append("$BASE_URL/files/$fileId?addParents=$newParentId")
+                        if (toRemove.isNotEmpty()) {
+                            // Each id is encoded on its own and the separators
+                            // are left literal: `removeParents` is a
+                            // comma-separated list, so an encoded comma would
+                            // read as one impossible id rather than several.
+                            append("&removeParents=")
+                            append(toRemove.joinToString(",") { URLEncoder.encode(it, "UTF-8") })
+                        }
+                    }
                 )
                 val conn = url.openConnection() as HttpURLConnection
                 conn.requestMethod = "PATCH"

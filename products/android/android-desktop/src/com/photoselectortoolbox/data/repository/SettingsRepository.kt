@@ -8,8 +8,10 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.photoselectortoolbox.domain.grouping.GroupingLevel
+import com.photoselectortoolbox.domain.guidance.SelectorHint
 import com.photoselectortoolbox.domain.interaction.FilingAction
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -53,9 +55,31 @@ class SettingsRepository @Inject constructor(
         private val KEY_DETAILS_VISIBLE = booleanPreferencesKey("details_visible")
         private val KEY_SEEN_FULLSCREEN_HINT = booleanPreferencesKey("seen_fullscreen_gesture_hint")
 
+        /**
+         * Which one-time hints the user has already dismissed.
+         *
+         * A set rather than one boolean per hint, so adding a hint does not add
+         * a preference key and "Reset guidance" is a single removal instead of a
+         * list that someone will forget to extend.
+         */
+        private val KEY_SEEN_HINTS = stringSetPreferencesKey("seen_first_run_hints")
+
         const val DEFAULT_SELECTION_FOLDER_NAME = "Selection"
         const val DEFAULT_SORTING_ENABLED = true
         const val DEFAULT_GROUPING_ENABLED = false
+
+        /**
+         * The filmstrip starts hidden.
+         *
+         * The compare-and-cull loop is Previous/Next and the two neighbour
+         * frames; the strip is random access to the rest of the shoot, which is
+         * a second-order need. Starting it off means the screen a photographer
+         * first sees is the three photographs and nothing else, and the toggle
+         * in the view cluster turns it on for the sessions that want it — the
+         * preference is persisted, so that decision is made once.
+         */
+        const val DEFAULT_FILMSTRIP_VISIBLE = false
+
         val DEFAULT_GROUPING_LEVEL = GroupingLevel.TIME_FILENAME
         val DEFAULT_ANALYSIS_THREAD_COUNT = Runtime.getRuntime().availableProcessors().coerceIn(1, 4)
     }
@@ -181,15 +205,15 @@ class SettingsRepository @Inject constructor(
     }
 
     /**
-     * Whether the filmstrip along the bottom edge is shown.
+     * Whether the vertical filmstrip beside the control block is shown.
      *
-     * Persisted because it is the cheapest vertical space to reclaim: hiding it
-     * gives every visible frame roughly 40dp more height, and a photographer
-     * who has decided they do not want it should not have to decide again next
-     * launch.
+     * Persisted because a photographer who has decided either way should not
+     * have to decide again next launch. It defaults off — see
+     * [DEFAULT_FILMSTRIP_VISIBLE]. Where it sits it costs the frames no height
+     * (`FrameGeometry`), so this is a preference about clutter, not a price.
      */
     val filmstripVisible: Flow<Boolean> = context.dataStore.data.map { prefs ->
-        prefs[KEY_FILMSTRIP_VISIBLE] ?: true
+        prefs[KEY_FILMSTRIP_VISIBLE] ?: DEFAULT_FILMSTRIP_VISIBLE
     }
 
     /** Whether the readout block beside the current frame is shown. */
@@ -242,6 +266,41 @@ class SettingsRepository @Inject constructor(
     suspend fun setHasSeenFullscreenGestureHint(seen: Boolean) {
         context.dataStore.edit { prefs ->
             prefs[KEY_SEEN_FULLSCREEN_HINT] = seen
+        }
+    }
+
+    // ── First-run guidance ───────────────────────────────────────────────
+
+    /**
+     * The one-time hints already dismissed.
+     *
+     * Unknown stored keys are dropped by [SelectorHint.decode] rather than
+     * failing, so a build that no longer knows a hint simply ignores it.
+     */
+    val seenHints: Flow<Set<SelectorHint>> = context.dataStore.data.map { prefs ->
+        SelectorHint.decode(prefs[KEY_SEEN_HINTS])
+    }
+
+    /** Record that [hint] has now been shown. Idempotent. */
+    suspend fun markHintSeen(hint: SelectorHint) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_SEEN_HINTS] = prefs[KEY_SEEN_HINTS].orEmpty() + hint.key
+        }
+    }
+
+    /**
+     * Show every explanation again.
+     *
+     * Clears the hint set **and** the two older one-shot flags, which predate it
+     * and are stored separately. They are cleared here rather than migrated
+     * because both are already on users' devices, and "Reset guidance" that
+     * leaves two hints permanently dismissed is not a reset.
+     */
+    suspend fun resetGuidance() {
+        context.dataStore.edit { prefs ->
+            prefs.remove(KEY_SEEN_HINTS)
+            prefs.remove(KEY_HAS_SEEN_NAV_HINT)
+            prefs.remove(KEY_SEEN_FULLSCREEN_HINT)
         }
     }
 

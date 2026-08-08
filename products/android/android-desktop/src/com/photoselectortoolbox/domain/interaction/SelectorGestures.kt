@@ -33,14 +33,49 @@ object SelectorGestures {
         }
 
     /**
-     * The rows the selector's shortcut sheet renders, in order.
+     * The rows the selector's guidance renders, in order.
      *
-     * Same contract as above: the sheet is generated from the bindings, so a
-     * shortcut that stops working stops being advertised in the same commit.
+     * Same contract as above: every surface that advertises a shortcut is
+     * generated from the bindings, so a shortcut that stops working stops being
+     * advertised in the same commit.
+     *
+     * [shortcuts] exists so a coach mark can render only the keys belonging to
+     * the control it labels, without any call site writing a key literal. The
+     * default is every binding, in declaration order.
+     *
+     * [selectionFolderName] is the *Storage* setting, so the filing row names
+     * the folder the photograph actually lands in. It defaults to
+     * [FilingAction.DEFAULT_SELECTION_FOLDER] for the call sites that have no
+     * settings in hand.
      */
-    fun selectorShortcutRows(filingAction: FilingAction): List<GestureRow> =
-        SelectorShortcut.entries.map { shortcut ->
-            GestureRow(input = shortcut.input, effect = shortcut.describeEffect(filingAction))
+    fun selectorShortcutRows(
+        filingAction: FilingAction,
+        shortcuts: Collection<SelectorShortcut> = SelectorShortcut.entries,
+        selectionFolderName: String = FilingAction.DEFAULT_SELECTION_FOLDER,
+    ): List<GestureRow> =
+        SelectorShortcut.entries
+            .filter { it in shortcuts }
+            .map { shortcut ->
+                GestureRow(
+                    input = shortcut.input,
+                    effect = shortcut.describeEffect(filingAction, selectionFolderName),
+                )
+            }
+
+    /**
+     * The rows describing what the frames themselves respond to.
+     *
+     * These used to be four hand-written `GestureRow`s inside the shortcut
+     * sheet, one of which claimed the maximise control was a `⛱` badge — a
+     * glyph nothing in this product has ever rendered
+     * ([com.photoselectortoolbox.ui.selector.MaximiseBadge] draws an
+     * open-in-full arrow pair). That is precisely the class of plausible lie the
+     * 2026-07-31 lesson is about, and it survived because the wording lived next
+     * to the bindings rather than in them. No row here names a glyph.
+     */
+    fun frameGestureRows(): List<GestureRow> =
+        FrameGesture.entries.map { gesture ->
+            GestureRow(input = gesture.input, effect = gesture.effect)
         }
 }
 
@@ -59,29 +94,65 @@ enum class FilingAction(
     val storedValue: String,
     /** The word on the button. Never "Keep": the button says what it does. */
     val verb: String,
-    /** The full phrase for accessibility labels and menus. */
-    val phrase: String,
+    /** "Copied" / "Moved" — for wording written after the file has been touched. */
+    val pastTense: String,
     /** The keyboard shortcut that performs it. */
     val shortcut: String,
 ) {
     COPY(
         storedValue = "copy",
         verb = "Copy",
-        phrase = "Copy to Selection",
+        pastTense = "Copied",
         shortcut = "C",
     ),
     MOVE(
         storedValue = "move",
         verb = "Move",
-        phrase = "Move to Selection",
+        pastTense = "Moved",
         shortcut = "M",
     );
 
     /** The other verb — the one that is available but not configured as primary. */
     val other: FilingAction get() = if (this == COPY) MOVE else COPY
 
+    /**
+     * "Copy to Picks" — the full phrase, naming the folder the file actually
+     * lands in.
+     *
+     * The destination is the `selection_folder_name` setting, so no caller may
+     * write the folder into a string literal: a photographer who renamed it to
+     * `Picks` was being told about a folder that does not exist. A blank name
+     * falls back to [DEFAULT_SELECTION_FOLDER] rather than producing "Copy to ".
+     */
+    fun phraseFor(selectionFolderName: String): String =
+        "$verb to ${selectionFolderOrDefault(selectionFolderName)}"
+
+    /**
+     * The phrase under the default folder name.
+     *
+     * Only for call sites that genuinely have no settings in hand; anything with
+     * access to the configuration must use [phraseFor].
+     */
+    val phrase: String get() = phraseFor(DEFAULT_SELECTION_FOLDER)
+
     companion object {
         val DEFAULT = COPY
+
+        /**
+         * The folder name to use when the setting has not been read yet or is
+         * blank.
+         *
+         * Must equal `SettingsRepository.DEFAULT_SELECTION_FOLDER_NAME`: the
+         * persisted default and the wording default describe one folder, and a
+         * unit test asserts the two constants have not drifted apart. It lives
+         * here rather than in the repository because the wording layer is kept
+         * free of Android and DataStore types.
+         */
+        const val DEFAULT_SELECTION_FOLDER = "Selection"
+
+        /** The configured folder name, or the default if it is blank. */
+        fun selectionFolderOrDefault(selectionFolderName: String): String =
+            selectionFolderName.ifBlank { DEFAULT_SELECTION_FOLDER }
 
         /**
          * Parse a persisted value, falling back rather than throwing.
@@ -115,9 +186,28 @@ enum class FullscreenGesture(
 }
 
 /**
+ * Every gesture the three frames themselves bind, with the words for it.
+ *
+ * Same contract as [FullscreenGesture] and the same reason: the guidance is
+ * generated from this, so a gesture row that does not correspond to a binding
+ * cannot be expressed, and [destructive] keeps the product rule — *no
+ * destructive action is ever a bare gesture* — as data a test asserts.
+ */
+enum class FrameGesture(
+    val input: String,
+    val effect: String,
+    val destructive: Boolean = false,
+) {
+    TAP_NEIGHBOUR("tap a neighbour", "go to that frame"),
+    TAP_CURRENT("tap the current frame", "open fullscreen"),
+    TAP_BADGE("tap a frame's maximise badge", "fill the screen with that frame"),
+    LONG_PRESS("long-press a frame", "context menu"),
+}
+
+/**
  * Every keyboard shortcut the selector binds, with the words for it.
  *
- * The `?` sheet renders these; [com.photoselectortoolbox.ui.selector.handleSelectorKey]
+ * The coach-mark guide renders these; [com.photoselectortoolbox.ui.selector.handleSelectorKey]
  * implements them. A test asserts the two agree.
  */
 enum class SelectorShortcut(val input: String) {
@@ -130,14 +220,19 @@ enum class SelectorShortcut(val input: String) {
     ESCAPE("Esc"),
     SHORTCUTS("?");
 
-    fun describeEffect(filingAction: FilingAction): String = when (this) {
+    fun describeEffect(
+        filingAction: FilingAction,
+        selectionFolderName: String = FilingAction.DEFAULT_SELECTION_FOLDER,
+    ): String = when (this) {
         PREVIOUS -> "previous image"
         NEXT -> "next image"
-        FILE_PRIMARY -> "${filingAction.phrase} · ${filingAction.other.phrase}"
+        FILE_PRIMARY ->
+            "${filingAction.phraseFor(selectionFolderName)} · " +
+                filingAction.other.phraseFor(selectionFolderName)
         DELETE -> "delete, with confirmation"
         FULLSCREEN -> "open fullscreen"
         MAXIMISE -> "maximise previous / current / next"
         ESCAPE -> "leave fullscreen or maximised, close a sheet"
-        SHORTCUTS -> "show this list"
+        SHORTCUTS -> "show this guide"
     }
 }

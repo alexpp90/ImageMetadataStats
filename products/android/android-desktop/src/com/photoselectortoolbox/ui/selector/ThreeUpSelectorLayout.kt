@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -16,23 +17,33 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import com.photoselectortoolbox.data.model.ImageItem
+import com.photoselectortoolbox.domain.guidance.HintSlot
+import com.photoselectortoolbox.domain.guidance.SelectorGuidance
 import com.photoselectortoolbox.domain.interaction.FilingAction
 import com.photoselectortoolbox.domain.scoring.ScoreMetric
 import com.photoselectortoolbox.viewmodel.SelectorFrame
+import com.photoselectortoolbox.viewmodel.SelectorHintUi
 
 /**
  * The selector: three equal frames, one over two, the current one centred.
  *
  * ```
- * ┌────┬──────────┬──────────────┬──────────┐
- * │    │ readouts │   CURRENT    │ controls │   row 1
- * │side├──────────┼──────┬───────┴──────────┤
- * │bar │          │ PREV │  NEXT │          │   row 2
- * └────┴──────────┴──────┴───────┴──────────┘
+ * ┌────┬──────────┬──────────────┬────────┬─┐
+ * │    │ readouts │   CURRENT    │controls│f│   row 1
+ * │side│          ├──────┬───────┴────────┤i│
+ * │bar │          │ PREV │  NEXT │        │l│   row 2
+ * └────┴──────────┴──────┴───────┴────────┴─┘
  * ```
+ *
+ * Nothing is above or below the frames — not even the filmstrip, which is a
+ * *vertical* strip down the outer edge of the control flank. Measured on the
+ * reference device, a 76 dp full-width strip took the frames from 675 × 450 to
+ * 618 × 412; 72 dp of vertical strip takes nothing, because the flank has
+ * 82.5 dp of horizontal slack the photographs cannot use.
  *
  * Three design facts, each of which replaced a shipped mistake:
  *
@@ -71,6 +82,22 @@ fun ThreeUpSelectorLayout(
     showFirstRunHint: Boolean,
     onDismissFirstRunHint: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Folder enumeration is still running, so [total] is a running total. */
+    stillEnumerating: Boolean = false,
+    /** The one-time explanation waiting to be shown, already worded. */
+    pendingHint: SelectorHintUi? = null,
+    onDismissHint: () -> Unit = {},
+    /**
+     * The filmstrip, drawn as a vertical column at the outer edge of the
+     * control flank.
+     *
+     * A slot rather than a list plus three callbacks, because where it goes is
+     * this layout's business and what it contains is not. It is placed in the
+     * flank's horizontal slack and never across the bottom: 76 dp of full-width
+     * strip is 38 dp off the height of all three frames on the reference device
+     * (measured), while 72 dp of width there is free.
+     */
+    filmstrip: @Composable () -> Unit = {},
 ) {
     val bestSets = bestMetricSets(
         listOf(previous?.scanResult, current?.scanResult, next?.scanResult)
@@ -92,6 +119,8 @@ fun ThreeUpSelectorLayout(
                 detailsVisible = detailsVisible,
                 onExit = { onMaximise(maximisedFrame) },
                 onLongPress = onLongPressFrame,
+                pendingHint = pendingHint,
+                onDismissHint = onDismissHint,
                 modifier = Modifier.weight(1f),
             )
             return@Row
@@ -103,34 +132,18 @@ fun ThreeUpSelectorLayout(
                 if (raw < 1f) 1f / raw else raw
             } ?: FrameGeometry.DefaultLandscapeAspect
 
-            val minFlank = if (detailsVisible) FrameGeometry.MinimumFlankWidth else 0.dp
-            val topRowFit = FrameGeometry.frameSize(
-                regionWidth = maxWidth - minFlank * 2 - FrameGeometry.Gap * 2,
-                regionHeight = maxHeight,
-                aspect = aspect,
-                columns = 1,
-                rows = 2,
-            )
-            val bottomRowFit = FrameGeometry.frameSize(
+            // One solver call, shared with the coach-mark overlay so the two
+            // cannot disagree about where the slack is.
+            val layout = FrameGeometry.threeUpLayout(
                 regionWidth = maxWidth,
                 regionHeight = maxHeight,
                 aspect = aspect,
-                columns = 2,
-                rows = 2,
+                detailsVisible = detailsVisible,
+                filmstripVisible = filmstripVisible,
             )
-            val frameSize = if (bottomRowFit.width < topRowFit.width) bottomRowFit else topRowFit
-
-            val flankWidth = if (detailsVisible) {
-                ((maxWidth - frameSize.width - FrameGeometry.Gap * 2) / 2)
-                    .coerceAtLeast(FrameGeometry.MinimumFlankWidth)
-            } else {
-                0.dp
-            }
-
-            val overlayOutside = FrameGeometry.overlayFitsOutside(
-                rowWidth = maxWidth,
-                frameWidth = frameSize.width,
-            )
+            val frameSize = layout.frame
+            val flankWidth = layout.flankWidth
+            val overlayOutside = layout.overlayOutside
 
             Column(
                 modifier = Modifier.fillMaxSize(),
@@ -141,18 +154,32 @@ fun ThreeUpSelectorLayout(
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Box(
-                        modifier = Modifier.width(flankWidth),
-                        contentAlignment = Alignment.CenterEnd,
+                    // A column, not a box: the explanation card takes its own
+                    // space under the readout rather than floating over it, so
+                    // it can neither cover a frame nor collide with a control.
+                    Column(
+                        modifier = Modifier.width(flankWidth).fillMaxHeight(),
+                        horizontalAlignment = Alignment.End,
                     ) {
-                        if (detailsVisible) {
-                            CurrentFrameReadout(
-                                image = current,
-                                bestMetrics = bestSets[1],
-                                folderName = folderName,
-                                burstLabel = burstLabel,
-                            )
+                        Box(
+                            modifier = Modifier.weight(1f),
+                            contentAlignment = Alignment.CenterEnd,
+                        ) {
+                            if (detailsVisible) {
+                                CurrentFrameReadout(
+                                    image = current,
+                                    bestMetrics = bestSets[1],
+                                    folderName = folderName,
+                                    burstLabel = burstLabel,
+                                )
+                            }
                         }
+                        HintSlotCard(
+                            pendingHint = pendingHint,
+                            flankWidth = flankWidth,
+                            detailsVisible = detailsVisible,
+                            onDismiss = onDismissHint,
+                        )
                     }
 
                     Spacer(modifier = Modifier.width(FrameGeometry.Gap))
@@ -171,23 +198,45 @@ fun ThreeUpSelectorLayout(
 
                     Spacer(modifier = Modifier.width(FrameGeometry.Gap))
 
-                    Box(
-                        modifier = Modifier.width(flankWidth),
-                        contentAlignment = Alignment.CenterStart,
+                    // The control flank carries the strip down its outer edge —
+                    // the far right, because the sidebar owns the far left.
+                    // A row, so the two can never share bounds; the strip's
+                    // width comes from the solver, which is what keeps the
+                    // coach-mark overlay reserving the same column.
+                    Row(
+                        modifier = Modifier.width(flankWidth).fillMaxHeight(),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        SelectorControlBlock(
-                            actions = actions,
-                            filingAction = filingAction,
-                            position = currentIndex + 1,
-                            total = total,
-                            canGoPrevious = previous != null,
-                            canGoNext = next != null,
-                            detailsVisible = detailsVisible,
-                            filmstripVisible = filmstripVisible,
-                            overlayValuesVisible = overlayValuesVisible,
-                            onNavigatePrevious = onNavigatePrevious,
-                            onNavigateNext = onNavigateNext,
-                        )
+                        Box(
+                            modifier = Modifier.weight(1f),
+                            contentAlignment = Alignment.CenterStart,
+                        ) {
+                            SelectorControlBlock(
+                                actions = actions,
+                                filingAction = filingAction,
+                                position = currentIndex + 1,
+                                total = total,
+                                canGoPrevious = previous != null,
+                                canGoNext = next != null,
+                                detailsVisible = detailsVisible,
+                                filmstripVisible = filmstripVisible,
+                                overlayValuesVisible = overlayValuesVisible,
+                                onNavigatePrevious = onNavigatePrevious,
+                                onNavigateNext = onNavigateNext,
+                                stillEnumerating = stillEnumerating,
+                            )
+                        }
+
+                        if (layout.filmstripWidth > 0.dp) {
+                            Spacer(modifier = Modifier.width(FrameGeometry.Gap))
+                            Box(
+                                modifier = Modifier
+                                    .width(layout.filmstripWidth)
+                                    .fillMaxHeight(),
+                            ) {
+                                filmstrip()
+                            }
+                        }
                     }
                 }
 
@@ -240,6 +289,32 @@ fun ThreeUpSelectorLayout(
             )
         }
     }
+}
+
+/**
+ * The explanation card, if this flank is allowed to carry one.
+ *
+ * The predicate is [SelectorGuidance.slotFor], not an `if` written here: whether
+ * there is room is a decision, and decisions inside composables are decisions no
+ * JVM test can reach (`ai/memory/code_health.md`, `[OPEN] 2026-08-07`). Where it
+ * returns [HintSlot.NONE] nothing is drawn *and* nothing is marked seen, so the
+ * explanation survives to a window that has room for it.
+ */
+@Composable
+private fun HintSlotCard(
+    pendingHint: SelectorHintUi?,
+    flankWidth: Dp,
+    detailsVisible: Boolean,
+    onDismiss: () -> Unit,
+) {
+    val slot = SelectorGuidance.slotFor(flankWidth.value, detailsVisible)
+    if (slot == HintSlot.NONE) return
+
+    SelectorHintCard(
+        hint = pendingHint,
+        onDismiss = onDismiss,
+        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+    )
 }
 
 /** Which readout column a frame's best-metric set lives in. */
@@ -372,6 +447,8 @@ private fun MaximisedFrame(
     detailsVisible: Boolean,
     onExit: () -> Unit,
     onLongPress: () -> Unit,
+    pendingHint: SelectorHintUi?,
+    onDismissHint: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
@@ -395,11 +472,25 @@ private fun MaximisedFrame(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (detailsVisible) {
-                Box(
-                    modifier = Modifier.width(FrameGeometry.FlankWidth),
-                    contentAlignment = Alignment.CenterEnd,
+                // The maximise explanation fires exactly here — on the way into
+                // this state — so the flank that carries it in three-up carries
+                // it here too, and for the same reason: it is the only slack.
+                Column(
+                    modifier = Modifier.width(FrameGeometry.FlankWidth).fillMaxHeight(),
+                    horizontalAlignment = Alignment.End,
                 ) {
-                    CurrentFrameReadout(image = image, bestMetrics = bestMetrics)
+                    Box(
+                        modifier = Modifier.weight(1f),
+                        contentAlignment = Alignment.CenterEnd,
+                    ) {
+                        CurrentFrameReadout(image = image, bestMetrics = bestMetrics)
+                    }
+                    HintSlotCard(
+                        pendingHint = pendingHint,
+                        flankWidth = FrameGeometry.FlankWidth,
+                        detailsVisible = true,
+                        onDismiss = onDismissHint,
+                    )
                 }
             }
 

@@ -1,9 +1,30 @@
 package com.photoselectortoolbox.ui
 
-import android.content.Context
-import androidx.compose.ui.test.*
+// Explicitly imported, never `androidx.compose.ui.test.*`. The wildcard is what
+// let a non-existent matcher (`hasTag`, when the real one is `hasTestTag`) pass
+// review and fail only inside the emulator job — see `docs/build/CI_PARITY.md`
+// § Compose instrumented-test conventions.
+// `assertExists`, `assertDoesNotExist`, `onNode` and `onAllNodes` are members of
+// `SemanticsNodeInteraction`/`SemanticsNodeInteractionsProvider`, not extensions,
+// so they carry no import. Everything below is a genuine extension function.
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.test.core.app.ApplicationProvider
+import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.printToLog
+import androidx.compose.ui.test.swipeLeft
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.photoselector.core.model.ExifData
 import com.photoselectortoolbox.MainActivity
@@ -13,6 +34,9 @@ import com.photoselectortoolbox.data.model.ImageItem
 import com.photoselectortoolbox.data.repository.FakeImageRepository
 import com.photoselectortoolbox.data.repository.ImageRepository
 import com.photoselectortoolbox.data.repository.SettingsRepository
+import com.photoselectortoolbox.domain.guidance.SelectorHint
+import com.photoselectortoolbox.ui.selector.FrameGeometry
+import com.photoselectortoolbox.ui.selector.SidebarWidth
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import javax.inject.Inject
@@ -87,6 +111,10 @@ class SelectorScreenTest {
     @Before
     fun setup() {
         hiltRule.inject()
+        // A settled folder is the default: enumeration finished, so the
+        // position readout carries no `+`.
+        fakeRepo.completeAfterFirstBatch = true
+        fakeRepo.canTrashResult = false
         runBlocking {
             scoreDao.deleteAll()
             settingsRepository.setLastFolderUri(null)
@@ -98,6 +126,11 @@ class SelectorScreenTest {
             // pin them off and cover them in their own test instead.
             settingsRepository.setHasSeenNavHint(true)
             settingsRepository.setHasSeenFullscreenGestureHint(true)
+            // Same reasoning for the coach-mark guide and the one-time action
+            // explanations: the guide opens itself on a first launch and would
+            // sit over every assertion below. Pinned off here, exercised in
+            // their own tests.
+            SelectorHint.entries.forEach { settingsRepository.markHintSeen(it) }
             settingsRepository.setFilmstripVisible(true)
             settingsRepository.setDetailsVisible(true)
         }
@@ -213,9 +246,23 @@ class SelectorScreenTest {
         // first arranged them in a row (width-bound, 40% of the height unused),
         // the second stacked an app bar, an action row and a filmstrip into the
         // one axis that was scarce. Neither was caught by a test, because there
-        // wasn't one. Anything that reintroduces chrome in the vertical stack
-        // now fails here rather than waiting to be noticed by eye.
-        fakeRepo.imagesFlow.value = mockImages
+        // wasn't one.
+        //
+        // The assertion is a comparison against the *window*, not a fixed
+        // percentage. `FrameGeometry.imageRegion` states the entire permitted
+        // chrome budget — sidebar and outer padding, nothing in the vertical
+        // stack — so re-deriving the frame from the measured window and
+        // comparing gives an assertion that scales to any window and to any
+        // photograph. A fixed 45 % did neither: at 1480x924 a 16:9 frame is
+        // width-bound at 684x385 (two abreast want 1464 dp of a 1376 dp
+        // region), so 41 % was the display's ceiling being reported as a
+        // defect, on both this window and a 1280x800 one.
+        //
+        // The fixture is 3:2 — the standard camera ratio, and the one the
+        // 450 dp figure in REQUIREMENTS §2 is quoted for.
+        fakeRepo.imagesFlow.value = mockImages.map {
+            it.copy(imageWidth = 3000, imageHeight = 2000)
+        }
         runBlocking { settingsRepository.setLastFolderUri("gdrive://test_folder") }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
@@ -228,17 +275,149 @@ class SelectorScreenTest {
         if (composeRule.onAllNodesWithTag("column_current").fetchSemanticsNodes().isEmpty()) return
 
         val rootBounds = composeRule.onRoot().getUnclippedBoundsInRoot()
-        val screenHeight = rootBounds.bottom - rootBounds.top
+        val windowWidth = rootBounds.right - rootBounds.left
+        val windowHeight = rootBounds.bottom - rootBounds.top
         val frame = composeRule.onNodeWithTag("column_current").getUnclippedBoundsInRoot()
         val frameHeight = frame.bottom - frame.top
 
-        // Two equal rows plus gaps and padding: each frame should be close to
-        // half the window height. Anything under 45% means something is eating
-        // the vertical axis.
-        val ratio = frameHeight.value / screenHeight.value
-        assert(ratio >= 0.45f) {
-            "frame is ${frameHeight.value}dp of a ${screenHeight.value}dp window " +
-                "(${(ratio * 100).toInt()}%) — something is consuming the height budget"
+        val region = FrameGeometry.imageRegion(windowWidth, windowHeight, SidebarWidth)
+        val expected = FrameGeometry.threeUpLayout(
+            regionWidth = region.width,
+            regionHeight = region.height,
+            aspect = 1.5f,
+            detailsVisible = true,
+            filmstripVisible = true,
+        ).frame
+
+        // 2 dp of slack for the active tile's 2 dp border against a 1 dp one.
+        assert(frameHeight.value >= expected.height.value - 2f) {
+            "frame is ${frameHeight.value}dp tall in a ${windowWidth.value}x" +
+                "${windowHeight.value}dp window, but the sidebar and the outer padding are " +
+                "the only chrome allowed and they leave room for ${expected.height.value}dp — " +
+                "something is consuming the height budget"
+        }
+
+        // The absolute floor, only where the window is the size the product is
+        // designed for. A 1280x800 CI emulator is a smaller display than a Tab
+        // S11 Ultra, not a regression.
+        if (windowHeight >= FrameGeometry.ReferenceWindowHeight) {
+            assert(frameHeight >= FrameGeometry.MinimumReferenceFrameHeight) {
+                "frame is only ${frameHeight.value}dp on a reference-class " +
+                    "${windowHeight.value}dp window; the floor is " +
+                    "${FrameGeometry.MinimumReferenceFrameHeight.value}dp"
+            }
+        }
+    }
+
+    @Test
+    fun filmstrip_defaultsToOffAndTheFramesKeepTheirFullHeightEitherWay() {
+        // Two facts, and they are the same fact: the strip starts hidden
+        // (REQUIREMENTS §2), and turning it on costs the frames nothing,
+        // because it is a vertical column in the flank's horizontal slack
+        // rather than a bar across the bottom. Asserting only the default
+        // would let the strip quietly become expensive again for everyone who
+        // switches it on; asserting only the cost would let the default drift.
+        fakeRepo.imagesFlow.value = mockImages.map {
+            it.copy(imageWidth = 3000, imageHeight = 2000)
+        }
+        runBlocking {
+            settingsRepository.setFilmstripVisible(
+                SettingsRepository.DEFAULT_FILMSTRIP_VISIBLE,
+            )
+            settingsRepository.setLastFolderUri("gdrive://test_folder")
+        }
+
+        composeRule.waitUntil(timeoutMillis = 15000) {
+            composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        dismissGestureTutorialIfShown()
+
+        if (isCompactLayout()) return
+        if (composeRule.onAllNodesWithTag("column_current").fetchSemanticsNodes().isEmpty()) return
+
+        composeRule.onAllNodesWithTag("filmstrip").assertCountEquals(0)
+        val hidden = composeRule.onNodeWithTag("column_current").getUnclippedBoundsInRoot()
+
+        runBlocking { settingsRepository.setFilmstripVisible(true) }
+        composeRule.waitUntil(timeoutMillis = 5000) {
+            composeRule.onAllNodesWithTag("filmstrip").fetchSemanticsNodes().isNotEmpty()
+        }
+        val shown = composeRule.onNodeWithTag("column_current").getUnclippedBoundsInRoot()
+
+        assert(
+            kotlin.math.abs(
+                (shown.bottom - shown.top).value - (hidden.bottom - hidden.top).value,
+            ) < 1f
+        ) {
+            "turning the filmstrip on moved the frames from " +
+                "${(hidden.bottom - hidden.top).value}dp to " +
+                "${(shown.bottom - shown.top).value}dp — it is back in the height budget"
+        }
+    }
+
+    @Test
+    fun filmstrip_isAVerticalColumnBesideTheFramesAndNeverOverThem() {
+        // The filmstrip is the one piece of chrome that keeps trying to get back
+        // into the vertical stack. Measured on the reference device, 76 dp of
+        // full-width strip took the frames from 675x450 to 618x412 — 38 dp off
+        // every frame, ~16 % of the area, for an affordance the culling loop
+        // does not use. It belongs in the horizontal slack, and this is what
+        // says so in a way a build can check.
+        fakeRepo.imagesFlow.value = mockImages.map {
+            it.copy(imageWidth = 3000, imageHeight = 2000)
+        }
+        runBlocking { settingsRepository.setLastFolderUri("gdrive://test_folder") }
+
+        composeRule.waitUntil(timeoutMillis = 15000) {
+            composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        dismissGestureTutorialIfShown()
+
+        if (isCompactLayout()) return
+        val strips = composeRule.onAllNodesWithTag("filmstrip").fetchSemanticsNodes()
+        if (strips.isEmpty()) return
+
+        val frames = listOf("column_current", "column_previous", "column_next")
+            .flatMap { tag ->
+                composeRule.onAllNodesWithTag(tag).fetchSemanticsNodes().map { tag to it.boundsInRoot }
+            }
+
+        strips.forEach { strip ->
+            val s = strip.boundsInRoot
+            frames.forEach { (name, f) ->
+                val intersects = s.left < f.right && f.left < s.right &&
+                    s.top < f.bottom && f.top < s.bottom
+                assert(!intersects) { "the filmstrip at $s overlaps $name at $f" }
+            }
+            // Beside, not stacked: the strip's vertical band has to meet some
+            // frame's. A strip across the bottom of the window meets none, and
+            // that is exactly the arrangement that costs 38 dp a frame.
+            val besideAFrame = frames.any { (_, f) -> s.top < f.bottom && f.top < s.bottom }
+            assert(besideAFrame) {
+                "the filmstrip at $s is in the vertical stack — no frame is beside it, so it " +
+                    "is taking height from all three"
+            }
+            // Vertical, not horizontal. The orientation is the whole economy of
+            // this screen: width is surplus and height is scarce, so a strip
+            // that is wider than it is tall has been rotated back into the
+            // expensive axis.
+            assert(s.height > s.width) {
+                "the filmstrip at $s is wider than it is tall — it is a bar again, not a column"
+            }
+            // Outer edge of the row it shares, which is the top one: the
+            // sidebar owns the far left, so the strip takes the far right.
+            // Deliberately measured against the current frame and not against
+            // the widest frame on screen — Previous and Next are centred in the
+            // *whole* region and reach further right than any flank does, which
+            // is not an overlap because they are a row below.
+            val current = frames.firstOrNull { (name, _) -> name == "column_current" }?.second
+            if (current != null) {
+                assert(s.left >= current.right) {
+                    "the filmstrip at $s is not outboard of the current frame at $current"
+                }
+            }
         }
     }
 
@@ -510,6 +689,10 @@ class SelectorScreenTest {
             "filmstrip_toggle",
             "overlay_values_toggle",
             "shortcuts_button",
+            // The strip shares the control flank now, so it is in this check
+            // rather than only in its own test: a column of thumbnails drawn
+            // over the view toggles is exactly the overlap this test exists for.
+            "filmstrip",
         )
         val bounds = tags.mapNotNull { tag ->
             val nodes = composeRule.onAllNodesWithTag(tag).fetchSemanticsNodes()
@@ -657,6 +840,289 @@ class SelectorScreenTest {
         composeRule.onAllNodes(hasText("Noise") and inLegend, useUnmergedTree = true).onFirst().assertExists()
         composeRule.onAllNodes(hasText("higher is better", substring = true) and inLegend, useUnmergedTree = true).onFirst().assertExists()
         composeRule.onAllNodes(hasText("lower is better", substring = true) and inLegend, useUnmergedTree = true).onFirst().assertExists()
+    }
+
+    @Test
+    fun positionReadout_marksAFolderThatIsStillEnumerating() {
+        // Discovery streams, so for the first seconds of a large shoot the total
+        // is a running total. `2 / 2` would state a folder size nobody counted.
+        fakeRepo.completeAfterFirstBatch = false
+        fakeRepo.imagesFlow.value = mockImages
+        runBlocking { settingsRepository.setLastFolderUri("gdrive://test_folder") }
+
+        composeRule.waitUntil(timeoutMillis = 15000) {
+            composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        dismissGestureTutorialIfShown()
+
+        if (isCompactLayout()) return
+        if (composeRule.onAllNodesWithTag("position_counter", useUnmergedTree = true)
+                .fetchSemanticsNodes().isEmpty()
+        ) {
+            return
+        }
+
+        // Scoped to the counter node rather than matched as bare text: "1 / 2+"
+        // is short enough to appear elsewhere by accident.
+        composeRule.onAllNodes(
+            hasTestTag("position_counter") and hasText("1 / 2+"),
+            useUnmergedTree = true,
+        ).onFirst().assertExists()
+    }
+
+    @Test
+    fun positionReadout_hasNoPlusOnceEnumerationHasSettled() {
+        fakeRepo.imagesFlow.value = mockImages
+        runBlocking { settingsRepository.setLastFolderUri("gdrive://test_folder") }
+
+        composeRule.waitUntil(timeoutMillis = 15000) {
+            composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        dismissGestureTutorialIfShown()
+
+        if (isCompactLayout()) return
+        if (composeRule.onAllNodesWithTag("position_counter", useUnmergedTree = true)
+                .fetchSemanticsNodes().isEmpty()
+        ) {
+            return
+        }
+
+        composeRule.waitUntil(timeoutMillis = 15000) {
+            composeRule.onAllNodes(
+                hasTestTag("position_counter") and hasText("1 / 2"),
+                useUnmergedTree = true,
+            ).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onAllNodes(
+            hasTestTag("position_counter") and hasText("1 / 2+"),
+            useUnmergedTree = true,
+        ).assertCountEquals(0)
+    }
+
+    @Test
+    fun deleteAction_offersAnUndoThatBringsTheFrameBack() {
+        // The affordance the snackbar has drawn a countdown next to since the
+        // refresh, wired to null because nothing below the UI could reverse an
+        // action (`ai/memory/code_health.md`, [OPEN] 2026-07-27). A deferred
+        // delete is the strongest case: nothing has touched the disk, so the
+        // undo is a list insertion and cannot fail.
+        fakeRepo.imagesFlow.value = mockImages
+        runBlocking { settingsRepository.setLastFolderUri("gdrive://test_folder") }
+
+        composeRule.waitUntil(timeoutMillis = 15000) {
+            composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        dismissGestureTutorialIfShown()
+
+        if (isCompactLayout()) return
+
+        composeRule.onAllNodesWithTag("delete_button_expanded", useUnmergedTree = true)
+            .onFirst().performClick()
+
+        composeRule.waitUntil(timeoutMillis = 15000) {
+            composeRule.onAllNodesWithText("Delete Image", ignoreCase = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag("dialog_confirm_delete").performClick()
+
+        composeRule.waitUntil(timeoutMillis = 15000) {
+            composeRule.onAllNodesWithTag("snackbar_undo", useUnmergedTree = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        val inSnackbar = hasAnyAncestor(hasTestTag("selector_snackbar"))
+        composeRule.onAllNodes(hasText("1 image deleted") and inSnackbar, useUnmergedTree = true)
+            .onFirst().assertExists()
+
+        composeRule.onAllNodesWithTag("snackbar_undo", useUnmergedTree = true)
+            .onFirst().performClick()
+
+        composeRule.waitUntil(timeoutMillis = 15000) {
+            composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true).onFirst()
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun copyAction_offersNoUndo_becauseTheOriginalNeverMoved() {
+        // Undoing a copy could only mean deleting the file the photographer just
+        // asked for. An UNDO that silently does nothing — or does the wrong
+        // thing — is worse than none.
+        fakeRepo.imagesFlow.value = mockImages
+        runBlocking { settingsRepository.setLastFolderUri("gdrive://test_folder") }
+
+        composeRule.waitUntil(timeoutMillis = 15000) {
+            composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        dismissGestureTutorialIfShown()
+
+        if (isCompactLayout()) return
+
+        composeRule.onAllNodesWithTag("copy_button_expanded", useUnmergedTree = true)
+            .onFirst().performClick()
+
+        composeRule.waitUntil(timeoutMillis = 15000) {
+            composeRule.onAllNodesWithText("Copied to Selection", ignoreCase = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onAllNodesWithTag("snackbar_undo", useUnmergedTree = true).assertCountEquals(0)
+    }
+
+    @Test
+    fun coachOverlay_neverCoversAFrame() {
+        // The whole reason this is a coach-mark overlay rather than a sheet is
+        // that it labels the real chrome in place — which is only true if the
+        // callouts land in the horizontal slack. An overlay drifting over the
+        // photographs is invisible in review and obvious in use, so it is
+        // asserted the same way the badge-versus-overlay rule is.
+        fakeRepo.imagesFlow.value = mockImages
+        runBlocking { settingsRepository.setLastFolderUri("gdrive://test_folder") }
+
+        composeRule.waitUntil(timeoutMillis = 15000) {
+            composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        dismissGestureTutorialIfShown()
+
+        if (isCompactLayout()) return
+        if (composeRule.onAllNodesWithTag("column_current").fetchSemanticsNodes().isEmpty()) return
+
+        val frames = listOf("column_current", "column_previous", "column_next")
+            .flatMap { tag ->
+                composeRule.onAllNodesWithTag(tag).fetchSemanticsNodes().map { tag to it.boundsInRoot }
+            }
+        if (frames.isEmpty()) return
+
+        composeRule.onAllNodesWithTag("shortcuts_button", useUnmergedTree = true)
+            .onFirst().performClick()
+
+        composeRule.waitUntil(timeoutMillis = 15000) {
+            composeRule.onAllNodesWithTag("coach_callout", useUnmergedTree = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+
+        val callouts = composeRule.onAllNodesWithTag("coach_callout", useUnmergedTree = true)
+            .fetchSemanticsNodes()
+            .map { it.boundsInRoot }
+
+        callouts.forEach { callout ->
+            frames.forEach { (name, frame) ->
+                val intersects = callout.left < frame.right && frame.left < callout.right &&
+                    callout.top < frame.bottom && frame.top < callout.bottom
+                assert(!intersects) { "a coach mark at $callout covers $name at $frame" }
+            }
+        }
+    }
+
+    @Test
+    fun coachOverlay_opensFromTheControlBlockAndClosesOnGotIt() {
+        fakeRepo.imagesFlow.value = mockImages
+        runBlocking { settingsRepository.setLastFolderUri("gdrive://test_folder") }
+
+        composeRule.waitUntil(timeoutMillis = 15000) {
+            composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        dismissGestureTutorialIfShown()
+
+        if (isCompactLayout()) return
+        if (composeRule.onAllNodesWithTag("shortcuts_button", useUnmergedTree = true)
+                .fetchSemanticsNodes().isEmpty()
+        ) {
+            return
+        }
+
+        composeRule.onAllNodesWithTag("shortcuts_button", useUnmergedTree = true)
+            .onFirst().performClick()
+
+        composeRule.waitUntil(timeoutMillis = 15000) {
+            composeRule.onAllNodesWithTag("selector_coach_overlay", useUnmergedTree = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+
+        // Scoped to the overlay: "Prev" and "Next" are on the control block
+        // behind it as well, and a bare text match would find either.
+        val inOverlay = hasAnyAncestor(hasTestTag("selector_coach_overlay"))
+        composeRule.onAllNodes(hasText("The comparison") and inOverlay, useUnmergedTree = true)
+            .onFirst().assertExists()
+
+        composeRule.onAllNodesWithTag("coach_overlay_dismiss", useUnmergedTree = true)
+            .onFirst().performClick()
+
+        composeRule.waitUntil(timeoutMillis = 15000) {
+            composeRule.onAllNodesWithTag("selector_coach_overlay", useUnmergedTree = true)
+                .fetchSemanticsNodes().isEmpty()
+        }
+        composeRule.onAllNodesWithTag("selector_coach_overlay", useUnmergedTree = true)
+            .assertCountEquals(0)
+    }
+
+    @Test
+    fun firstFiling_explainsWhereThePhotographWentAndNeverSaysKeep() {
+        // The one explanation that matters most: the frame left the centre of
+        // the screen and nothing on it says where it went. The wording is built
+        // from the user's own settings, so it names the configured verb — never
+        // a euphemism, which under a move configuration would be false.
+        fakeRepo.imagesFlow.value = mockImages
+        runBlocking {
+            settingsRepository.resetGuidance()
+            settingsRepository.markHintSeen(SelectorHint.TOUR)
+            settingsRepository.setHasSeenNavHint(true)
+            settingsRepository.setLastFolderUri("gdrive://test_folder")
+        }
+
+        composeRule.waitUntil(timeoutMillis = 15000) {
+            composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        dismissGestureTutorialIfShown()
+
+        if (isCompactLayout()) return
+        if (composeRule.onAllNodesWithTag("copy_button_expanded").fetchSemanticsNodes().isEmpty()) {
+            return
+        }
+
+        composeRule.onAllNodesWithTag("copy_button_expanded", useUnmergedTree = true)
+            .onFirst().performClick()
+
+        composeRule.waitUntil(timeoutMillis = 15000) {
+            composeRule.onAllNodesWithTag("selector_hint_card", useUnmergedTree = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+
+        val inCard = hasAnyAncestor(hasTestTag("selector_hint_card"))
+        composeRule.onAllNodes(hasText("Copied to Selection") and inCard, useUnmergedTree = true)
+            .onFirst().assertExists()
+        composeRule.onAllNodes(hasText("Keep", substring = true, ignoreCase = true) and inCard,
+            useUnmergedTree = true).assertCountEquals(0)
+
+        // The card sits in the flank beside the frames, never over one.
+        val cards = composeRule.onAllNodesWithTag("selector_hint_card", useUnmergedTree = true)
+            .fetchSemanticsNodes().map { it.boundsInRoot }
+        val frames = listOf("column_current", "column_previous", "column_next")
+            .flatMap { tag ->
+                composeRule.onAllNodesWithTag(tag).fetchSemanticsNodes().map { tag to it.boundsInRoot }
+            }
+        cards.forEach { card ->
+            frames.forEach { (name, frame) ->
+                val intersects = card.left < frame.right && frame.left < card.right &&
+                    card.top < frame.bottom && frame.top < card.bottom
+                assert(!intersects) { "the explanation at $card covers $name at $frame" }
+            }
+        }
+
+        composeRule.onAllNodesWithTag("selector_hint_dismiss", useUnmergedTree = true)
+            .onFirst().performClick()
+
+        composeRule.waitUntil(timeoutMillis = 15000) {
+            composeRule.onAllNodesWithTag("selector_hint_card", useUnmergedTree = true)
+                .fetchSemanticsNodes().isEmpty()
+        }
     }
 
     private fun dismissGestureTutorialIfShown() {
