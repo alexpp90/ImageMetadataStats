@@ -23,7 +23,8 @@ Full instructions: `@/AGENTS.md`. Framework: `@/ai/README.md`. Routing: `@/ai/RO
    CI adjudicate it.
 
 5. **Finish with the `retrospective` skill.** Requirements synced, mentor consulted before
-   any `ai/memory/` write, debt filed, framework drift fixed, no scratch files committed.
+   any `ai/memory/` write, debt filed, framework drift fixed, no scratch files committed, and
+   an **Agent Report** table included in the final task summary.
 
 6. **Edit canonical files only.** Everything under `ai/` is canonical; `.agents/`, `.claude/`
    and `.gemini/` are symlinks to it. Edit through `ai/`.

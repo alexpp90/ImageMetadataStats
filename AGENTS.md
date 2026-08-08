@@ -40,8 +40,7 @@ Canonical names and the mapping to modules and packages: [`docs/GLOSSARY.md`](do
    that blocks writes into the other products' source trees.
 2. **Mandatory task lifecycle.** Every task, in every tool, starts with the
    [`task-lifecycle`](ai/skills/task-lifecycle/SKILL.md) skill and ends with the
-   [`retrospective`](ai/skills/retrospective/SKILL.md) skill. This is not optional; in Claude
-   Code and Antigravity a `Stop` hook checks it.
+   [`retrospective`](ai/skills/retrospective/SKILL.md) skill (including generating a mandatory Agent Report table in the task summary). This is not optional; in Claude Code and Antigravity a `Stop` hook checks it.
 3. **Requirements follow behaviour, in the same commit.** Each product owns
    `docs/products/<product>/REQUIREMENTS.md`; rules holding for more than one product live in
    [`docs/shared/`](docs/shared/). The [`sync-requirements`](ai/skills/sync-requirements/SKILL.md)
