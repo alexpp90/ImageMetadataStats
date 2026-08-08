@@ -174,7 +174,7 @@ When a hardware keyboard is detected, the same shortcuts as desktop apply:
 
 ### 7.5 Delete Confirmation
 - **Desktop:** Dialog with second Delete keypress to confirm
-- **Android:** Snackbar with "Undo" (30s timeout) for single deletes on Tablet/DeX; Dialog confirmation for batch deletes. On the PhotoTok, swiping left triggers a non-blocking temporary deletion where the image is immediately hidden from the viewer and a "Revert Deletion" button is shown. Navigating away from the image or leaving the viewer finalizes the deletion on disk/Google Drive. Leverages Android's trash/recycle via MediaStore `createTrashRequest()` on Android 11+.
+- **Android:** Snackbar with "Undo" (30s timeout) for single deletes on Tablet/DeX; Dialog confirmation for batch deletes. On the PhotoTok, swiping left triggers a non-blocking temporary deletion where the image is immediately hidden from the viewer and a "Revert Deletion" button is shown. Navigating away from the image or leaving the viewer finalizes the deletion on disk. Leverages Android's trash/recycle via MediaStore `createTrashRequest()` on Android 11+.
 
 ### 7.6 Settings
 - **Desktop:** Embedded in scan config dialog + Help menu

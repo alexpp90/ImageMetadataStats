@@ -209,7 +209,7 @@ Four top-level destinations, reached from a persistent **NavigationRail** on the
 
 ### Session-level actions
 
-Open Folder (system folder picker) · Open from Google Drive · Scan Images · Cancel Scan ·
+Open Folder (system folder picker) · Scan Images · Cancel Scan ·
 Clear Scores · Group Similar Series · Score legend.
 
 ### Per-image actions
@@ -301,7 +301,7 @@ practice. Recorded here so the reasoning is not lost:
 | Which frame does a number describe? | scores sat in a caption stack under each column, and then in a single matrix beside one frame — in both cases the eye had to map a column position back to a photograph, hundreds of times a session | values are placed *on* the frame they describe: named and iconed beside the centred current frame, icon-and-value overlaid on each neighbour's own right edge (§7.4) |
 | The current frame does not read as the one being decided on | it was top-left in a two-row grid, distinguished only by a border | it is **centred**, with its readouts left and its controls right (§7.2) |
 | Controls read as decorative — small, unlabelled icons | `BarIconButton` is 34 dp with an 18 dp glyph and no visible text; rail buttons are 48 dp but icon-only; key hints appear on hover, which a tablet has none of | every control that acts on a photograph carries a permanent text label and a permanent key cap, at ≥ 48 dp (§7.5) |
-| Session controls (Drive, Scan, bursts, legend) live in a 44 dp top bar | vertical space is the scarce axis, and a horizontal strip of unlabelled 34 dp glyphs is the least legible arrangement available | they move into a single labelled left sidebar merged with the app navigation rail (§7.1) |
+| Session controls (Scan, bursts, legend) live in a 44 dp top bar | vertical space is the scarce axis, and a horizontal strip of unlabelled 34 dp glyphs is the least legible arrangement available | they move into a single labelled left sidebar merged with the app navigation rail (§7.1) |
 | "As large as possible" is unreachable in three-up | three 4:3 frames abreast are geometrically width-bound; no amount of chrome trimming makes them large | an explicit per-frame **maximise** affordance (§7.3) |
 
 ### 7.1 Shell — one left sidebar, no top bar
@@ -313,7 +313,6 @@ Zinc-700 rule:
 ```
 ┌────────┐
 │ Folder │  ← zone A: session actions (was the top app bar)
-│ Drive  │
 │ Scan   │
 │ Bursts │
 │ Legend │
@@ -865,7 +864,7 @@ The reasoning worth keeping, all of it now folded into §7:
 
 | State | Design |
 |---|---|
-| No folder | Centred card: camera icon, **"Select a folder"**, *"Select a folder to start reviewing and culling your photos."*, primary `[Open folder]`, secondary `[Open from Google Drive]`. |
+| No folder | Centred card: camera icon, **"Select a folder"**, *"Select a folder to start reviewing and culling your photos."*, primary `[Open folder]`. There is no second source: SAF already mounts Drive, OneDrive and the rest as directories. |
 | Folder open, unscanned | Frames visible; the readout block shows one dashed **"Not scanned"** row and the neighbour overlays are suppressed entirely; the sidebar's Scan item emphasised. |
 | Scanning | Sidebar counter plus the 2 dp determinate line; scores populate progressively, no blocker. |
 | Folder empty | Centred card: **"No photos here"** with `[Open folder]`. |

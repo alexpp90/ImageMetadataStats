@@ -3,7 +3,7 @@
   "_do_not_edit": "Edit ai/agents/*.md and regenerate. See the sync-framework skill.",
   "agents": {
     "android-desktop-core-agent": {
-      "description": "Data and domain specialist for the Android Desktop product only (products/android/android-desktop/src/com/photoselectortoolbox/data/ and .../domain/). OpenCV analysis, Room score cache, SAF traversal, Google Drive source, use cases. Use proactively for any :app non-UI work. Never touches :phototok.",
+      "description": "Data and domain specialist for the Android Desktop product only (products/android/android-desktop/src/com/photoselectortoolbox/data/ and .../domain/). OpenCV analysis, Room score cache, SAF traversal, use cases. Use proactively for any :app non-UI work. Never touches :phototok.",
       "tools": [
         "Read",
         "Grep",

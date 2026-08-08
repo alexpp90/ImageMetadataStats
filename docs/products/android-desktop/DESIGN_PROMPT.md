@@ -168,7 +168,7 @@ created inside the source folder. Deletion goes to the Android trash and is
 undoable via a 30-second Snackbar.
 
 ## Session-level actions
-  Open Folder (system folder picker) · Open from Google Drive ·
+  Open Folder (system folder picker) ·
   Scan Images (opens scan configuration) · Cancel Scan · Clear Scores ·
   Group Similar Series · Score legend ("What the scan icons mean")
 
@@ -316,7 +316,7 @@ a wide empty column on each side. Put the controls in those dead columns:
 ## Empty and loading states
   No folder: centred card, camera icon, "Select a Folder",
   "Select a folder to start reviewing and culling your photos.",
-  primary button [Open Folder], secondary [Open from Google Drive].
+  primary button [Open Folder]. There is no second source — SAF already mounts cloud providers as directories.
   Folder open but unscanned: images visible, score chip rows replaced by a
   single ghost chip reading "Not scanned", with [Scan Images] in the app bar
   visually emphasised.

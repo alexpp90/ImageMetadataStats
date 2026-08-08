@@ -47,7 +47,7 @@ code where it does not fit. Copying a file from one product into another is a de
 | Change | Agent |
 |---|---|
 | Compose UI, NavigationRail, comparison layouts, DeX input — `products/android/android-desktop/src/com/photoselectortoolbox/{ui,viewmodel}/` | `@android-desktop-ui-agent` |
-| Room cache, OpenCV analysis, repositories, use cases, Drive source — `products/android/android-desktop/src/com/photoselectortoolbox/{data,domain,di}/` | `@android-desktop-core-agent` |
+| Room cache, OpenCV analysis, repositories, use cases, SAF source — `products/android/android-desktop/src/com/photoselectortoolbox/{data,domain,di}/` | `@android-desktop-core-agent` |
 
 ### PhotoTok (`:phototok`)
 

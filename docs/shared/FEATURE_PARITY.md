@@ -59,9 +59,20 @@ products is a defect (`ai/ROUTING.md`, the separation rule).
 | Neighbour image prefetch | Desktop (`preload_next_candidates`) | ✅ origin | ✅ ported 2026-08-08 | ✅ independent | 2026-08-08 |
 | Filing wording names the *configured* Selection folder, never the literal | Android Desktop 2026-08-08 | ◐ gap — buttons and shortcut list say "Move to Selection" while `selection_folder` is configurable; the log lines already print the real path | ✅ origin | ◐ gap — `selection_folder_name` is a setting, wording not checked against it | 2026-08-08 |
 | Chrome is priced against the binding axis, and a filmstrip is a column not a bar | Android Desktop 2026-08-08 | ❌ N/A — no filmstrip; the Tk window is resizable and not aspect-bound, so no axis is scarce by construction | ✅ origin | ❌ N/A — one photograph fills a portrait phone; there is no slack on either axis and no filmstrip | 2026-08-08 |
+| Chrome that hides its own escape hatch is a one-way door | Android Desktop 2026-08-08 | ⬜ evaluate — panels are toggled from a persistent menu bar, which cannot hide itself | ✅ origin | ⬜ evaluate — overlays are gesture-dismissed, no persistent toggle to strand | 2026-08-08 |
+| A background pass merges the field it computed, never the item | Android Desktop 2026-08-08 | ⬜ evaluate — analysis results are written into a dict keyed by path, no list snapshot | ✅ origin | ◐ gap — check `optimistic copy/move` and DataStore reads for the same snapshot-merge shape | 2026-08-08 |
+| No second cloud source: SAF already mounts the providers | PhotoTok (policy, `REQUIREMENTS.md` §No Dedicated Cloud Integration) | ❌ N/A — desktop mounts are the OS's job | ✅ ported 2026-08-08 | ✅ origin | 2026-08-08 |
 
 Rationale for the negatives, so a future agent does not re-open a settled question:
 
+- **Escape-hatch rule → PhotoTok / Desktop:** both are `⬜` deliberately. The Android Desktop
+  failure needed three ingredients — a toggle that hides a panel, the toggle living *inside*
+  that panel, and no keyboard binding for it. Neither sibling obviously has all three, but
+  neither has been walked control by control, and asserting "safe" without doing that is the
+  unrecorded check this table exists to prevent.
+- **Snackbar merge shape → PhotoTok** is flagged `◐` rather than `⬜` because the shape is
+  known to exist there: `phototok` does optimistic copy/move against a list it also re-reads
+  from discovery. Whether it merges items or fields has not been read. File before closing.
 - **Optimistic filing → Desktop** is a genuine gap, not a rejection. `execute_delete` already
   updates the UI first and trashes on a background thread, but `execute_move_to_selection` /
   `execute_copy_to_selection` still call `f.rename` / `shutil.copy2` on the Tk main thread for

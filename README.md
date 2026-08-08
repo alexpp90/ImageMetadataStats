@@ -125,7 +125,7 @@ A lightweight, gesture-first, touch-optimized portrait client designed for quick
     *   **Double-Tap to Collect:** Instantly copies or moves the photo to your Selection folder with a bouncy green checkmark animation.
     *   **One-Tap HUD:** Single tap anywhere on screen hides/shows the glassmorphic metadata panel and controls to allow unobstructed viewing.
 *   **Orientation-Aware Sorting:** Intelligently groups and sorts landscape images first, followed by portrait, or shuffles files randomly via the **Picture Randomization** settings toggle.
-*   **Non-Blocking Undo:** Deletions are kept in a temporary state for 30 seconds with a quick Snackbar undo option before committing to disk or Google Drive.
+*   **Non-Blocking Undo:** Deletions are kept in a temporary state for 30 seconds with a quick Snackbar undo option before committing to disk.
 
 ---
 
