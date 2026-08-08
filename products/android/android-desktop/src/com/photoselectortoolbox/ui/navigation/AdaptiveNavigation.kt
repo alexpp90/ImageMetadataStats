@@ -145,6 +145,12 @@ private fun DesktopModeApp(
                         } == true
 
                         NavigationBarItem(
+                            // The third navigation surface, tagged like the
+                            // other two. All of the sidebar (expanded selector),
+                            // the rail (expanded elsewhere) and this bar
+                            // (compact) answer to `nav_<route>`, so a test does
+                            // not have to know which one the window size chose.
+                            modifier = Modifier.testTag("nav_${screen.route}"),
                             icon = {
                                 Icon(
                                     imageVector = screen.icon,
