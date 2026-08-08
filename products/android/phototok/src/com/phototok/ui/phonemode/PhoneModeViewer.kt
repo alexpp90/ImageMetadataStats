@@ -733,7 +733,7 @@ private fun ImagePage(
         }
 
         // ── Navigation peeks (subtle idle hints on left/right edges with direction arrows) ──
-        if (!readOnly && showFloatingPeeks && !isSwipingLeft && !isSwipingRight && hudAlpha > 0.5f) {
+        if (!readOnly && showFloatingPeeks && !isZoomed && !isSwipingLeft && !isSwipingRight && hudAlpha > 0.5f) {
             val peekTransition = rememberInfiniteTransition(label = "peeks")
             // Right-side (trash) offset: slides from 12dp (mostly hidden) to -4dp (showing more)
             val trashPeekOffset by peekTransition.animateFloat(
