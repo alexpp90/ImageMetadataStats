@@ -65,7 +65,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.photoselectortoolbox.domain.format.SelectorLabels
 import com.photoselectortoolbox.ui.components.EmptyStateCard
-import com.photoselectortoolbox.ui.components.ScoreLegendSheet
 import com.photoselectortoolbox.ui.theme.Zinc800
 import com.photoselectortoolbox.ui.theme.Zinc900
 import com.photoselectortoolbox.ui.navigation.Screen
@@ -102,7 +101,6 @@ fun SelectorScreen(
     var showScanConfig by remember { mutableStateOf(false) }
     var showFullscreen by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
-    var showScoreLegend by remember { mutableStateOf(false) }
     var showGuide by remember { mutableStateOf(false) }
     var contextMenuAt by remember { mutableStateOf<Offset?>(null) }
     var lastPointerPosition by remember { mutableStateOf(Offset.Zero) }
@@ -132,7 +130,7 @@ fun SelectorScreen(
     // Any open sheet swallows the shortcuts, so a stray M while configuring a
     // scan cannot move the frame behind the sheet. Esc is the exception — it is
     // what closes the sheet.
-    val sheetOpen = showScanConfig || showScoreLegend || guideOpen ||
+    val sheetOpen = showScanConfig || guideOpen ||
         uiState.showDeleteConfirmation
 
     val dismissGuide: () -> Unit = {
@@ -219,9 +217,6 @@ fun SelectorScreen(
     }
 
 
-    if (showScoreLegend) {
-        ScoreLegendSheet(onDismiss = { showScoreLegend = false })
-    }
 
     if (showScanConfig) {
         ScanConfigSheet(
@@ -303,7 +298,6 @@ fun SelectorScreen(
                                         showFullscreen -> showFullscreen = false
                                         contextMenuAt != null -> contextMenuAt = null
                                         showScanConfig -> showScanConfig = false
-                                        showScoreLegend -> showScoreLegend = false
                                         guideOpen -> dismissGuide()
                                         uiState.maximisedFrame != null -> viewModel.clearMaximised()
                                     }
@@ -324,7 +318,6 @@ fun SelectorScreen(
                 SelectorSidebar(
                     currentRoute = currentRoute,
                     groupingEnabled = uiState.groupingEnabled,
-                    hasScores = uiState.hasAnyScores,
                     hasImages = uiState.images.isNotEmpty(),
                     isScanning = uiState.isScanRunning,
                     scanStatusText = uiState.scanStatusText,
@@ -335,7 +328,7 @@ fun SelectorScreen(
                     onScan = { showScanConfig = true },
                     onCancelScan = viewModel::cancelScan,
                     onToggleGrouping = viewModel::toggleGrouping,
-                    onShowLegend = { showScoreLegend = true },
+                    onShowLegend = openGuide,
                     onShowMenu = { showMenu = true },
                     onNavigate = onNavigate,
                     overflowContent = {

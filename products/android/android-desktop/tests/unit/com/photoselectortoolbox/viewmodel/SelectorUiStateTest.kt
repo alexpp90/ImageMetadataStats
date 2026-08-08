@@ -141,7 +141,7 @@ class SelectorUiStateTest {
     }
 
     @Test
-    fun `hasAnyScores gates the legend on there being something to explain`() {
+    fun `hasAnyScores gates Clear scores on there being scores to clear`() {
         assertFalse(SelectorUiState(images = threeImages).hasAnyScores)
 
         val scanned = threeImages.toMutableList().also { list ->

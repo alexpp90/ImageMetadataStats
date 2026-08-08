@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -35,10 +36,11 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.photoselectortoolbox.domain.guidance.SelectorHint
+import com.photoselectortoolbox.domain.guidance.LegendRow
+import com.photoselectortoolbox.ui.navigation.Screen
 import com.photoselectortoolbox.domain.guidance.SelectorHintText
 import com.photoselectortoolbox.domain.guidance.SelectorTour
 import com.photoselectortoolbox.domain.guidance.TourCallout
@@ -110,6 +112,9 @@ fun SelectorCoachOverlay(
                 filingAction = filingAction,
                 detailsVisible = detailsVisible,
                 filmstripVisible = filmstripVisible,
+                screenLegend = Screen.all.map { screen ->
+                    LegendRow(label = screen.label, meaning = screen.meaning)
+                },
             ).associateBy { it.region }
         }
 
@@ -128,16 +133,12 @@ fun SelectorCoachOverlay(
         ) {
             Row(modifier = Modifier.fillMaxSize()) {
                 // ── The sidebar column, at its real width ────────────────
-                Column(
-                    modifier = Modifier.width(SidebarWidth).fillMaxHeight(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Spacer(modifier = Modifier.height(SidebarCalloutInset))
-                    callouts[TourRegion.SIDEBAR_SESSION]?.let { Callout(it, compact = true) }
-                    Spacer(modifier = Modifier.weight(1f))
-                    callouts[TourRegion.SIDEBAR_SCREENS]?.let { Callout(it, compact = true) }
-                    Spacer(modifier = Modifier.height(SidebarCalloutInset))
-                }
+                // Reserved and left empty, exactly like the frame footprints.
+                // 88 dp cannot hold a sentence, and covering the glyphs with
+                // their own explanation is the one thing a coach mark must not
+                // do — so the sidebar's callouts sit in the flank beside it and
+                // the real icons stay legible through the scrim.
+                Spacer(modifier = Modifier.width(SidebarWidth).fillMaxHeight())
 
                 // ── The image region, at its real bounds ─────────────────
                 //
@@ -199,18 +200,26 @@ private fun ImageRegionCallouts(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                // The left flank carries three blocks, spaced apart rather than
+                // centred as one. The sidebar's session actions are at the top of
+                // the screen and its destinations at the bottom, while the
+                // readout sits in the middle — so spacing them to the same three
+                // positions lands every explanation level with the thing it
+                // explains, which is the whole claim the word "legend" makes.
                 Column(
                     modifier = Modifier.width(layout.flankWidth).fillMaxHeight(),
-                    verticalArrangement = Arrangement.Center,
+                    verticalArrangement = Arrangement.SpaceBetween,
                     horizontalAlignment = Alignment.End,
                 ) {
-                    Title()
-                    Spacer(modifier = Modifier.height(14.dp))
-                    callouts[TourRegion.READOUT]?.let { Callout(it) }
-                    callouts[TourRegion.FRAMES]?.let {
-                        Spacer(modifier = Modifier.height(14.dp))
-                        Callout(it)
+                    callouts[TourRegion.SIDEBAR_SESSION]?.let { Callout(it) }
+                    Column(horizontalAlignment = Alignment.End) {
+                        callouts[TourRegion.READOUT]?.let { Callout(it) }
+                        callouts[TourRegion.FRAMES]?.let {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Callout(it)
+                        }
                     }
+                    callouts[TourRegion.SIDEBAR_SCREENS]?.let { Callout(it) }
                 }
 
                 Spacer(modifier = Modifier.width(FrameGeometry.Gap))
@@ -229,6 +238,8 @@ private fun ImageRegionCallouts(
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.Center,
                     ) {
+                        Title()
+                        Spacer(modifier = Modifier.height(14.dp))
                         callouts[TourRegion.CONTROLS]?.let { Callout(it) }
                         callouts[TourRegion.KEYS]?.let {
                             Spacer(modifier = Modifier.height(14.dp))
@@ -327,7 +338,48 @@ private fun Callout(callout: TourCallout, compact: Boolean = false) {
             fontSize = if (compact) 9.sp else 11.sp,
             color = Zinc400,
         )
+        callout.legend.forEach { LegendLine(it, compact = compact) }
         callout.rows.forEach { KeyRow(it, compact = compact) }
+    }
+}
+
+/**
+ * One legend line: the thing's own glyph where it has one, its name, and what
+ * it means.
+ *
+ * The glyph is [ScoreMetricIcon.vector] — the same mapping the readouts and the
+ * chips draw from — so the legend cannot teach a symbol this product does not
+ * render. It did exactly that until the two mappings were merged: a spotlight
+ * for highlight clipping against the sun the frames actually showed.
+ */
+@Composable
+private fun LegendLine(row: LegendRow, compact: Boolean) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        if (row.metric != null) {
+            Icon(
+                imageVector = row.metric.icon.vector(),
+                contentDescription = null,
+                tint = Zinc50,
+                modifier = Modifier.size(if (compact) 11.dp else 14.dp),
+            )
+        }
+        Column {
+            Text(
+                text = row.label,
+                fontSize = if (compact) 9.sp else 11.sp,
+                fontWeight = FontWeight.Medium,
+                color = Zinc50,
+            )
+            Text(
+                text = row.meaning,
+                fontSize = if (compact) 8.sp else 10.sp,
+                color = Zinc400,
+            )
+        }
     }
 }
 
@@ -389,5 +441,3 @@ private fun DismissButton(onDismiss: () -> Unit) {
     }
 }
 
-/** Inset keeping the sidebar callouts clear of the window edges. */
-private val SidebarCalloutInset: Dp = 10.dp

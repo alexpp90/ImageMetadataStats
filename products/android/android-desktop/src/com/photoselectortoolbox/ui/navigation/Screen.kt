@@ -20,9 +20,12 @@ sealed class Screen(
      * without decoding a glyph. Where the full name fits, [label] is used.
      */
     val shortLabel: String,
+    /** One line for the guide: what this screen is for. */
+    val meaning: String,
 ) {
     data object PhotoSelector : Screen(
         route = "selector",
+        meaning = "Compare three frames and file or delete the middle one.",
         icon = Icons.Default.PhotoCamera,
         label = "Selector",
         shortLabel = "Cull",
@@ -30,6 +33,7 @@ sealed class Screen(
 
     data object Statistics : Screen(
         route = "statistics",
+        meaning = "How the folder scored overall, once it has been scanned.",
         icon = Icons.Default.BarChart,
         label = "Statistics",
         shortLabel = "Stats",
@@ -37,6 +41,7 @@ sealed class Screen(
 
     data object DuplicateFinder : Screen(
         route = "duplicates",
+        meaning = "Frames that are the same picture twice.",
         icon = Icons.Default.ContentCopy,
         label = "Duplicates",
         shortLabel = "Dupes",
@@ -44,6 +49,7 @@ sealed class Screen(
 
     data object Settings : Screen(
         route = "settings",
+        meaning = "Which measurements run, where filed frames go, how many threads.",
         icon = Icons.Default.Settings,
         label = "Settings",
         shortLabel = "Setup",

@@ -3,6 +3,7 @@ package com.photoselectortoolbox.domain.guidance
 import com.photoselectortoolbox.domain.interaction.FilingAction
 import com.photoselectortoolbox.domain.interaction.FrameGesture
 import com.photoselectortoolbox.domain.interaction.SelectorShortcut
+import com.photoselectortoolbox.domain.scoring.ScoreMetric
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -174,5 +175,88 @@ class SelectorTourTest {
 
         assertEquals(TourRegion.entries.size, callouts.size)
         assertTrue(callouts.size <= 7)
+    }
+
+    // ── The legend half: what the icons on screen mean ───────────────────
+
+    @Test
+    fun `every score has a legend row, carrying its own metric`() {
+        // The row must name which metric it is for, so the UI draws that
+        // metric's real glyph instead of a second one chosen in the guide.
+        val legend = SelectorTour.metricLegend()
+
+        assertEquals(ScoreMetric.entries.size, legend.size)
+        assertEquals(ScoreMetric.entries, legend.map { it.metric })
+        legend.forEach { row ->
+            assertTrue("${row.label} has no meaning", row.meaning.isNotBlank())
+        }
+    }
+
+    @Test
+    fun `a legend row says which way its number runs`() {
+        // Half these metrics are better low. A photographer reading a bare
+        // number has no way to tell which half they are looking at.
+        SelectorTour.metricLegend().forEach { row ->
+            assertTrue(
+                "${row.label} does not say which way is better: ${row.meaning}",
+                row.meaning.contains(row.metric!!.direction.hint),
+            )
+        }
+    }
+
+    @Test
+    fun `every sidebar action is named exactly once in the legend`() {
+        val session = SelectorTour
+            .callouts(FilingAction.COPY, detailsVisible = true, filmstripVisible = true)
+            .single { it.region == TourRegion.SIDEBAR_SESSION }
+
+        assertEquals(
+            SidebarAction.entries.map { it.label },
+            session.legend.map { it.label },
+        )
+    }
+
+    @Test
+    fun `the destinations the caller passes in are the ones explained`() {
+        val screens = listOf(
+            LegendRow(label = "Statistics", meaning = "How the folder scored"),
+        )
+        val callouts = SelectorTour.callouts(
+            filingAction = FilingAction.COPY,
+            detailsVisible = true,
+            filmstripVisible = true,
+            screenLegend = screens,
+        )
+
+        assertEquals(
+            screens,
+            callouts.single { it.region == TourRegion.SIDEBAR_SCREENS }.legend,
+        )
+    }
+
+    @Test
+    fun `the readouts callout carries the scores, and loses them when hidden`() {
+        val shown = SelectorTour
+            .callouts(FilingAction.COPY, detailsVisible = true, filmstripVisible = false)
+            .singleOrNull { it.region == TourRegion.READOUT }
+        assertEquals(ScoreMetric.entries.size, shown?.legend?.size)
+
+        // Labelling a panel the photographer has switched off is the same
+        // defect as inventing a control that does not exist.
+        val hidden = SelectorTour
+            .callouts(FilingAction.COPY, detailsVisible = false, filmstripVisible = false)
+            .singleOrNull { it.region == TourRegion.READOUT }
+        assertEquals(null, hidden)
+    }
+
+    @Test
+    fun `legend rows are not advertised as inputs`() {
+        // The two lists answer different questions, and the invariant test over
+        // the bound input set reads only `rows`.
+        val inputs = SelectorTour.advertisedInputs(FilingAction.COPY)
+
+        SelectorTour.metricLegend().forEach { row ->
+            assertFalse(row.label in inputs)
+        }
     }
 }
