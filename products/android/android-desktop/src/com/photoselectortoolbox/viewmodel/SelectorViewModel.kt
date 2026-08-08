@@ -36,6 +36,7 @@ import com.photoselectortoolbox.domain.grouping.ImageGrouper
 import com.photoselectortoolbox.domain.format.SelectionActionLabels
 import com.photoselectortoolbox.domain.interaction.FilingAction
 import com.photoselectortoolbox.domain.session.ProgressiveMerge
+import com.photoselectortoolbox.domain.session.ScoreMerge
 import com.photoselectortoolbox.domain.session.SelectorWindows
 import com.photoselectortoolbox.domain.session.SelectorWork
 import com.photoselectortoolbox.domain.session.SelectorWorkQueue
@@ -633,29 +634,20 @@ class SelectorViewModel @Inject constructor(
                     }
                     analysed = progress.processed
 
-                    // Efficient update: use URI→index map instead of O(n) list scan
-                    val currentImages = _uiState.value.images
-                    val uriToIndex = currentImages.withIndex().associate { (i, img) -> img.uri to i }
-                    val mutableImages = currentImages.toMutableList()
-                    var changed = false
-
-                    for ((uri, result) in progress.results) {
-                        val idx = uriToIndex[uri] ?: continue
-                        val existing = mutableImages[idx]
-                        if (existing.scanResult == null) {
-                            mutableImages[idx] = existing.copy(scanResult = result)
-                            changed = true
-                        }
-                    }
-
-                    _uiState.update {
-                        it.copy(
+                    // Merged *inside* the update, against the state as it is at
+                    // that moment. Building the new list from a snapshot read
+                    // beforehand loses whatever landed in between — the EXIF and
+                    // dimension loads run on their own coroutines and a scan is
+                    // long.
+                    _uiState.update { state ->
+                        val merged = ScoreMerge.apply(state.images, progress.results)
+                        state.copy(
                             scanProgress = fraction,
                             scanStatusText = SelectorLabels.scanProgress(
                                 progress.processed,
                                 progress.total,
                             ),
-                            images = if (changed) mutableImages.toList() else it.images
+                            images = merged,
                         )
                     }
                 }
@@ -1436,15 +1428,11 @@ class SelectorViewModel @Inject constructor(
             }
         }
 
-        // Merge by URI rather than replacing wholesale: batches may have been
-        // appended, or frames filed away, while the cache was being read.
-        val byUri = updatedImages.associateBy { it.uri }
+        // Only the scores travel forward out of the snapshot. See [ScoreMerge]
+        // for why merging the items themselves is a rollback rather than a merge.
+        val restored = ScoreMerge.scoresOf(updatedImages)
         _uiState.update { state ->
-            state.copy(
-                images = state.images.map { image ->
-                    if (image.scanResult != null) image else byUri[image.uri] ?: image
-                }
-            )
+            state.copy(images = ScoreMerge.apply(state.images, restored))
         }
     }
 

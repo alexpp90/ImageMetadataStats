@@ -3,6 +3,11 @@ package com.photoselectortoolbox.viewmodel
 import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
 import com.photoselectortoolbox.data.cache.ScoreDao
+import kotlinx.coroutines.yield
+import com.photoselectortoolbox.domain.usecase.ScanProgress
+import com.photoselectortoolbox.data.model.ScanResult
+import com.photoselectortoolbox.data.cache.ScoreEntity
+import com.photoselector.core.model.ExifData
 import com.photoselectortoolbox.data.model.ImageDimensions
 import com.photoselectortoolbox.data.model.ImageItem
 import com.photoselectortoolbox.data.repository.CacheRepository
@@ -27,6 +32,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -115,6 +121,8 @@ class SelectorViewModelTest {
         coEvery { deleteImage(any(), any()) } returns true
     }
 
+    private val scanImagesUseCase: ScanImagesUseCase = mockk(relaxed = true)
+
     private val scoreDao: ScoreDao = mockk(relaxed = true) {
         coEvery { getScore(any()) } returns null
     }
@@ -129,7 +137,7 @@ class SelectorViewModelTest {
 
     private fun buildViewModel() = SelectorViewModel(
         imageRepository = imageRepository,
-        scanImagesUseCase = mockk(relaxed = true),
+        scanImagesUseCase = scanImagesUseCase,
         moveToSelectionUseCase = mockk<MoveToSelectionUseCase>(relaxed = true),
         cacheRepository = mockk<CacheRepository>(relaxed = true),
         settingsRepository = settingsRepository,
@@ -427,5 +435,37 @@ class SelectorViewModelTest {
 
         assertEquals("Could not read the folder", viewModel.uiState.value.snackbarMessage)
         assertNull(viewModel.uiState.value.undoOperation)
+    }
+
+    // ── Background merges must not roll back what landed while they ran ──
+
+    @Test
+    fun `a scan does not roll back the EXIF already on screen`() = runTest {
+        val exif = ExifData(iso = 800, aperture = 4.0)
+        coEvery { imageRepository.getExifData(any(), any()) } returns exif
+        val progress = MutableSharedFlow<ScanProgress>(replay = 1)
+        every { scanImagesUseCase(any(), any()) } returns progress
+
+        val viewModel = loadFolder(image("a"))
+        assertEquals(exif, viewModel.uiState.value.currentImage?.exifData)
+
+        viewModel.startScan()
+        progress.emit(
+            ScanProgress(
+                processed = 1,
+                total = 1,
+                currentFile = "a",
+                results = mapOf(
+                    "content://test/folder/a" to ScanResult(
+                        filePath = "content://test/folder/a",
+                        sharpnessScore = 70.0,
+                    )
+                ),
+            )
+        )
+
+        val current = viewModel.uiState.value.currentImage
+        assertEquals("the scan rolled EXIF back", exif, current?.exifData)
+        assertEquals(70.0, current?.scanResult?.sharpnessScore!!, 0.01)
     }
 }
