@@ -150,8 +150,17 @@ fun ThreeUpSelectorLayout(
                 verticalArrangement = Arrangement.spacedBy(FrameGeometry.Gap),
             ) {
                 // ── Row 1: readouts · CURRENT · controls ────────────────
+                //
+                // Centred as well as balanced. The solver already sizes the two
+                // flanks to consume the region exactly, so this changes nothing
+                // in the normal case — but the arithmetic can round a few dp
+                // over, and the default `Arrangement.Start` pays for that
+                // entirely on the right, shifting the frame off centre. Splitting
+                // any residual keeps the current frame where the neighbours
+                // below it already centre themselves.
                 Row(
                     modifier = Modifier.weight(1f).fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     // A column, not a box: the explanation card takes its own

@@ -20,6 +20,7 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -58,6 +59,16 @@ import org.robolectric.annotation.Config
 class SelectorViewModelTest {
 
     private val testDispatcher = UnconfinedTestDispatcher()
+
+    /**
+     * The application scope the ViewModel files and deletes on.
+     *
+     * Held by the test rather than created per ViewModel so [tearDown] can cancel
+     * it. It outlives `viewModelScope` by design — that is what lets a filing
+     * operation survive the screen going away — so work left running on it would
+     * otherwise still be dispatching while `resetMain` swaps the dispatcher out.
+     */
+    private val appScope = CoroutineScope(testDispatcher)
 
     private val groupingEnabledFlow = MutableStateFlow(false)
     private val groupingLevelFlow = MutableStateFlow(GroupingLevel.TIME_FILENAME)
@@ -123,7 +134,7 @@ class SelectorViewModelTest {
         cacheRepository = mockk<CacheRepository>(relaxed = true),
         settingsRepository = settingsRepository,
         scoreDao = scoreDao,
-        appScope = CoroutineScope(testDispatcher),
+        appScope = appScope,
         context = ApplicationProvider.getApplicationContext(),
     )
 
@@ -141,6 +152,7 @@ class SelectorViewModelTest {
 
     @After
     fun tearDown() {
+        appScope.cancel()
         Dispatchers.resetMain()
         discovery.resetReplayCache()
     }
@@ -411,9 +423,9 @@ class SelectorViewModelTest {
     @Test
     fun `an error reaches the photographer through the snackbar with no undo`() = runTest {
         val viewModel = loadFolder(image("a"))
-        viewModel.setError("Google Sign-In failed")
+        viewModel.setError("Could not read the folder")
 
-        assertEquals("Google Sign-In failed", viewModel.uiState.value.snackbarMessage)
+        assertEquals("Could not read the folder", viewModel.uiState.value.snackbarMessage)
         assertNull(viewModel.uiState.value.undoOperation)
     }
 }

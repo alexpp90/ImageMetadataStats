@@ -192,8 +192,11 @@ private fun ImageRegionCallouts(
             verticalArrangement = Arrangement.spacedBy(FrameGeometry.Gap),
         ) {
             // ── Row 1: readout flank · CURRENT footprint · control flank ─
+            // Centred exactly as the layout centres it, or the reserved
+            // footprint drifts off the frame it is reserving.
             Row(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(
