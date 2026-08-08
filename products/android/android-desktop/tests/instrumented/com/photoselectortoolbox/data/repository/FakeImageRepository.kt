@@ -27,6 +27,24 @@ class FakeImageRepository @Inject constructor() : ImageRepository {
      */
     var completeAfterFirstBatch: Boolean = true
 
+    /**
+     * The name [openFolder] reports, or null to model a folder that has gone.
+     *
+     * This is the seam that lets a test open a folder at all. Before it existed
+     * the ViewModel resolved the folder itself through `DocumentFile`, which no
+     * fake can stand in for, so both suites opened Google Drive folders purely
+     * to take a branch that skipped SAF — testing the production path by
+     * avoiding it. An ordinary `content://` URI works here.
+     */
+    var folderName: String? = "Test Folder"
+
+    val openedFolders = mutableListOf<String>()
+
+    override suspend fun openFolder(context: Context, folderUri: Uri): String? {
+        openedFolders += folderUri.toString()
+        return folderName
+    }
+
     override fun discoverImages(folderUri: Uri): Flow<List<ImageItem>> =
         if (completeAfterFirstBatch) flowOf(imagesFlow.value) else imagesFlow
 

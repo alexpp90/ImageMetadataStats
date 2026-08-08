@@ -80,6 +80,9 @@ class SettingsRepository @Inject constructor(
          */
         const val DEFAULT_FILMSTRIP_VISIBLE = false
 
+        /** Scheme of the removed Google Drive source; see [lastFolderUri]. */
+        const val RETIRED_DRIVE_SCHEME = "gdrive://"
+
         val DEFAULT_GROUPING_LEVEL = GroupingLevel.TIME_FILENAME
         val DEFAULT_ANALYSIS_THREAD_COUNT = Runtime.getRuntime().availableProcessors().coerceIn(1, 4)
     }
@@ -109,8 +112,18 @@ class SettingsRepository @Inject constructor(
         }
     }
 
+    /**
+     * The folder to reopen on launch, or null.
+     *
+     * Sessions saved before the Google Drive source was removed persisted a
+     * `gdrive://` URI here. Nothing can open one now, and handing it to the
+     * selector would greet a returning photographer with "permission revoked or
+     * directory deleted" on a folder they never lost. It is dropped on read
+     * instead, so the app opens on the empty state and the next folder they pick
+     * overwrites it.
+     */
     val lastFolderUri: Flow<String?> = context.dataStore.data.map { prefs ->
-        prefs[KEY_LAST_FOLDER_URI]
+        prefs[KEY_LAST_FOLDER_URI]?.takeUnless { it.startsWith(RETIRED_DRIVE_SCHEME) }
     }
 
     val analysisThreadCount: Flow<Int> = context.dataStore.data.map { prefs ->

@@ -1,10 +1,8 @@
 package com.photoselectortoolbox.viewmodel
 
 import android.content.Context
-import android.content.Intent
 import android.net.Uri
 import android.util.Log
-import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import coil.Coil
@@ -20,9 +18,6 @@ import com.photoselectortoolbox.data.model.ScanResult
 import com.photoselectortoolbox.data.repository.CacheRepository
 import com.photoselectortoolbox.data.repository.ImageRepository
 import com.photoselectortoolbox.data.repository.SettingsRepository
-import com.photoselectortoolbox.data.source.googledrive.GoogleDriveAuth
-import com.photoselectortoolbox.data.source.googledrive.GoogleDriveClient
-import com.photoselectortoolbox.data.source.googledrive.GoogleDriveImageSource
 import com.photoselectortoolbox.di.ApplicationScope
 import com.photoselectortoolbox.domain.curation.CurationAction
 import com.photoselectortoolbox.domain.curation.DeferredDeletion
@@ -226,8 +221,6 @@ class SelectorViewModel @Inject constructor(
     private val cacheRepository: CacheRepository,
     private val settingsRepository: SettingsRepository,
     private val scoreDao: ScoreDao,
-    val driveAuth: GoogleDriveAuth,
-    val driveClient: GoogleDriveClient,
     @ApplicationScope private val appScope: CoroutineScope,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
@@ -423,13 +416,6 @@ class SelectorViewModel @Inject constructor(
     }
 
     fun selectFolder(uri: Uri) {
-        // Handle Google Drive URIs
-        if (GoogleDriveImageSource.isDriveUri(uri)) {
-            val folderId = GoogleDriveImageSource.extractId(uri) ?: return
-            selectDriveFolder(folderId, "Google Drive")
-            return
-        }
-
         resetSession()
         discoveryJob = viewModelScope.launch {
             _uiState.update {
@@ -441,28 +427,17 @@ class SelectorViewModel @Inject constructor(
                 )
             }
 
-            try {
-                val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                context.contentResolver.takePersistableUriPermission(uri, takeFlags)
-            } catch (e: Exception) {
-                Log.e("SelectorViewModel", "Failed to persist URI permission for $uri", e)
-            }
-
-            val folderDoc = try {
-                DocumentFile.fromTreeUri(context, uri)
-            } catch (e: SecurityException) {
-                Log.e("SelectorViewModel", "SecurityException loading folder $uri", e)
-                null
-            }
-
-            if (folderDoc == null || !folderDoc.exists()) {
+            // Claiming the folder — persisting the grant and confirming it is
+            // still there — belongs to the repository, not here. See
+            // [ImageRepository.openFolder].
+            val folderName = imageRepository.openFolder(context, uri)
+            if (folderName == null) {
                 _uiState.update { it.copy(isLoading = false, isEnumerating = false) }
                 reportError("Failed to load folder: permission revoked or directory deleted.")
                 settingsRepository.setLastFolderUri(null)
                 return@launch
             }
 
-            val folderName = folderDoc.name ?: "Unknown"
             _uiState.update { it.copy(folderName = folderName) }
 
             settingsRepository.setLastFolderUri(uri.toString())
@@ -470,27 +445,6 @@ class SelectorViewModel @Inject constructor(
             collectDiscovery(uri, "images") { e ->
                 if (e is SecurityException) settingsRepository.setLastFolderUri(null)
             }
-        }
-    }
-
-    /** Select a Google Drive folder by its Drive folder ID. */
-    fun selectDriveFolder(folderId: String, folderName: String) {
-        val driveUri = GoogleDriveImageSource.buildUri(folderId)
-        resetSession()
-        discoveryJob = viewModelScope.launch {
-            _uiState.update {
-                it.copy(
-                    isLoading = true,
-                    isEnumerating = true,
-                    error = null,
-                    folderUri = driveUri.toString(),
-                    folderName = folderName,
-                )
-            }
-
-            settingsRepository.setLastFolderUri(driveUri.toString())
-
-            collectDiscovery(driveUri, "Google Drive images")
         }
     }
 

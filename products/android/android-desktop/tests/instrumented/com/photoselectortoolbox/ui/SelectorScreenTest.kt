@@ -71,7 +71,7 @@ class SelectorScreenTest {
 
     private val mockImages = listOf(
         ImageItem(
-            uri = "gdrive://test_folder/image1.jpg",
+            uri = "content://test/test_folder/image1.jpg",
             fileName = "image1.jpg",
             fileSize = 1024L,
             lastModified = 1000L,
@@ -89,7 +89,7 @@ class SelectorScreenTest {
             )
         ),
         ImageItem(
-            uri = "gdrive://test_folder/image2.jpg",
+            uri = "content://test/test_folder/image2.jpg",
             fileName = "image2.jpg",
             fileSize = 2048L,
             lastModified = 2000L,
@@ -168,7 +168,7 @@ class SelectorScreenTest {
 
         // Simulate folder loading by setting preferred folder URI
         runBlocking {
-            settingsRepository.setLastFolderUri("gdrive://test_folder")
+            settingsRepository.setLastFolderUri("content://test/test_folder")
         }
 
         // Wait until empty state disappears and review UI appears
@@ -204,7 +204,7 @@ class SelectorScreenTest {
         // first by default, so a wide frame quietly derives a different height
         // from a narrow one. See the 2026-07-27 entry in ai/memory/palette.md.
         fakeRepo.imagesFlow.value = mockImages
-        runBlocking { settingsRepository.setLastFolderUri("gdrive://test_folder") }
+        runBlocking { settingsRepository.setLastFolderUri("content://test/test_folder") }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
             composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
@@ -263,7 +263,7 @@ class SelectorScreenTest {
         fakeRepo.imagesFlow.value = mockImages.map {
             it.copy(imageWidth = 3000, imageHeight = 2000)
         }
-        runBlocking { settingsRepository.setLastFolderUri("gdrive://test_folder") }
+        runBlocking { settingsRepository.setLastFolderUri("content://test/test_folder") }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
             composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
@@ -324,7 +324,7 @@ class SelectorScreenTest {
             settingsRepository.setFilmstripVisible(
                 SettingsRepository.DEFAULT_FILMSTRIP_VISIBLE,
             )
-            settingsRepository.setLastFolderUri("gdrive://test_folder")
+            settingsRepository.setLastFolderUri("content://test/test_folder")
         }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
@@ -367,7 +367,7 @@ class SelectorScreenTest {
         fakeRepo.imagesFlow.value = mockImages.map {
             it.copy(imageWidth = 3000, imageHeight = 2000)
         }
-        runBlocking { settingsRepository.setLastFolderUri("gdrive://test_folder") }
+        runBlocking { settingsRepository.setLastFolderUri("content://test/test_folder") }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
             composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
@@ -429,7 +429,7 @@ class SelectorScreenTest {
         // invisible in review — this is the same class of bug as the layout
         // toggle that once rendered on top of the fullscreen button.
         fakeRepo.imagesFlow.value = mockImages
-        runBlocking { settingsRepository.setLastFolderUri("gdrive://test_folder") }
+        runBlocking { settingsRepository.setLastFolderUri("content://test/test_folder") }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
             composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
@@ -463,7 +463,7 @@ class SelectorScreenTest {
     fun navigateBetweenImages_updatesActiveExif() {
         fakeRepo.imagesFlow.value = mockImages
         runBlocking {
-            settingsRepository.setLastFolderUri("gdrive://test_folder")
+            settingsRepository.setLastFolderUri("content://test/test_folder")
         }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
@@ -501,7 +501,7 @@ class SelectorScreenTest {
     fun cullingAction_CopyAndMove_showSnackbar() {
         fakeRepo.imagesFlow.value = mockImages
         runBlocking {
-            settingsRepository.setLastFolderUri("gdrive://test_folder")
+            settingsRepository.setLastFolderUri("content://test/test_folder")
         }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
@@ -562,7 +562,7 @@ class SelectorScreenTest {
     fun cullingAction_DeleteImage_removesImageAfterConfirmation() {
         fakeRepo.imagesFlow.value = mockImages
         runBlocking {
-            settingsRepository.setLastFolderUri("gdrive://test_folder")
+            settingsRepository.setLastFolderUri("content://test/test_folder")
         }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
@@ -618,7 +618,7 @@ class SelectorScreenTest {
         runBlocking {
             scoreDao.insertOrUpdate(
                 ScoreEntity(
-                    filePath = "gdrive://test_folder/image1.jpg",
+                    filePath = "content://test/test_folder/image1.jpg",
                     fileSize = 1024L,
                     lastModified = 1000L,
                     sharpnessScore = 78.5,
@@ -627,7 +627,7 @@ class SelectorScreenTest {
                     shadowClipping = 0.5
                 )
             )
-            settingsRepository.setLastFolderUri("gdrive://test_folder")
+            settingsRepository.setLastFolderUri("content://test/test_folder")
         }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
@@ -668,7 +668,7 @@ class SelectorScreenTest {
         // review. The layout toggle is gone with the second layout, but the
         // class of bug is not, so this now checks every control in the block.
         fakeRepo.imagesFlow.value = mockImages
-        runBlocking { settingsRepository.setLastFolderUri("gdrive://test_folder") }
+        runBlocking { settingsRepository.setLastFolderUri("content://test/test_folder") }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
             composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
@@ -714,7 +714,7 @@ class SelectorScreenTest {
         // happens to the file. "Keep" describes a feeling, and under a move
         // configuration it is simply false — the file leaves the folder.
         fakeRepo.imagesFlow.value = mockImages
-        runBlocking { settingsRepository.setLastFolderUri("gdrive://test_folder") }
+        runBlocking { settingsRepository.setLastFolderUri("content://test/test_folder") }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
             composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
@@ -739,7 +739,7 @@ class SelectorScreenTest {
         fakeRepo.imagesFlow.value = mockImages
         runBlocking {
             settingsRepository.setHasSeenNavHint(false)
-            settingsRepository.setLastFolderUri("gdrive://test_folder")
+            settingsRepository.setLastFolderUri("content://test/test_folder")
         }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
@@ -782,7 +782,7 @@ class SelectorScreenTest {
             )
         }
         fakeRepo.imagesFlow.value = scanned
-        runBlocking { settingsRepository.setLastFolderUri("gdrive://test_folder") }
+        runBlocking { settingsRepository.setLastFolderUri("content://test/test_folder") }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
             composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
@@ -813,7 +813,7 @@ class SelectorScreenTest {
         }
         fakeRepo.imagesFlow.value = scannedImages
         runBlocking {
-            settingsRepository.setLastFolderUri("gdrive://test_folder")
+            settingsRepository.setLastFolderUri("content://test/test_folder")
         }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
@@ -848,7 +848,7 @@ class SelectorScreenTest {
         // is a running total. `2 / 2` would state a folder size nobody counted.
         fakeRepo.completeAfterFirstBatch = false
         fakeRepo.imagesFlow.value = mockImages
-        runBlocking { settingsRepository.setLastFolderUri("gdrive://test_folder") }
+        runBlocking { settingsRepository.setLastFolderUri("content://test/test_folder") }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
             composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
@@ -874,7 +874,7 @@ class SelectorScreenTest {
     @Test
     fun positionReadout_hasNoPlusOnceEnumerationHasSettled() {
         fakeRepo.imagesFlow.value = mockImages
-        runBlocking { settingsRepository.setLastFolderUri("gdrive://test_folder") }
+        runBlocking { settingsRepository.setLastFolderUri("content://test/test_folder") }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
             composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
@@ -909,7 +909,7 @@ class SelectorScreenTest {
         // delete is the strongest case: nothing has touched the disk, so the
         // undo is a list insertion and cannot fail.
         fakeRepo.imagesFlow.value = mockImages
-        runBlocking { settingsRepository.setLastFolderUri("gdrive://test_folder") }
+        runBlocking { settingsRepository.setLastFolderUri("content://test/test_folder") }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
             composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
@@ -953,7 +953,7 @@ class SelectorScreenTest {
         // asked for. An UNDO that silently does nothing — or does the wrong
         // thing — is worse than none.
         fakeRepo.imagesFlow.value = mockImages
-        runBlocking { settingsRepository.setLastFolderUri("gdrive://test_folder") }
+        runBlocking { settingsRepository.setLastFolderUri("content://test/test_folder") }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
             composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
@@ -981,7 +981,7 @@ class SelectorScreenTest {
         // photographs is invisible in review and obvious in use, so it is
         // asserted the same way the badge-versus-overlay rule is.
         fakeRepo.imagesFlow.value = mockImages
-        runBlocking { settingsRepository.setLastFolderUri("gdrive://test_folder") }
+        runBlocking { settingsRepository.setLastFolderUri("content://test/test_folder") }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
             composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
@@ -1022,7 +1022,7 @@ class SelectorScreenTest {
     @Test
     fun coachOverlay_opensFromTheControlBlockAndClosesOnGotIt() {
         fakeRepo.imagesFlow.value = mockImages
-        runBlocking { settingsRepository.setLastFolderUri("gdrive://test_folder") }
+        runBlocking { settingsRepository.setLastFolderUri("content://test/test_folder") }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
             composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
@@ -1073,7 +1073,7 @@ class SelectorScreenTest {
             settingsRepository.resetGuidance()
             settingsRepository.markHintSeen(SelectorHint.TOUR)
             settingsRepository.setHasSeenNavHint(true)
-            settingsRepository.setLastFolderUri("gdrive://test_folder")
+            settingsRepository.setLastFolderUri("content://test/test_folder")
         }
 
         composeRule.waitUntil(timeoutMillis = 15000) {

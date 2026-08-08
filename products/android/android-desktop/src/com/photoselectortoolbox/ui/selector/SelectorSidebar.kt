@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BurstMode
-import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Radar
@@ -93,11 +92,9 @@ fun SelectorSidebar(
     groupingEnabled: Boolean,
     hasScores: Boolean,
     hasImages: Boolean,
-    driveSignedIn: Boolean,
     isScanning: Boolean,
     scanStatusText: String,
     onOpenFolder: () -> Unit,
-    onOpenDrive: () -> Unit,
     onScan: () -> Unit,
     onCancelScan: () -> Unit,
     onToggleGrouping: () -> Unit,
@@ -126,14 +123,6 @@ fun SelectorSidebar(
             description = "Open a folder",
             onClick = onOpenFolder,
             modifier = Modifier.testTag("sidebar_open_folder"),
-        )
-        SidebarItem(
-            icon = Icons.Default.Cloud,
-            label = "Drive",
-            description = "Open from Google Drive",
-            active = driveSignedIn,
-            onClick = onOpenDrive,
-            modifier = Modifier.testTag("sidebar_drive"),
         )
 
         when {

@@ -1,6 +1,7 @@
 package com.photoselectortoolbox.data.repository
 
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
@@ -10,12 +11,9 @@ import com.photoselector.core.reader.MediaStoreReader
 import com.photoselectortoolbox.data.model.ImageDimensions
 import com.photoselectortoolbox.data.model.ImageItem
 import com.photoselectortoolbox.data.source.LocalImageSource
-import com.photoselectortoolbox.data.source.googledrive.GoogleDriveClient
-import com.photoselectortoolbox.data.source.googledrive.GoogleDriveImageSource
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.lastOrNull
 import kotlinx.coroutines.withContext
@@ -25,8 +23,6 @@ class ImageRepositoryImpl @Inject constructor(
     private val localImageSource: LocalImageSource,
     private val androidExifReader: AndroidExifReader,
     private val mediaStoreReader: MediaStoreReader,
-    private val driveImageSource: GoogleDriveImageSource,
-    private val driveClient: GoogleDriveClient,
 ) : ImageRepository {
 
     companion object {
@@ -47,13 +43,37 @@ class ImageRepositoryImpl @Inject constructor(
         private const val EDIT_SUFFIX = "-Edit"
     }
 
-    override fun discoverImages(folderUri: Uri): Flow<List<ImageItem>> {
-        if (GoogleDriveImageSource.isDriveUri(folderUri)) {
-            val folderId = GoogleDriveImageSource.extractId(folderUri) ?: return localImageSource.discoverImages(folderUri)
-            return driveImageSource.discoverImages(folderId)
+    /**
+     * Persist the grant, then confirm the folder resolves and still exists.
+     *
+     * The grant is taken on a best-effort basis: a folder handed over for this
+     * process only — which is what the test fakes and some pickers give — is
+     * still perfectly readable, so a failure to persist is logged and the open
+     * continues. A folder that does not resolve is the real failure.
+     */
+    override suspend fun openFolder(context: Context, folderUri: Uri): String? =
+        withContext(Dispatchers.IO) {
+            try {
+                val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                context.contentResolver.takePersistableUriPermission(folderUri, takeFlags)
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not persist URI permission for $folderUri", e)
+            }
+
+            val folderDoc = try {
+                DocumentFile.fromTreeUri(context, folderUri)
+            } catch (e: SecurityException) {
+                Log.e(TAG, "SecurityException opening folder $folderUri", e)
+                null
+            }
+
+            if (folderDoc == null || !folderDoc.exists()) return@withContext null
+            folderDoc.name ?: "Unknown"
         }
-        return localImageSource.discoverImages(folderUri)
-    }
+
+    override fun discoverImages(folderUri: Uri): Flow<List<ImageItem>> =
+        localImageSource.discoverImages(folderUri)
 
     /**
      * The last emission is the complete folder by contract, so collecting to it
@@ -64,15 +84,6 @@ class ImageRepositoryImpl @Inject constructor(
         withContext(Dispatchers.IO) { discoverImages(folderUri).lastOrNull().orEmpty() }
 
     override suspend fun getExifData(context: Context, uri: Uri): ExifData? {
-        // For Drive URIs, download to cache first then read EXIF from local file
-        if (GoogleDriveImageSource.isDriveUri(uri)) {
-            val fileId = GoogleDriveImageSource.extractId(uri) ?: return null
-            val cached = driveImageSource.ensureCached(fileId, fileId)
-                ?: return null
-            val localUri = Uri.fromFile(cached)
-            return androidExifReader.readExif(context, localUri)
-        }
-
         // Try the primary ExifInterface reader first
         val exifData = androidExifReader.readExif(context, uri)
         if (exifData != null) return exifData
@@ -81,27 +92,19 @@ class ImageRepositoryImpl @Inject constructor(
         return mediaStoreReader.readExif(context, uri)
     }
 
-    override fun canTrash(uri: Uri): Boolean =
-        GoogleDriveImageSource.isDriveUri(uri)
-
     /**
-     * Untrash a Drive file. SAF deletes are unlinks with no trash behind them,
-     * so for a local URI this returns false and the UI offers no UNDO — which is
-     * the honest answer, and better than an UNDO that silently does nothing.
+     * SAF deletes are unlinks with no trash behind them, so this is always false
+     * and the UI offers no UNDO — the honest answer, and better than an UNDO
+     * that silently does nothing. Kept as a question the repository answers
+     * rather than a constant the UI assumes, because it is a property of the
+     * backend and the selector must not start guessing at those again.
      */
-    override suspend fun restoreFromTrash(context: Context, uri: Uri): Boolean =
-        withContext(Dispatchers.IO) {
-            if (!GoogleDriveImageSource.isDriveUri(uri)) return@withContext false
-            val fileId = GoogleDriveImageSource.extractId(uri) ?: return@withContext false
-            driveClient.untrashFile(fileId)
-        }
+    override fun canTrash(uri: Uri): Boolean = false
+
+    override suspend fun restoreFromTrash(context: Context, uri: Uri): Boolean = false
 
     override suspend fun deleteImage(context: Context, uri: Uri): Boolean =
         withContext(Dispatchers.IO) {
-            if (GoogleDriveImageSource.isDriveUri(uri)) {
-                val fileId = GoogleDriveImageSource.extractId(uri) ?: return@withContext false
-                return@withContext driveClient.trashFile(fileId)
-            }
             try {
                 val docFile = DocumentFile.fromSingleUri(context, uri)
                 docFile?.delete() ?: false
@@ -118,10 +121,6 @@ class ImageRepositoryImpl @Inject constructor(
         sorting: Boolean
     ): FileOperationResult = withContext(Dispatchers.IO) {
         val source = sourceUri.toString()
-        // Drive → Drive move
-        if (GoogleDriveImageSource.isDriveUri(sourceUri) && GoogleDriveImageSource.isDriveUri(destFolderUri)) {
-            return@withContext driveMoveCopy(sourceUri, destFolderUri, sorting, move = true)
-        }
         try {
             val destination = copyImageInternal(context, sourceUri, destFolderUri, sorting)
                 ?: return@withContext FileOperationResult.failure(source, "Copy step failed")
@@ -151,10 +150,6 @@ class ImageRepositoryImpl @Inject constructor(
         sorting: Boolean
     ): FileOperationResult = withContext(Dispatchers.IO) {
         val source = sourceUri.toString()
-        // Drive → Drive copy
-        if (GoogleDriveImageSource.isDriveUri(sourceUri) && GoogleDriveImageSource.isDriveUri(destFolderUri)) {
-            return@withContext driveMoveCopy(sourceUri, destFolderUri, sorting, move = false)
-        }
         try {
             val destination = copyImageInternal(context, sourceUri, destFolderUri, sorting)
             if (destination != null) {
@@ -171,9 +166,9 @@ class ImageRepositoryImpl @Inject constructor(
     /**
      * Take a filed photograph back out of the Selection.
      *
-     * Implemented as an unsorted move in the opposite direction, so it works for
-     * both backends without a second code path. See [ImageRepository.undoMove]
-     * for the parent-folder limitation.
+     * Implemented as an unsorted move in the opposite direction rather than as a
+     * second code path that could disagree with the first. See
+     * [ImageRepository.undoMove] for the parent-folder limitation.
      */
     override suspend fun undoMove(
         context: Context,
@@ -185,96 +180,6 @@ class ImageRepositoryImpl @Inject constructor(
         destFolderUri = restoreFolderUri,
         sorting = false,
     )
-
-    /**
-     * Handle move/copy between Google Drive locations.
-     * Creates Selection/RAW/JPEG subfolders on Drive when sorting is enabled.
-     *
-     * A move costs one extra round trip — [GoogleDriveClient.parentsOf] — and
-     * **fails outright if that read fails**. There is deliberately no fallback:
-     * guessing the old parent is what produced a move that silently left the
-     * file in place, and a reported failure the optimistic list can roll back is
-     * strictly better than a success the file system did not honour.
-     */
-    private suspend fun driveMoveCopy(
-        sourceUri: Uri,
-        destFolderUri: Uri,
-        sorting: Boolean,
-        move: Boolean,
-    ): FileOperationResult {
-        val source = sourceUri.toString()
-        val fileId = GoogleDriveImageSource.extractId(sourceUri)
-            ?: return FileOperationResult.failure(source, "Not a Drive file")
-        val destFolderId = GoogleDriveImageSource.extractId(destFolderUri)
-            ?: return FileOperationResult.failure(source, "Not a Drive folder")
-
-        // Determine target folder (with optional sorting subfolders)
-        val targetFolderId = if (sorting) {
-            val selectionId = driveClient.findOrCreateFolder(destFolderId, SELECTION_FOLDER_NAME)
-                ?: return FileOperationResult.failure(source, "Cannot create Selection on Drive")
-            // We need the filename to determine the subfolder
-            // For simplicity, copy/move directly into Selection (subfolder sorting
-            // would need a filename lookup — skip for Drive for now)
-            selectionId
-        } else {
-            destFolderId
-        }
-
-        return if (move) {
-            // Drive move = update parents; the file keeps its id, so the
-            // destination URI is the source URI at a new location.
-            //
-            // The parents to remove are the file's *real* current ones, read
-            // back from Drive. Passing the destination folder here — which this
-            // did until 2026-08-08 — makes Drive remove a parent the file does
-            // not have, so the file gains the Selection folder while staying in
-            // the source folder: a move that is really a link. Since the
-            // selector removes the frame from the list optimistically, that
-            // reports success, empties the frame and leaves the file where it
-            // was.
-            val currentParents = driveClient.parentsOf(fileId)
-                ?: return FileOperationResult.failure(
-                    source,
-                    "Could not read the file's folder on Drive",
-                )
-
-            when {
-                // Already exactly where it is being moved to. Drive rejects a
-                // PATCH that adds and removes the same parent, and there is
-                // nothing to do.
-                currentParents == listOf(targetFolderId) ->
-                    return FileOperationResult.success(source, source)
-
-                // An orphan or a shared-with-me file: nothing to remove, and
-                // adding the destination still leaves it in exactly one folder,
-                // so the move is honest.
-                currentParents.isEmpty() ->
-                    Log.i(TAG, "Drive file $fileId has no parent; move adds one")
-
-                // Legacy multi-parenting. Every current parent is removed, not
-                // just the first: a file left in any of them would still be in
-                // the photographer's folder after a "move".
-                currentParents.size > 1 ->
-                    Log.i(TAG, "Drive file $fileId has ${currentParents.size} parents; removing all")
-            }
-
-            if (driveClient.moveFile(fileId, currentParents, targetFolderId)) {
-                FileOperationResult.success(source, source)
-            } else {
-                FileOperationResult.failure(source, "Drive move failed")
-            }
-        } else {
-            val copiedId = driveClient.copyFile(fileId, targetFolderId)
-            if (copiedId != null) {
-                FileOperationResult.success(
-                    source,
-                    GoogleDriveImageSource.buildUri(copiedId).toString(),
-                )
-            } else {
-                FileOperationResult.failure(source, "Drive copy failed")
-            }
-        }
-    }
 
     /** Copy the file and return the destination URI, or null if it did not land. */
     private fun copyImageInternal(
@@ -368,51 +273,13 @@ class ImageRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun getImageDimensions(context: Context, uri: Uri): Pair<Int, Int> {
-        if (GoogleDriveImageSource.isDriveUri(uri)) {
-            val fileId = GoogleDriveImageSource.extractId(uri) ?: return Pair(0, 0)
-            val cached = driveImageSource.ensureCached(fileId, fileId) ?: return Pair(0, 0)
-            return localImageSource.getImageDimensions(Uri.fromFile(cached))
-        }
-        return localImageSource.getImageDimensions(uri)
-    }
+    override suspend fun getImageDimensions(context: Context, uri: Uri): Pair<Int, Int> =
+        localImageSource.getImageDimensions(uri)
 
-    /**
-     * Resolve a batch of dimensions, routing each URI to its backend.
-     *
-     * Local URIs go to the source in one call so its memoisation does the work;
-     * Drive URIs must be downloaded to the cache first, so they are resolved one
-     * at a time and a failed download simply yields
-     * [ImageDimensions.UNKNOWN] rather than aborting the batch — a frame with no
-     * known ratio still draws at the 3:2 default.
-     */
     override suspend fun resolveDimensions(
         context: Context,
         uris: Collection<String>,
     ): Map<String, ImageDimensions> = withContext(Dispatchers.IO) {
-        val (driveUris, localUris) = uris.partition { GoogleDriveImageSource.isDriveUri(it) }
-
-        val resolved = LinkedHashMap<String, ImageDimensions>(uris.size)
-        if (localUris.isNotEmpty()) {
-            resolved.putAll(localImageSource.resolveDimensions(localUris))
-        }
-        for (driveUri in driveUris) {
-            ensureActive()
-            resolved[driveUri] = resolveDriveDimensions(driveUri)
-        }
-        resolved
-    }
-
-    private suspend fun resolveDriveDimensions(uriString: String): ImageDimensions {
-        val fileId = GoogleDriveImageSource.extractId(Uri.parse(uriString))
-            ?: return ImageDimensions.UNKNOWN
-        val cached = try {
-            driveImageSource.ensureCached(fileId, fileId)
-        } catch (e: Exception) {
-            Log.w(TAG, "Cannot cache Drive file $fileId for dimensions", e)
-            null
-        } ?: return ImageDimensions.UNKNOWN
-        val (width, height) = localImageSource.getImageDimensions(Uri.fromFile(cached))
-        return ImageDimensions.of(width, height)
+        localImageSource.resolveDimensions(uris)
     }
 }
