@@ -23,7 +23,7 @@ PhotoTok includes:
     - **PhotoTok:**
       - Pinch-to-zoom (two fingers) and double-tap zoom (to 2.5x) are supported.
       - When zoomed in (`scale > 1.05f`), dragging with a single finger pans/moves the image frame, constrained within image boundaries so it does not go off-screen.
-      - While zoomed, normal swipe gestures (vertical paging scroll and horizontal keep/discard swipes) are disabled to prevent conflicts.
+      - While zoomed, normal swipe gestures (vertical paging scroll and horizontal keep/discard swipes) and navigation peeks are disabled to prevent conflicts and visual edge artifacts.
       - Resetting zoom (double-tapping again, or pinch-releasing below the `1.05f` threshold) smoothly animates the scale and offset back to fit-screen size and re-enables swiping mode.
 *   **Selection/Deletion:** Long-press for context menu. Swipe gestures configurable. On the PhotoTok, swiping left defaults to a non-blocking temporary deletion where the image is immediately hidden from the viewer and a "Revert Deletion" button is shown. Navigating away from the current image or leaving the viewer finalizes the deletion and deletes the file via SAF. Before putting the image into the temporary deletion state, the **Direct Delete Confirmation** dialog is shown. It does not have a checkbox in the dialog, but hints that it can be disabled in settings. In settings, this **Direct Delete Confirmation** option is offered with a warning indication.
     - The revert option is preserved immediately after confirmation.
