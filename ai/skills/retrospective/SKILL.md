@@ -98,6 +98,14 @@ No scratch files, report dumps, or PR-description drafts staged for commit. Benc
 in `products/desktop/benchmarks/`, never in the repository root. The `guard-paths` hook blocks
 most of these at write time, but check `git status` before you finish.
 
+## 10. Agent Report — mandatory task completion report
+
+Every completed task summary MUST include an explicit **Agent Report** table detailing all agents involved in the task (e.g., `@phototok-ui-agent`, `@shared-mentor-agent`, `@android-shared-build-agent`), their assigned scopes, and the specific duties performed during the task:
+
+| Agent | Scope / Role | Duties Performed |
+|---|---|---|
+| `@<agent-name>` | `<file path or domain scope>` | Description of changes made or checks executed |
+
 ## Checklist
 
 ```
@@ -110,4 +118,5 @@ most of these at write time, but check `git status` before you finish.
 [ ] 7. Framework drift fixed at source and validated
 [ ] 8. Playbook created or improved (or: task type will not recur)
 [ ] 9. git status clean of scratch artifacts
+[ ] 10. Agent Report table included in the final task summary detailing all participating agents
 ```
