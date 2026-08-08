@@ -1,22 +1,45 @@
 package com.photoselectortoolbox.data.source
 
 import android.content.Context
+import android.database.Cursor
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.provider.DocumentsContract
 import android.util.Log
-import androidx.documentfile.provider.DocumentFile
+import com.photoselectortoolbox.data.model.ImageDimensions
 import com.photoselectortoolbox.data.model.ImageItem
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.withContext
 
 interface LocalImageSource {
+    /**
+     * Walk the tree and emit the folder **progressively**: a small first batch,
+     * then fixed-size batches, then a final complete snapshot. Every emission is
+     * the cumulative list, and emissions are append-only — see
+     * [LocalImageSourceImpl.discoverImages] for why.
+     */
     fun discoverImages(folderUri: Uri): Flow<List<ImageItem>>
+
+    /** Header-only dimensions for one image. [ImageDimensions.UNKNOWN] if unreadable. */
     suspend fun getImageDimensions(uri: Uri): Pair<Int, Int>
+
+    /**
+     * Header-only dimensions for a set of images, keyed by URI string.
+     *
+     * This is the *only* place dimensions are read now: enumeration no longer
+     * touches image content. Drive it for the visible range first and backfill
+     * the rest in the background — each URI is read at most once per process,
+     * repeated calls are served from memory.
+     */
+    suspend fun resolveDimensions(uris: Collection<String>): Map<String, ImageDimensions>
 }
 
 @Singleton
@@ -34,79 +57,274 @@ class LocalImageSourceImpl @Inject constructor(
         )
 
         private val EXCLUDED_FOLDER_NAMES = setOf("selection", "selected")
+
+        /**
+         * How many images to gather before the very first emission.
+         *
+         * Small on purpose: it is the number of frames the selector needs before
+         * a photographer can start culling — the current frame, its two
+         * neighbours, and enough filmstrip either side to scrub — while the rest
+         * of the tree keeps streaming in behind them. Anything larger simply
+         * makes the first photograph appear later. It must stay comfortably
+         * above the UI's neighbour-prefetch radius so paging is never starved.
+         */
+        internal const val FIRST_BATCH_SIZE = 24
+
+        /**
+         * How many further images to gather between subsequent emissions.
+         *
+         * Larger than the first batch because each emission costs a full list
+         * copy plus a recomposition of the filmstrip, and by this point the user
+         * is already looking at a photograph rather than at a spinner.
+         */
+        internal const val BATCH_SIZE = 250
+
+        /**
+         * One query per directory returning everything an [ImageItem] needs.
+         *
+         * `DocumentFile.listFiles()` plus `name`/`length()`/`lastModified()`/
+         * `type` costs a separate `ContentResolver` query *per attribute per
+         * file* — roughly five binder round-trips per photograph, which is what
+         * made opening a large folder take tens of seconds (see the 2026-07-31
+         * entry in `ai/memory/bolt.md`).
+         */
+        private val CHILD_PROJECTION = arrayOf(
+            DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+            DocumentsContract.Document.COLUMN_MIME_TYPE,
+            DocumentsContract.Document.COLUMN_SIZE,
+            DocumentsContract.Document.COLUMN_LAST_MODIFIED,
+        )
+
+        /**
+         * Upper bound on the in-memory dimension cache.
+         *
+         * Each entry is two ints and a string key, so this is tens of kilobytes
+         * for a very large folder — cheap next to re-opening an input stream and
+         * decoding a header for a frame the user scrubs past repeatedly.
+         */
+        private const val DIMENSION_CACHE_LIMIT = 20_000
     }
 
+    /**
+     * URI → dimensions, including negative results.
+     *
+     * Caching failures matters as much as caching successes: a file whose header
+     * cannot be parsed must not be re-opened every time the filmstrip scrolls
+     * past it. Access-ordered with a hard cap so a session over several huge
+     * folders cannot grow without bound.
+     */
+    private val dimensionCache = object : LinkedHashMap<String, ImageDimensions>(256, 0.75f, true) {
+        override fun removeEldestEntry(
+            eldest: MutableMap.MutableEntry<String, ImageDimensions>?
+        ): Boolean = size > DIMENSION_CACHE_LIMIT
+    }
+
+    /**
+     * Walk [folderUri] and emit the discovered images progressively.
+     *
+     * The first emission lands after [FIRST_BATCH_SIZE] photographs are known,
+     * then one per [BATCH_SIZE], then a final complete snapshot (which is also
+     * the only emission for a folder smaller than the first batch). Opening a
+     * folder of several thousand photographs therefore shows the first frame
+     * almost immediately instead of after the whole tree has been read.
+     *
+     * **Sorting is per batch, then appended.** The previous implementation
+     * sorted the single terminal emission by filename; a progressive feed cannot
+     * do that, because re-sorting a list the user is already looking at moves
+     * photographs out from under them mid-cull. Each batch is sorted internally
+     * and appended to what is already published, so nothing that has been seen
+     * ever changes position. Consumers must merge append-only for the same
+     * reason.
+     */
     override fun discoverImages(folderUri: Uri): Flow<List<ImageItem>> = flow {
-        val folder = DocumentFile.fromTreeUri(context, folderUri)
-        if (folder == null || !folder.isDirectory) {
+        val rootDocumentId = treeDocumentIdOf(folderUri)
+        if (rootDocumentId == null) {
             Log.w(TAG, "Invalid folder URI: $folderUri")
             emit(emptyList())
             return@flow
         }
 
-        val images = mutableListOf<ImageItem>()
-        enumerateImages(folder, images)
+        val published = mutableListOf<ImageItem>()
+        val pending = mutableListOf<ImageItem>()
+        var nextBatchSize = FIRST_BATCH_SIZE
 
-        val sorted = images.sortedBy { it.fileName.lowercase() }
-        emit(sorted)
+        walkImages(folderUri, rootDocumentId) { image ->
+            pending.add(image)
+            if (pending.size >= nextBatchSize) {
+                published.addAll(pending.sortedBy { it.fileName.lowercase() })
+                pending.clear()
+                nextBatchSize = BATCH_SIZE
+                emit(published.toList())
+            }
+        }
+
+        if (pending.isNotEmpty()) {
+            published.addAll(pending.sortedBy { it.fileName.lowercase() })
+        }
+        // Final snapshot — always emitted, so a consumer that only reads the
+        // last value (statistics, duplicates) still sees the complete folder.
+        emit(published.toList())
     }.flowOn(Dispatchers.IO)
 
-    override suspend fun getImageDimensions(uri: Uri): Pair<Int, Int> {
-        return readImageDimensions(uri)
+    override suspend fun getImageDimensions(uri: Uri): Pair<Int, Int> =
+        withContext(Dispatchers.IO) {
+            val dimensions = cachedOrRead(uri.toString())
+            Pair(dimensions.width, dimensions.height)
+        }
+
+    override suspend fun resolveDimensions(
+        uris: Collection<String>
+    ): Map<String, ImageDimensions> = withContext(Dispatchers.IO) {
+        val resolved = LinkedHashMap<String, ImageDimensions>(uris.size)
+        for (uri in uris) {
+            coroutineContext.ensureActive()
+            resolved[uri] = cachedOrRead(uri)
+        }
+        resolved
+    }
+
+    // ── Internals ─────────────────────────────────────────────────────────
+
+    /** Memoised header read. Each URI is opened at most once per process. */
+    private fun cachedOrRead(uri: String): ImageDimensions {
+        synchronized(dimensionCache) { dimensionCache[uri] }?.let { return it }
+        val dimensions = readImageDimensions(Uri.parse(uri))
+        synchronized(dimensionCache) { dimensionCache[uri] = dimensions }
+        return dimensions
     }
 
     /**
-     * Read width and height from image header only (no pixel decode).
-     * Returns (0, 0) if the dimensions cannot be determined.
+     * Read width and height from the image header only (no pixel decode).
+     * Returns [ImageDimensions.UNKNOWN] if they cannot be determined.
      */
-    private fun readImageDimensions(uri: Uri): Pair<Int, Int> {
+    private fun readImageDimensions(uri: Uri): ImageDimensions {
         return try {
             val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             context.contentResolver.openInputStream(uri)?.use { stream ->
                 BitmapFactory.decodeStream(stream, null, opts)
             }
-            val w = opts.outWidth.coerceAtLeast(0)
-            val h = opts.outHeight.coerceAtLeast(0)
-            Pair(w, h)
+            ImageDimensions.of(opts.outWidth, opts.outHeight)
         } catch (e: Exception) {
             Log.d(TAG, "Cannot read dimensions for $uri: ${e.message}")
-            Pair(0, 0)
+            ImageDimensions.UNKNOWN
         }
     }
 
-    private fun enumerateImages(folder: DocumentFile, results: MutableList<ImageItem>) {
-        val files = folder.listFiles()
+    /** The tree document id of a `content://…/tree/<id>` URI, or null. */
+    private fun treeDocumentIdOf(treeUri: Uri): String? = try {
+        DocumentsContract.getTreeDocumentId(treeUri)
+    } catch (e: Exception) {
+        Log.w(TAG, "Not a tree URI: $treeUri", e)
+        null
+    }
 
-        for (file in files) {
-            if (file.isDirectory) {
-                val folderName = file.name?.lowercase() ?: continue
-                if (folderName in EXCLUDED_FOLDER_NAMES) {
-                    Log.d(TAG, "Skipping excluded folder: ${file.name}")
-                    continue
+    /**
+     * Breadth-first walk of [treeUri] from [startDocumentId], invoking [onImage]
+     * for every supported image found. Sub-folders named in
+     * [EXCLUDED_FOLDER_NAMES] are skipped case-insensitively, as are hidden
+     * files.
+     *
+     * Iterative rather than recursive: a deeply nested export tree must not risk
+     * the stack. Cursor-based rather than `DocumentFile`-based: that is what
+     * makes it fast enough to stream. [onImage] suspends so the caller can emit
+     * mid-walk, and the loop is guarded by `ensureActive()` so closing the
+     * folder stops the walk at the next document rather than at the next
+     * directory. A directory that cannot be listed is logged and skipped — one
+     * unreadable sub-folder must never abort a folder open.
+     */
+    private suspend fun walkImages(
+        treeUri: Uri,
+        startDocumentId: String,
+        onImage: suspend (ImageItem) -> Unit,
+    ) {
+        val queue = ArrayDeque<String>()
+        val seenDirectories = mutableSetOf(startDocumentId)
+        queue.addLast(startDocumentId)
+
+        while (queue.isNotEmpty()) {
+            coroutineContext.ensureActive()
+            val parentId = queue.removeFirst()
+            val cursor = queryChildren(treeUri, parentId) ?: continue
+
+            cursor.use { c ->
+                val idIndex = c.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
+                val nameIndex = c.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+                val mimeIndex = c.getColumnIndex(DocumentsContract.Document.COLUMN_MIME_TYPE)
+                val sizeIndex = c.getColumnIndex(DocumentsContract.Document.COLUMN_SIZE)
+                val modifiedIndex =
+                    c.getColumnIndex(DocumentsContract.Document.COLUMN_LAST_MODIFIED)
+                if (idIndex < 0 || nameIndex < 0 || mimeIndex < 0) {
+                    Log.w(TAG, "Document provider omitted required columns for $parentId")
+                    return@use
                 }
-                enumerateImages(file, results)
-                continue
+
+                while (c.moveToNext()) {
+                    coroutineContext.ensureActive()
+                    val documentId = c.getStringOrNull(idIndex) ?: continue
+                    val name = c.getStringOrNull(nameIndex) ?: continue
+                    val mimeType = c.getStringOrNull(mimeIndex)
+
+                    if (mimeType == DocumentsContract.Document.MIME_TYPE_DIR) {
+                        if (name.lowercase() in EXCLUDED_FOLDER_NAMES) {
+                            Log.d(TAG, "Skipping excluded folder: $name")
+                            continue
+                        }
+                        if (seenDirectories.add(documentId)) queue.addLast(documentId)
+                        continue
+                    }
+
+                    if (name.startsWith(".")) continue
+                    if (name.substringAfterLast('.', "").lowercase() !in SUPPORTED_EXTENSIONS) {
+                        continue
+                    }
+
+                    onImage(
+                        ImageItem(
+                            uri = DocumentsContract
+                                .buildDocumentUriUsingTree(treeUri, documentId)
+                                .toString(),
+                            fileName = name,
+                            fileSize = if (sizeIndex >= 0) c.getLongOrZero(sizeIndex) else 0L,
+                            lastModified = if (modifiedIndex >= 0) {
+                                c.getLongOrZero(modifiedIndex)
+                            } else {
+                                0L
+                            },
+                            mimeType = mimeType,
+                            // Deliberately unresolved: reading a header here is
+                            // an extra stream open per photograph, which is the
+                            // difference between a folder opening in a second
+                            // and in a minute. See resolveDimensions().
+                            imageWidth = 0,
+                            imageHeight = 0,
+                        )
+                    )
+                }
             }
-
-            if (!file.isFile) continue
-
-            val fileName = file.name ?: continue
-            if (fileName.startsWith(".")) continue
-            val extension = fileName.substringAfterLast('.', "").lowercase()
-
-            if (extension !in SUPPORTED_EXTENSIONS) continue
-
-            val (width, height) = readImageDimensions(file.uri)
-            val imageItem = ImageItem(
-                uri = file.uri.toString(),
-                fileName = fileName,
-                fileSize = file.length(),
-                lastModified = file.lastModified(),
-                mimeType = file.type,
-                imageWidth = width,
-                imageHeight = height,
-            )
-            results.add(imageItem)
         }
     }
+
+    /** Children of [parentDocumentId] with everything needed for an [ImageItem]. */
+    private fun queryChildren(treeUri: Uri, parentDocumentId: String): Cursor? {
+        val childrenUri = try {
+            DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, parentDocumentId)
+        } catch (e: Exception) {
+            Log.w(TAG, "Cannot build children URI for $parentDocumentId", e)
+            return null
+        }
+        return try {
+            context.contentResolver.query(childrenUri, CHILD_PROJECTION, null, null, null)
+        } catch (e: Exception) {
+            // A single unreadable directory must not abort the whole walk.
+            Log.w(TAG, "Cannot list children of $parentDocumentId", e)
+            null
+        }
+    }
+
+    private fun Cursor.getStringOrNull(index: Int): String? =
+        if (isNull(index)) null else getString(index)
+
+    private fun Cursor.getLongOrZero(index: Int): Long =
+        if (isNull(index)) 0L else getLong(index)
 }

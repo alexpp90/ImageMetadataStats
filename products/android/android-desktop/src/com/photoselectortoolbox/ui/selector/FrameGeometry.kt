@@ -29,6 +29,23 @@ import androidx.compose.ui.unit.dp
  * the controls flank the current frame instead of stacking above and below it,
  * why the sidebar can afford words, and why there is no app bar.
  *
+ * ## Which axis binds depends on the photograph
+ *
+ * "Height is scarce" is true of the *window*, not of every frame in it. Measured
+ * on the reference device at 1480 × 924 dp, with no filmstrip in the vertical
+ * stack:
+ *
+ * ```
+ * 4:3   600 × 450   height binds   (2 × 450 + 8 = 908, the whole region)
+ * 3:2   675 × 450   height binds   (two abreast need 1358 of 1376 — 18 dp spare)
+ * 16:9  684 × 385   WIDTH binds    (two abreast want 1464, only 1376 exists)
+ * ```
+ *
+ * Past 3:2 the bottom row runs out of width before the column runs out of
+ * height, and a 16:9 frame caps at 385 dp however much height is freed. That is
+ * the ceiling of the display, not a leak, and it is why the height floor below
+ * is asserted for 3:2 rather than for whatever happens to be on screen.
+ *
  * ## Why this is a solver and not an `aspectRatio` modifier
  *
  * `Modifier.fillMaxHeight().aspectRatio(4f / 3f)` inside a weighted `Row`
@@ -52,6 +69,37 @@ object FrameGeometry {
 
     /** Minimum width required for flank blocks (readout and control block). */
     val MinimumFlankWidth: Dp = 260.dp
+
+    /**
+     * Width of the filmstrip, which is a **vertical** strip down the outer edge
+     * of the control flank rather than a bar across the bottom (DESIGN §7.8).
+     *
+     * The number is a measurement, not a taste. On the reference device a 3:2
+     * frame is height-bound at 675 × 450, which leaves each flank 342.5 dp
+     * where the control block needs [MinimumFlankWidth] — 82.5 dp of slack. A
+     * strip of 72 dp plus the 8 dp [Gap] is 80 dp of that, so the frames do not
+     * move at all when the strip is toggled; a unit test asserts exactly that.
+     * Anything above 74.5 dp would start taking height off all three frames,
+     * because the flank would then push the top row's fit below what the
+     * bottom row can carry.
+     */
+    val FilmstripWidth: Dp = 72.dp
+
+    /**
+     * The narrowest the control block may be squeezed: its row of four 48 dp
+     * view toggles and the 6 dp gaps between them, plus the block's padding.
+     */
+    val MinimumControlBlockWidth: Dp = 212.dp
+
+    /**
+     * Minimum flank width when the readouts are off but the filmstrip is on.
+     *
+     * The strip shares the control flank, so with the readouts hidden the flank
+     * still has to hold both — otherwise the toggle silently does nothing, or
+     * the strip arrives on top of the view toggles. It is width, so on the
+     * reference device it is still free; see the class comment.
+     */
+    val MinimumFilmstripFlankWidth: Dp = MinimumControlBlockWidth + Gap + FilmstripWidth
 
     /** Width of a neighbour's value overlay. */
     val OverlayWidth: Dp = 148.dp
@@ -103,6 +151,87 @@ object FrameGeometry {
     }
 
     /**
+     * The whole three-up arrangement for one region: one frame size, one flank
+     * width, one answer about where the neighbour values go.
+     *
+     * Extracted because there are now two composables that have to agree about
+     * it exactly — the layout itself and the coach-mark overlay, which reserves
+     * the real geometry so its callouts land in the slack and never over a
+     * frame. Two copies of this arithmetic is an overlay that drifts one dp at a
+     * time until it is covering the photographs it was drawn to point at.
+     */
+    fun threeUpLayout(
+        regionWidth: Dp,
+        regionHeight: Dp,
+        aspect: Float = DefaultLandscapeAspect,
+        detailsVisible: Boolean = true,
+        filmstripVisible: Boolean = false,
+    ): ThreeUpLayout {
+        val needsFlank = detailsVisible || filmstripVisible
+        val stripSpace = if (filmstripVisible) FilmstripWidth + Gap else 0.dp
+        val requestedFlank = when {
+            detailsVisible -> MinimumFlankWidth + stripSpace
+            filmstripVisible -> MinimumFilmstripFlankWidth
+            else -> 0.dp
+        }
+
+        // A flank may never claim more than a quarter of the region, so the two
+        // together never claim more than half. Without the cap a window narrow
+        // enough that the minima do not fit — tablet portrait at 700 dp, which
+        // is still Medium and still gets this layout — resolves to a frame of a
+        // few dp, or of none at all, rather than to small frames. Chrome that
+        // squeezes the photographs out of existence is the failure this whole
+        // file exists to prevent.
+        val maxFlank = ((regionWidth - Gap * 2) / 4).coerceAtLeast(0.dp)
+        val minFlank = minOf(requestedFlank, maxFlank)
+
+        // The top row must fit the current frame *between* two flanks; the
+        // bottom row must fit two frames abreast. The binding one wins — which
+        // one that is depends on the window, and assuming either is how this
+        // screen broke before.
+        val topRowFit = frameSize(
+            regionWidth = regionWidth - minFlank * 2 - Gap * 2,
+            regionHeight = regionHeight,
+            aspect = aspect,
+            columns = 1,
+            rows = 2,
+        )
+        val bottomRowFit = frameSize(
+            regionWidth = regionWidth,
+            regionHeight = regionHeight,
+            aspect = aspect,
+            columns = 2,
+            rows = 2,
+        )
+        val frame = if (bottomRowFit.width < topRowFit.width) bottomRowFit else topRowFit
+
+        val flankWidth = if (needsFlank) {
+            ((regionWidth - frame.width - Gap * 2) / 2).coerceAtLeast(minFlank)
+        } else {
+            0.dp
+        }
+
+        // The strip is drawn down the outer edge of the control flank, so what
+        // it gets is what the flank has left once the controls have their
+        // minimum. On any window this product targets that is the full 72 dp;
+        // squeezed below it the strip narrows rather than pushing the controls
+        // out of the flank or on top of the photographs.
+        val filmstripWidth = if (filmstripVisible) {
+            FilmstripWidth.coerceAtMost((flankWidth - MinimumControlBlockWidth - Gap))
+                .coerceAtLeast(0.dp)
+        } else {
+            0.dp
+        }
+
+        return ThreeUpLayout(
+            frame = frame,
+            flankWidth = flankWidth,
+            filmstripWidth = filmstripWidth,
+            overlayOutside = overlayFitsOutside(regionWidth, frame.width),
+        )
+    }
+
+    /**
      * The size of a frame filling the whole region, for the maximised state.
      *
      * On the reference tablet this is 1211 × 908 dp against 600 × 450 in
@@ -128,13 +257,78 @@ object FrameGeometry {
     }
 
     /**
+     * The image region a window of this size must hand to the solver.
+     *
+     * This is the whole permitted chrome budget, written once:
+     *
+     * ```
+     * width  = window − sidebar 88 − outer padding 8 × 2
+     * height = window            − outer padding 8 × 2
+     * ```
+     *
+     * Nothing else may appear in the vertical stack — no app bar, no bottom
+     * action row, no horizontal filmstrip (REQUIREMENTS §2). An instrumented
+     * test measures the window, calls this, calls [threeUpLayout], and asserts
+     * the frames that were actually drawn are the ones that answer implies. Any
+     * new chrome above or below the frames therefore fails the build instead of
+     * being noticed, two revisions later, as "the images look small".
+     *
+     * Measured against the reference device on 2026-08-08, with the strip both
+     * off and on: window 1480 × 924, region 1392 × 924, frames 675 × 450 at
+     * 3:2. The system bars are drawn *through* under `enableEdgeToEdge()` and
+     * consume none of it, which is why they do not appear in this arithmetic —
+     * the screen pads for the horizontal insets only, and that is a priced
+     * decision recorded in [SelectorScreen].
+     */
+    fun imageRegion(windowWidth: Dp, windowHeight: Dp, sidebarWidth: Dp): DpSize = DpSize(
+        (windowWidth - sidebarWidth - OuterPadding * 2).coerceAtLeast(0.dp),
+        (windowHeight - OuterPadding * 2).coerceAtLeast(0.dp),
+    )
+
+    /**
+     * The window height at or above which the reference floor is meaningful.
+     *
+     * A 1280 × 800 dp CI emulator is simply a smaller window than this product
+     * targets; asserting the reference floor there would report a defect that is
+     * really "this display is smaller than a Tab S11 Ultra".
+     */
+    val ReferenceWindowHeight: Dp = 900.dp
+
+    /**
      * The minimum frame height the reference device must produce.
      *
-     * Asserted by a UI test. A layout change that quietly reintroduces a top
-     * bar, a bottom action row or a full-width filmstrip will drop below this,
-     * and the point is that it fails the build rather than waiting to be noticed
-     * by eye — the previous two revisions of this screen were both shipped with
-     * frames far smaller than the display allowed.
+     * Asserted by a UI test, on a reference-class window and for a 3:2 frame —
+     * the standard camera ratio, and the one the 450 dp figure in REQUIREMENTS
+     * §2 is quoted for. A layout change that quietly reintroduces a top bar, a
+     * bottom action row or a full-width filmstrip drops below it, and the point
+     * is that it fails the build rather than waiting to be noticed by eye — the
+     * previous two revisions of this screen were both shipped with frames far
+     * smaller than the display allowed.
+     *
+     * It is deliberately *not* asserted for every aspect ratio. A 16:9 frame at
+     * 1480 × 924 is width-bound at 684 × 385 — two abreast need 1376 dp and that
+     * is all there is — so 385 dp is the maximum the display allows, not a
+     * shortfall. Confusing the two is what made this look like a height leak.
      */
     val MinimumReferenceFrameHeight: Dp = 440.dp
 }
+
+/**
+ * One resolved three-up arrangement: the size every frame shares, the width of
+ * each flank, and whether a neighbour's values fit beside its frame.
+ *
+ * Returned as one value rather than computed three times, so the layout and the
+ * coach-mark overlay cannot disagree about any of the three.
+ */
+data class ThreeUpLayout(
+    val frame: DpSize,
+    val flankWidth: Dp,
+    /**
+     * Width of the vertical filmstrip inside the control flank, or zero when it
+     * is switched off. Part of the solved layout rather than a constant read at
+     * the draw site, so the coach-mark overlay reserves the same column the
+     * strip is actually drawn in.
+     */
+    val filmstripWidth: Dp,
+    val overlayOutside: Boolean,
+)

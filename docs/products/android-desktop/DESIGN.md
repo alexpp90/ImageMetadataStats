@@ -222,8 +222,10 @@ inside the source folder. Deletion goes to the Android trash and is undoable via
 
 ### Persistent state the design must reflect
 
-- The chosen comparison layout is remembered across launches. Default is **focused**.
-- Filmstrip visible/hidden is a user toggle, remembered.
+- **Nothing about the arrangement is persisted.** There is one comparison layout, so there is
+  no choice to remember and no toggle to offer (§7, REQUIREMENTS §2). Maximise is transient
+  view state and is deliberately not persisted either.
+- Filmstrip visible/hidden is a user toggle, remembered. It starts **hidden** (§7.8).
 - Photo-details panel visible/hidden is a user toggle, remembered.
 - The first-run navigation hint shows exactly once, then never again.
 
@@ -332,6 +334,12 @@ Zinc-700 rule:
 - **Scan** is the one emphasised item: `TonalIndigo` fill at rest. While a scan runs it
   becomes a counter (`412 / 842`) over a **Cancel** label in `ScoreBad`, with a 2 dp Indigo
   determinate line along the sidebar's right edge. A scan still never takes the screen.
+- **Queued and busy items share that treatment.** Scan and Bursts conflict — each rebuilds
+  what the other reads — so the second request waits rather than clobbering the first. A
+  waiting request shows `Queued` over the same `ScoreBad` **Cancel**; a running grouping
+  pass shows `Grouping` over it. Neither control is ever greyed out: a disabled control and
+  a frozen app look identical from the outside, and this is the mirror case the desktop
+  product got wrong (`ai/memory/palette.md`, 2026-07-24).
 - Folder name and the burst chip move into the head of the **left readout block** (§7.4a);
   `127 / 842` closes the control block on the opposite side (§7.5). Nothing goes above the image region: a 32 dp strip would still be 21 dp off
   the height of every frame.
@@ -374,8 +382,19 @@ top row      [ values 388 ][ CURRENT 600 ][ controls 388 ]   → §7.4a, §7.5
 bottom row   [ 84 ][ PREVIOUS 600 ][ 8 ][ NEXT 600 ][ 84 ]   → §7.4b
 ```
 
+With the filmstrip switched on the control flank splits, and only the flank does — the frames
+and the bottom row are untouched:
+
+```
+top row      [ values 342.5 ][ CURRENT 675 ][ controls 262.5 ][ 8 ][ strip 72 ]   → §7.8
+```
+
+(measured at 3:2, where the flank resolves to 342.5 dp; at 4:3 the flank is 388 and the
+controls keep 308.)
+
 **The current frame is centred in the image region**, with its readouts and its controls
-balanced either side at 388 dp each. Previous and Next are centred as a pair beneath it, so
+balanced either side — 388 dp each at 4:3, 342.5 at 3:2; the flanks are whatever the frame
+leaves, not a fixed number. Previous and Next are centred as a pair beneath it, so
 the three frames share a vertical centre line. Centring is what marks the current frame as
 the one under judgement — together with its 2 dp Indigo border, and *not* by making it
 larger, which would destroy the comparison.
@@ -384,12 +403,49 @@ larger, which would destroy the comparison.
 current shipped focused layout's 524 × 393 (which pays a 44 dp app bar and a 76 dp filmstrip
 out of the height budget): **+31 %.**
 
+#### Measured, 2026-08-08, on the reference device
+
+The arithmetic above is what the screen is supposed to do; this is what it does. Window
+1480 × 924 dp, sidebar 88, outer padding 8 — nothing else in the vertical stack:
+
+| Photograph | Frame | Binding axis |
+|---|---|---|
+| 4:3 | 600 × 450 | height — `2 × 450 + 8 = 908`, the whole region |
+| 3:2 | 675 × 450 | height — two abreast need 1358 of 1376 dp, 18 dp spare |
+| 16:9 | 684 × 385 | **width** — two abreast want 1464 dp; only 1376 exist |
+
+The 3:2 figures are identical with the filmstrip switched off and switched on, which is what
+"the strip is free" means and is asserted rather than asserted-about. Note the 18 dp of spare
+width in that row, though: it is why the strip is a **72 dp column inside the flank** and not
+a full-height column down the outer edge of the region. A strip that spanned both rows would
+take its width off the bottom row too, and at 3:2 the bottom row has 18 dp to give — the
+frames would fall to 646 × 431, below the 440 dp floor. Height is scarce, but at this aspect
+ratio the bottom row's width is nearly as scarce, and only the *flanks* are genuinely surplus.
+
+**Past 3:2 the bottom row runs out of width before the column runs out of height.** A 16:9
+frame caps at 385 dp on this display however much height is freed, and that is the display's
+ceiling, not a leak. This distinction cost a full investigation: a 16:9 test fixture rendering
+at 41 % of the window height was read as "146 dp are being eaten somewhere", and the same
+41 % at 1280 × 800 was read as confirmation, when both windows are ~1.6:1 and a width-bound
+frame is therefore the same fraction of either. **Measure the region before concluding
+anything about the budget** — `image_region` and `selector_sidebar` carry test tags for
+exactly this.
+
+The system bars are 36 dp top and 32 dp bottom and are drawn *through*: the selector pads for
+`safeDrawing` horizontally only. Padding vertically would cost 34 dp on all three frames and
+land the reference frame at 416 dp, below the 440 dp floor. The price is that the transparent
+bars overlay the outer 28 dp of the top frame and 24 dp of the bottom row; maximise and
+fullscreen both hide the bars outright and are one keystroke away.
+
 Two consequences that must not be forgotten during implementation:
 
-- **Height is the only scarce axis.** Anything that consumes height — a top app bar, a
-  horizontal filmstrip, a caption row under a frame, vertical padding — comes straight off
-  every frame at a rate of 2 dp of frame height per 3 dp taken. Nothing may be added to the
-  vertical stack. Anything that consumes *width* up to 160 dp is free.
+- **Height is the only scarce axis, and the flanks are the only surplus.** Anything that
+  consumes height — a top app bar, a horizontal filmstrip, a caption row under a frame,
+  vertical padding — comes straight off every frame at a rate of 2 dp of frame height per
+  3 dp taken. Nothing may be added to the vertical stack. Width is free, but only *in the
+  flanks*: at 4:3 the bottom row has 160 dp of slack, at 3:2 it has 18 dp, and chrome that
+  spans both rows is priced against the smaller of the two. Chrome that lives in a flank is
+  priced against the 82.5 dp each flank has above the control block's 260 dp minimum.
 - **The sidebar is free, and can therefore afford to be legible.** 88 dp of labelled sidebar
   costs zero dp of frame size here, where it would have cost 29 dp per frame in a row. This
   is why §7.1 can spend width on words.
@@ -532,13 +588,16 @@ identity, then exposure, then a rule, then icon + value + bar per metric.
 
 ### 7.5 Controls — right of the current frame
 
-The 388 × 450 dp block right of the centred current frame, mirroring the readouts on the
-left. A 2 × 3 grid of large controls rather than a narrow rail, because 388 dp of surplus
-width is available and a 190 dp button carries its word comfortably:
+The flank right of the centred current frame, mirroring the readouts on the left. Its width
+is whatever the solver leaves — 342.5 dp at 3:2 on the reference device, of which 262.5 goes
+to the controls when the filmstrip shares the flank (§7.8), never below the 212 dp the
+view-toggle row needs. A 2 × 3
+grid of large controls rather than a narrow rail, because that width is surplus and a button
+of ~158 dp (~118 dp with the strip on) carries its word comfortably:
 
 ```
 ┌──────────┬──────────┐
-│ ♡ Keep C │ ➜ Move M │
+│ ⧉ Copy C │ ➜ Move M │
 ├──────────┼──────────┤
 │ 🗑 Delete│ ⛶ Full F │
 │    Del   │          │
@@ -549,17 +608,23 @@ width is available and a 190 dp button carries its word comfortably:
         127 / 842
 ```
 
-- Each cell is ~190 × 80 dp: glyph above, word below, key cap after the word. All three of
-  Keep, Move and Delete are permanently worded — a control that changes a file is never
-  icon-only (§17).
-- Keep is `ScoreGood`-tinted tonal, Move is `TonalIndigo`, Delete is outlined with a
-  `ScoreBad` glyph and word. Delete sits diagonally opposite Keep, not adjacent to it.
+- Each cell is 80 dp tall and as wide as the flank allows: glyph above, word below, key cap
+  after the word. Copy, Move and Delete are permanently worded — a control that changes a
+  file is never icon-only (§17). The two filing verbs come from `SelectionActionLabels`, so
+  they read Copy and Move according to the setting and never *Keep* (§17).
+- The configured filing verb is the emphasised primary — `ScoreGood`-tinted tonal — the other
+  stays visible and outlined, and Delete is outlined with a `ScoreBad` glyph and word. Delete
+  sits diagonally opposite the primary filing button, not adjacent to it.
 - Previous / Next occupy the bottom row, furthest from Delete, and are duplicated by tapping
   a neighbour frame, swiping the image region, and the arrow keys.
 - Beneath the grid, a 48 dp icon row of view controls — readout panel, filmstrip, overlay
   visibility, shortcut sheet. Icon-only is acceptable *only here*, because none of them
   changes a file; each carries a tooltip and a full `contentDescription`.
-- The position counter `127 / 842` closes the block, in tabular mono.
+- The position counter `127 / 842` closes the block, in tabular mono — and reads
+  `127 / 842+` while the folder is still enumerating. Discovery streams, so the total is a
+  running total for the first seconds of a large shoot; the `+` is the whole of the loading
+  indication this screen gets, because the first batch is already usable and a spinner over
+  a usable screen is a lie about what the photographer can do.
 - Key caps are **permanent**, not hover-revealed. A tablet has no hover, and the desktop
   lesson already recorded (2024-05-18, `ai/memory/palette.md`) is that unhinted shortcuts go
   unused.
@@ -593,18 +658,171 @@ Unchanged in behaviour: one centred pill ("Tap either side to browse" · "Got it
 above the bottom of the image region, shown once, `hasSeenNavHint` persisted. It remains the
 only image-adjacent overlay besides the maximise badge.
 
-### 7.8 Filmstrip
+**What "only" restricts, precisely.** It restricts *placement*, not the existence of
+guidance. The rule this screen is built on is that nothing may compete with the photographs
+for space, and the pill is the single exception because it has to point at the tiles it is
+describing. §7.9 and §7.10 add two teaching surfaces that are not exceptions to it at all:
+both are transient, both are dismissed for good on first use, and — the part that matters —
+**both are laid out entirely inside the horizontal slack**, so neither ever occupies a
+frame's bounds. A UI test asserts the non-intersection rather than leaving it to review. The
+distinction is chrome versus teaching: permanent chrome is priced in frame height (§7.2) and
+is therefore rationed; a surface the user asked for, that goes away, and that costs the
+frames nothing, is not.
 
-Same content as before — 56 dp thumbnails, burst underlines, mono range caption,
-`filmstrip_visible` persisted — but **relocated into the foot of the left readout block**
-(§7.4a), where it scrolls horizontally within 388 dp, rather than spanning the bottom of the
-screen. A full-width filmstrip costs 76 dp of height, which is 50 dp off the height of every
-frame; here it costs nothing and the frames never resize when it is toggled.
+### 7.8 Filmstrip — a column, and off by default
+
+**Rotated, not just moved.** The strip is a 72 dp-wide vertical column with a 1 dp left
+border, scrolling top-to-bottom down the outer (right) edge of the control flank (§7.5). The
+sidebar owns the far left; the strip takes the far right.
+
+```
+┌────┬──────────┬──────────────┬──────────┬──┐
+│    │ readouts │   CURRENT    │ controls │▓▓│  ← 72 dp strip, 450 dp tall
+│side│          ├──────┬───────┴──────────┤▓▓│
+│bar │          │ PREV │  NEXT │          │  │
+└────┴──────────┴──────┴───────┴──────────┴──┘
+```
+
+This is measured rather than argued, twice over.
+
+*Why not across the bottom.* A 76 dp full-width strip took the reference frames from
+**675 × 450 to 618 × 412** — 38 dp off every frame, ~16 % of the area of all three at once,
+permanently, for an affordance the compare-and-cull loop does not use (that loop is Prev/Next
+and the two neighbour frames; the strip is random access to the rest of the shoot).
+
+*Why not full height down the region's edge.* Tempting, because it would carry twice the
+thumbnails, and wrong: at 3:2 the bottom row has only 18 dp of spare width, so a column that
+spanned both rows would flip the bottom row to width-bound and land the frames at
+**646 × 431**, below the 440 dp floor. Width is surplus *in the flanks*, not everywhere.
+
+*Why 72 dp.* At 3:2 each flank resolves to 342.5 dp where the control block needs 260 — 82.5
+dp of slack. 72 dp of strip plus the 8 dp gap is 80 of that, so the frames measure 675 × 450
+with the strip both off and on. Past 74.5 dp the flank pushes the top row's fit below what the
+bottom row can carry and all three frames start losing height. A unit test asserts the frames
+do not move when the strip is toggled, which is what prices any future widening.
+
+`FrameGeometry.threeUpLayout` returns the strip's width as part of the solved layout, so the
+coach-mark overlay (§7.9) reserves the same column rather than re-deriving it. Where a window
+is too narrow to hold the strip beside the view toggles the solver returns zero and the strip
+is dropped, rather than drawn over the controls; with the readouts hidden the flank still
+keeps room for both.
+
+**Content**, re-derived for a column:
+
+- 60 dp-wide thumbnails, 40 dp tall landscape / 80 dp portrait. **Width is the constant**,
+  because in a vertical strip width is the cross axis and a ragged cross axis cannot be
+  scanned — the mirror of the horizontal strip's constant 56 dp height.
+- 3 dp radius, 1 dp Zinc-700 outline, .85 opacity; the current thumbnail is 2 dp Indigo-500
+  at full opacity.
+- One 6 dp sharpness dot tinted by goodness, bottom-right. No text: at this size a number is
+  not legible, and the question the strip answers — "is there anything better nearby" — is
+  answered faster by a colour.
+- With Bursts on, thumbnails in the current burst carry the 2 dp Indigo-600 marker down their
+  **leading edge** rather than under them, and each new burst starts after a 10 dp gap. Same
+  rule, same colour, same reading: a bracket around a run.
+- The mono range caption (`115–156 of 842`, 9 sp, wrapping to two lines) sits **below** the
+  list, not over it. At 72 dp an overlaid caption covers a thumbnail outright, and a caption
+  reporting what is visible has no business hiding part of it.
+- Hidden while a frame is maximised — the maximised state draws no flanks, so this needs no
+  second condition.
+
+**`filmstrip_visible` defaults to off.** The screen opens on three photographs and nothing
+else; the strip is one tap away in the view cluster and the choice is then remembered. This is
+not a way of recovering height — where the strip sits it costs no height, and the earlier
+draft of this section rejected default-off for exactly that reason. It is a judgement about
+what the screen should say on the first frame of a shoot: the compare-and-cull loop, and
+nothing competing with it. The default is pinned by a unit test on
+`SettingsRepository.DEFAULT_FILMSTRIP_VISIBLE`, because every instrumented test sets the
+preference before asserting and none of them would notice it drifting.
+
+### 7.9 The coach-mark guide (replaces the shortcut sheet)
+
+`?`, the ⌨ glyph in the view cluster (§7.5) and the overflow menu all open one overlay,
+which is also shown once at first launch. It replaces a scrolling `ModalBottomSheet` of
+`input → effect` rows, and the reason is recorded in `ai/memory/palette.md` (2026-07-31):
+*a list of labels is the weakest possible way to explain a control the user can already
+see*. Every control on this screen that touches a photograph already carries a permanent
+word **and** a permanent mono key cap (§7.5), so that sheet recited what was already legible
+while answering none of the questions a new user actually has — what is the sidebar for,
+which frame am I deciding on, what are the two beneath it, why is there a block of numbers
+beside the picture. Those are spatial questions, so the answer is spatial.
+
+```
+┌────────┬──────────────┬──────────────┬────────────┬──┐
+│ ┃The   │  ┃This       │              │ ┃Acts on   │  │
+│ ┃shoot │  ┃frame's    │   CURRENT    │ ┃the centre│  │
+│        │  ┃values     │  (reserved,  │ ┃frame     │st│
+│        │               │    empty)    │ ┃Keys with │ri│
+│        │  ┃The        │              │ ┃no button │p │
+│ ┃The   │  ┃comparison │              │ ┃The whole │  │
+│ ┃screens│              ├──────┬───────┤ ┃folder    │  │
+│        │               │ PREV │ NEXT  │ [ Got it ] │  │
+└────────┴──────────────┴──────┴───────┴────────────┴──┘
+```
+
+The filmstrip's callout is the last in the control flank and its column is reserved and left
+empty beside it — the strip is 72 dp wide, which is a place to point at, not a place to
+write. Nothing is reserved along the bottom any more: an overlay that still kept a 76 dp
+bottom strip would push every callout up by 76 dp and start labelling the wrong chrome.
+
+- **Dim, do not replace.** Zinc-950 at 72 % over the whole window. The real chrome stays
+  visible beneath, because the point is to label *it*.
+- **Reserve the real geometry.** The sidebar column, both flanks, all three frame footprints
+  and the filmstrip's own column are laid out at the sizes the layout resolved, through the same
+  `FrameGeometry.threeUpLayout` solver the layout itself calls. Two copies of that arithmetic
+  is an overlay that drifts a dp at a time until it covers the photographs it was drawn to
+  point at. The footprints are reserved and left **empty**; every callout lands in the slack.
+- **One screen, no scrolling.** Seven callouts is the ceiling the slack carries. If it needs
+  to scroll it is documenting, not teaching.
+- **Nothing is written out.** Rows come from `SelectorGestures` — `SelectorShortcut` for the
+  keys, `FrameGesture` for the taps — and unit tests assert the advertised set equals the
+  bound set exactly, that no advertised gesture is destructive, and that no callout names a
+  glyph. The retired sheet claimed *"tap the ⛱ badge"*; `MaximiseBadge` renders an
+  open-in-full arrow pair and always has, which is the 2026-07-31 lesson in one line.
+- **Keys split by whether anything can be pointed at.** `C`/`M`, `Del`, `F`, `←`, `→` drive a
+  labelled control, so they belong to that control's callout; `1`/`2`/`3`, `Esc` and `?`
+  drive nothing visible, so they get a callout of their own.
+- Callouts for chrome the user has switched off are omitted — labelling a hidden panel is the
+  same defect as inventing a control that does not exist.
+- 200 ms fade in, 150 ms out. No slide. `Esc`, a tap on the scrim, or **Got it** closes it;
+  the dismissal persists as `selector_tour` in the hint set, so the first-launch showing and
+  the on-demand one are the same fact.
+
+### 7.10 First-run action explanations
+
+Three, not seven. This layout labels its controls, so an explanation earns its place only
+where the **effect is invisible**:
+
+| Hint | Fires on | Says |
+|---|---|---|
+| `filing_action` | the first Move or Copy | where the file now is — the configured verb, the configured folder, whether RAW and JPEG were sorted, and the other verb's key. The important one: the photograph left the centre of the screen and nothing said where it went. |
+| `delete_undo` | the first Delete | that nothing has touched the disk yet and UNDO has 30 seconds |
+| `maximise_frame` | the first maximise | that `Esc` or a second press comes back — nothing on that screen says so |
+
+`scan_scores` is defined and worded but deliberately **not** raised: the bars appear on the
+frames and the Legend item appears in the sidebar at the same moment, so a card would explain
+what the user is looking at.
+
+- **Every string is derived from the user's current settings** through one pure, Android-free
+  object (`SelectorHintText`), mirroring PhotoTok's `FirstRunHintText`. The verb, the folder
+  name, the sorting clause, the undo window and every key name are read from configuration or
+  from the binding declaration. "Keep", "Save" and "Favourite" are prohibited exactly as they
+  are on the controls (§7.5), and a unit test asserts they never appear.
+- **Placement: the flank, beneath the readout block.** 10 dp radius, `PanelSurface`, 1 dp
+  Zinc-700 outline, no shadow. It takes its own space in the flank column rather than
+  floating, so it can neither cover a frame nor collide with a control, and it adds **zero**
+  height above or below the image region. The bottom centre is unavailable: the snackbar is
+  there, confirming the very action the card is explaining.
+- Where no flank is wide enough — readouts hidden, or under 240 dp — the card is not drawn
+  **and the hint is not spent**, so it appears the next time there is room. The one thing it
+  never does is fall back to the image region.
+- Fires once, fades out after 9 s or on **Got it**, suppressed while §7.9 is open, and
+  brought back by *Reset guidance* (§14).
 
 ### Do not
 
 Shrink or dim the neighbour images · put **anything** in the vertical stack above or below
-the image region — no top app bar, no bottom action row, no full-width filmstrip, no caption
+the image region — no top app bar, no bottom action row, no horizontal filmstrip, no caption
 row under a frame · overlay arrows, buttons or gradients on the photographs (the maximise
 badge sits on the tile outline, not the image) · ship an unlabelled control that moves or
 deletes a file · use drop shadows · round image corners beyond 4 dp · bind any file action to
@@ -858,6 +1076,20 @@ Renamed from *Double-Tap Gesture Action*: double-tap no longer files a photograp
 a setting named after that gesture describes something the app does not do. The persisted
 key is unchanged.
 
+### Guidance
+
+| Item | Control | Supporting text |
+|---|---|---|
+| Reset Guidance | action + Indigo tonal `[Reset]` | Show the first-run explanations and the layout guide again |
+
+Follows the Clear Cache row without its confirmation dialog: nothing is destroyed, so a modal
+asking *are you sure* would be ceremony. The supporting text changes to *"The explanations and
+the guide will show again"* once tapped, because an action with no visible effect reads as a
+control that does nothing. Clears the whole `seen_first_run_hints` set **and** the two older
+one-shot flags (`has_seen_nav_hint`, `seen_fullscreen_gesture_hint`), which predate it and are
+stored separately — a reset that leaves two hints permanently dismissed is not a reset. After
+it, §7.9 opens by itself again and §7.10's cards fire again.
+
 ### Cache
 
 | Item | Control | Supporting text |
@@ -898,7 +1130,11 @@ the arrangement. At 720 × 1100 dp, one over two gives `h ≤ (1100 − chrome)/
 - The readout block drops the EXIF line and keeps icon + name + value + bar.
 - The control block becomes a 72 dp row: the three verbs centred, Previous/Next at the edges,
   view controls right-aligned. Labels are never dropped; the buttons narrow instead.
-- Filmstrip returns to a horizontal scrolling row at the bottom edge.
+- The filmstrip may return to a horizontal scrolling row at the bottom edge, because in
+  portrait height is the surplus axis and the flanks are what has run out. Same rule,
+  opposite answer. **Not yet implemented:** the solver currently drops the strip on a window
+  this narrow rather than drawing it over the view toggles, which is the safe half of the
+  behaviour but not the whole of it.
 
 ### 15.2 Compact — < 600 dp, phone
 
@@ -945,9 +1181,11 @@ Produce these as a design-system page, dark theme, Zinc/Indigo.
    fallback-EXIF amber marker, the unscanned variant, and the suppressed state.
 8. **Maximise badge** — 44 dp `⛶` on a tile's outline: bottom-right on the current frame,
    bottom-left on Previous and Next so it clears the value overlay. Resting and active.
-9. **Filmstrip thumbnail** — resting, current, and marked states, 64 dp tall.
-10. **Snackbar with Undo** — `Moved to Selection` / `Copied to Selection` / `1 image deleted`,
-    each with a 30 s Undo action and a thin countdown line.
+9. **Filmstrip thumbnail** — resting, current, and in-burst states, 60 dp wide (40 dp tall
+   landscape, 80 dp portrait), with the leading-edge burst marker and the sharpness dot.
+10. **Snackbar with Undo** — `Moved to «folder»` / `Copied to «folder»` / `1 image deleted`,
+    each with a 30 s Undo action and a thin countdown line. «folder» is the configured
+    Selection folder name, so mock the longest name the setting allows, not just `Selection`.
 11. **Empty-state card** — icon, title, one-line body, primary + secondary button.
 12. **Confirmation dialog** — standard and destructive variants.
 13. **Metadata panel** — labelled key/value rows for Shutter Speed, Aperture, Focal Length,
@@ -956,6 +1194,12 @@ Produce these as a design-system page, dark theme, Zinc/Indigo.
 14. **Key cap** — the permanent mono key-hint style carried by every action control.
 15. **Context menu** — long-press menu with Move, Copy, Delete, Details, Fullscreen.
 16. **Fullscreen gesture card** — rendered from `SelectorGestures`, never from literals.
+17. **Coach mark** — the §7.9 callout: 1 dp Zinc-700 outline on `PanelSurface`, 10 dp radius,
+    a 10 dp Indigo-500 leader rule before the title, title over one line of body, optional
+    generated key rows beneath. Full and compact (sidebar / filmstrip) variants.
+18. **Explanation card** — the §7.10 first-run card: title, two lines of body, right-aligned
+    **Got it**. Show it at flank width with the readout block above it, and the suppressed
+    variant.
 
 ---
 
@@ -993,11 +1237,11 @@ Shortcuts work in both the standard and fullscreen views.
 | `F` | Enter fullscreen |
 | `Esc` | Exit fullscreen / leave maximised / close sheet or menu |
 | `1` / `2` / `3` | Maximise Previous / Current / Next in place (§7.3) |
-| `?` | Open the shortcut and gesture sheet |
+| `?` | Open the coach-mark guide (§7.9) |
 
-Shortcuts are suppressed while any sheet or dialog is open, **except `Esc`**. Every one of
-these bindings is rendered as a permanent key cap on the control it drives, and the `?` sheet
-is generated from the same binding table — a shortcut list that can disagree with the
+Shortcuts are suppressed while any sheet, dialog or the guide is open, **except `Esc`**. Every
+one of these bindings is rendered as a permanent key cap on the control it drives, and the `?`
+guide is generated from the same binding table — a shortcut list that can disagree with the
 bindings will eventually disagree with the bindings.
 
 **Pointer.** Interactive components show the hand cursor (`PointerIcon.Hand`) on hover —
@@ -1043,8 +1287,9 @@ Short corrections to steer a generated design back on track.
 | Current image enlarged | "All three images must be identical in size. The active image is marked only by a 2 dp Indigo border." |
 | Neighbours dimmed or scrimmed | "Render Previous and Next at full brightness. Dimming defeats the comparison." |
 | Three images in a row | "Never arrange the three frames in a row — that is width-bound and wastes 60 % of the display's height. One frame on top, two below, all three 600 × 450 dp." |
-| Images too small | "Height is the scarce axis. Delete everything above and below the image region — app bar, action row, filmstrip, captions — and move it into the free width beside the frames." |
-| An app bar, bottom bar or full-width filmstrip | "Nothing may occupy the vertical stack. Every 3 dp of height costs 2 dp of height on all three frames." |
+| Images too small | "Height is the scarce axis. Delete everything above and below the image region — app bar, action row, filmstrip, captions — and move it into the free width beside the frames. Then measure the region, don't reason about it." |
+| An app bar, bottom bar or horizontal filmstrip | "Nothing may occupy the vertical stack. Every 3 dp of height costs 2 dp of height on all three frames. Chrome on this screen is a column, not a bar." |
+| A column down the outer edge of the image region | "Only the flanks are surplus width. A column that spans both rows is priced against the bottom row, which has 18 dp to give at 3:2." |
 | Consumer-app styling | "This is a professional tool, closer to Lightroom's Library module than Google Photos. Remove gradients, large radii, drop shadows, and decorative colour." |
 | Bare numeric scores | "Every score is icon + short label + value, with a direction bar. Never a bare number." |
 | Light theme or coloured background | "Dark theme only. Canvas #18181B, panels #27272A. Nothing may colour-cast the photographs." |

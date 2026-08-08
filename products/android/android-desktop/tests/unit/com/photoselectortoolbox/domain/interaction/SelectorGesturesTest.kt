@@ -34,12 +34,45 @@ class SelectorGesturesTest {
         // expressed as data so it survives the next refactor. If someone binds
         // delete to a swipe again, they have to set this flag to do it, and
         // this test is where they find out that is not allowed.
-        val destructive = FullscreenGesture.entries.filter { it.destructive }
+        val destructive = FullscreenGesture.entries.filter { it.destructive } +
+            FrameGesture.entries.filter { it.destructive }
 
         assertTrue(
             "these gestures are marked destructive: $destructive",
             destructive.isEmpty(),
         )
+    }
+
+    @Test
+    fun `every frame gesture row corresponds to a binding`() {
+        val bound = FrameGesture.entries.map { it.input }.toSet()
+        val advertised = SelectorGestures.frameGestureRows().map { it.input }.toSet()
+
+        assertEquals(bound, advertised)
+    }
+
+    @Test
+    fun `no frame gesture row names a glyph`() {
+        // The retired shortcut sheet wrote "tap the ⛱ badge" by hand next to a
+        // badge that renders an open-in-full arrow pair. Prose that asserts what
+        // a drawable looks like has nothing keeping it true.
+        SelectorGestures.frameGestureRows().forEach { row ->
+            listOf("⛱", "⛶", "▤", "⌨").forEach { glyph ->
+                assertFalse("'${row.input}' names $glyph", row.input.contains(glyph))
+                assertFalse("'${row.effect}' names $glyph", row.effect.contains(glyph))
+            }
+        }
+    }
+
+    @Test
+    fun `a filtered shortcut row set keeps declaration order and drops nothing else`() {
+        // The coach marks render only the keys belonging to the control they
+        // label, and must not be able to invent one on the way.
+        val subset = setOf(SelectorShortcut.PREVIOUS, SelectorShortcut.NEXT)
+        val rows = SelectorGestures.selectorShortcutRows(FilingAction.COPY, subset)
+
+        assertEquals(listOf(SelectorShortcut.PREVIOUS.input, SelectorShortcut.NEXT.input),
+            rows.map { it.input })
     }
 
     @Test
@@ -87,6 +120,29 @@ class SelectorGesturesTest {
 
             assertTrue(row.effect.contains("Copy to Selection"))
             assertTrue(row.effect.contains("Move to Selection"))
+        }
+    }
+
+    @Test
+    fun `the filing shortcut row names the configured folder`() {
+        // Same rule as the hint card and the snackbar: the destination is the
+        // `selection_folder_name` setting, never a literal. The default is only
+        // for call sites that have no settings in hand.
+        FilingAction.entries.forEach { configured ->
+            val row = SelectorGestures
+                .selectorShortcutRows(configured, selectionFolderName = "Picks")
+                .single { it.input == SelectorShortcut.FILE_PRIMARY.input }
+
+            assertTrue(row.effect, row.effect.contains("Copy to Picks"))
+            assertTrue(row.effect, row.effect.contains("Move to Picks"))
+        }
+    }
+
+    @Test
+    fun `a blank folder name falls back to the default in every phrase`() {
+        FilingAction.entries.forEach { action ->
+            assertEquals("${action.verb} to Selection", action.phraseFor(""))
+            assertEquals("${action.verb} to Selection", action.phrase)
         }
     }
 

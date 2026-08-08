@@ -19,6 +19,11 @@ recorded, where, and in what wording.
 In a tool without subagents: adopt `ai/agents/shared-mentor-agent.md` as a role in a separate
 reflection pass, or write the entry tagged `[PROPOSED]` for a later mentor pass.
 
+`[PROPOSED]` is a fallback for hosts without subagents, and it needs an exit or it silently
+becomes a second, unreviewed memory file. **Any mentor consult adjudicates every `[PROPOSED]`
+entry it finds in a file it touches**, approving, merging or deleting each one and removing
+the tag. A `[PROPOSED]` entry must never reach `main`.
+
 ## Which file
 
 | File | Scope |

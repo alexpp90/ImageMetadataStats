@@ -54,7 +54,21 @@ If nothing at all was learned you may skip the consult — but say so explicitly
 What the mentor approves gets written via the `record-lesson` skill, which owns the file
 routing, the dated `Learning`/`Action` format, and the dedupe rules.
 
-## 5. Refactoring candidates
+## 5. Cross-product propagation
+
+Three independent products ship from this repository, and a lesson or fix recorded for one
+does not reach the others by itself — agents read `ai/memory/` for the product they are
+already working in.
+
+For every behaviour change and every approved lesson, ask: **does this apply to the other two
+products?** Interaction patterns and performance fixes count, not only features. Record the
+answer in `docs/shared/FEATURE_PARITY.md` — *including* "not applicable, because…" — and file
+a task for anything that should be ported. Never port by copying code: each product gets its
+own implementation in its own stack (`ai/ROUTING.md`, the separation rule).
+
+An unrecorded "I checked and it does not apply" is indistinguishable from never having looked.
+
+## 6. Refactoring candidates
 
 Saw debt you could not fix in scope — duplication, dead code, pattern violations, oversized
 functions? Add a backlog entry to `ai/memory/code_health.md` with file paths and rationale.
@@ -63,7 +77,7 @@ functions? Add a backlog entry to `ai/memory/code_health.md` with file paths and
 Large refactorings (multi-file, cross-module) are not retro side effects. File them and let
 `@shared-code-health-agent` schedule them as dedicated tasks.
 
-## 6. Framework drift
+## 7. Framework drift
 
 If any agent instruction, scope, skill or routing rule was wrong or stale during this task,
 fix it now at the canonical source under `ai/` and regenerate what depends on it. Use the
@@ -72,13 +86,13 @@ fix it now at the canonical source under `ai/` and regenerate what depends on it
 A stale instruction you noticed and did not fix will cost the next agent the same time it
 cost you.
 
-## 7. Playbook
+## 8. Playbook
 
 Is this task type likely to recur? Use the `create-playbook` skill to record the efficient
 path, or to improve the playbook you followed. Playbooks must get better every time they are
 used.
 
-## 8. Hygiene
+## 9. Hygiene
 
 No scratch files, report dumps, or PR-description drafts staged for commit. Benchmarks belong
 in `products/desktop/benchmarks/`, never in the repository root. The `guard-paths` hook blocks
@@ -91,8 +105,9 @@ most of these at write time, but check `git status` before you finish.
 [ ] 2. REQUIREMENTS.md synced (or: behaviour did not change)
 [ ] 3. Reflected; mentor consulted (or: nothing learned, stated explicitly)
 [ ] 4. Approved lessons written via record-lesson
-[ ] 5. Out-of-scope debt filed in ai/memory/code_health.md
-[ ] 6. Framework drift fixed at source and validated
-[ ] 7. Playbook created or improved (or: task type will not recur)
-[ ] 8. git status clean of scratch artifacts
+[ ] 5. Cross-product propagation evaluated; decision recorded in FEATURE_PARITY.md
+[ ] 6. Out-of-scope debt filed in ai/memory/code_health.md
+[ ] 7. Framework drift fixed at source and validated
+[ ] 8. Playbook created or improved (or: task type will not recur)
+[ ] 9. git status clean of scratch artifacts
 ```

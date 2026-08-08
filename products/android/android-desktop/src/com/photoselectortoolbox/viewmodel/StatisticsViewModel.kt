@@ -17,7 +17,6 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
@@ -100,7 +99,12 @@ class StatisticsViewModel @Inject constructor(
 
             try {
                 val uri = Uri.parse(folderUri)
-                val images = imageRepository.discoverImages(uri).first()
+                // The whole folder, not the first progressive batch. Discovery
+                // emits cumulatively (24, then 250, then the complete snapshot),
+                // so `discoverImages(uri).first()` would compute a shoot-wide
+                // EXIF distribution from 24 photographs and present it as the
+                // answer for 842.
+                val images = imageRepository.discoverAllImages(uri)
 
                 _uiState.update {
                     it.copy(

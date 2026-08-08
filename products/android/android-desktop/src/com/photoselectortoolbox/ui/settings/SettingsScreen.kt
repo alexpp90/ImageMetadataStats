@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.FolderSpecial
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -73,6 +74,9 @@ fun SettingsScreen(
     val context = LocalContext.current
 
     var showClearCacheDialog by remember { mutableStateOf(false) }
+    // Confirmation only. The reset itself is one repository call and is already
+    // done by the time this flips.
+    var guidanceReset by remember { mutableStateOf(false) }
     var editingFolderName by remember(uiState.selectionFolderName) {
         mutableStateOf(uiState.selectionFolderName)
     }
@@ -399,6 +403,45 @@ fun SettingsScreen(
                     }
                 }
             }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // --- Guidance Section ---
+        //
+        // Follows the Clear Cache pattern without its confirmation dialog:
+        // nothing is destroyed here, so a modal asking "are you sure" would be
+        // ceremony. The description confirms instead, because an action with no
+        // visible effect reads as a control that does nothing.
+        SettingsSection(title = "Guidance") {
+            SettingsClickItem(
+                title = "Reset Guidance",
+                description = if (guidanceReset) {
+                    "The explanations and the guide will show again"
+                } else {
+                    "Show the first-run explanations and the layout guide again"
+                },
+                onClick = {
+                    viewModel.resetGuidance()
+                    guidanceReset = true
+                },
+                icon = Icons.Default.School,
+                trailing = {
+                    Button(
+                        onClick = {
+                            viewModel.resetGuidance()
+                            guidanceReset = true
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Indigo500.copy(alpha = 0.15f),
+                            contentColor = Indigo500,
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                    ) {
+                        Text("Reset")
+                    }
+                },
+            )
         }
 
         Spacer(modifier = Modifier.height(8.dp))

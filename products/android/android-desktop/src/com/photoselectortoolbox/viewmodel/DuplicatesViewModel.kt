@@ -17,7 +17,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -92,7 +91,10 @@ class DuplicatesViewModel @Inject constructor(
 
             try {
                 val uri = Uri.parse(folderUri)
-                val images = imageRepository.discoverImages(uri).first()
+                // The whole folder, not the first progressive batch — a
+                // duplicate set found in 24 of 842 photographs is not a
+                // duplicate report, it is a sample.
+                val images = imageRepository.discoverAllImages(uri)
 
                 if (images.isEmpty()) {
                     _uiState.update {

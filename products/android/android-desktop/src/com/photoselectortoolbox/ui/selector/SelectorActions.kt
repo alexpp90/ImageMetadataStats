@@ -1,8 +1,6 @@
 package com.photoselectortoolbox.ui.selector
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -36,6 +34,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,6 +44,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
@@ -55,6 +56,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.photoselectortoolbox.domain.curation.DeferredDeletion
 import com.photoselectortoolbox.domain.format.SelectionActionLabels
 import com.photoselectortoolbox.domain.interaction.FilingAction
 import com.photoselectortoolbox.ui.theme.Indigo200
@@ -65,6 +67,7 @@ import com.photoselectortoolbox.ui.theme.Zinc50
 import com.photoselectortoolbox.ui.theme.Zinc500
 import com.photoselectortoolbox.ui.theme.Zinc700
 import com.photoselectortoolbox.ui.theme.Zinc800
+import kotlinx.coroutines.delay
 
 /**
  * The callbacks the selector needs, gathered so the layout, the control block
@@ -254,9 +257,6 @@ fun FirstRunNavigationHint(
 
 // ── Undo snackbar ───────────────────────────────────────────────────────────
 
-/** How long an undoable action stays undoable. */
-const val UNDO_WINDOW_MILLIS = 30_000L
-
 /**
  * Confirmation of an action, with the time remaining to take it back drawn as
  * a draining line.
@@ -264,6 +264,10 @@ const val UNDO_WINDOW_MILLIS = 30_000L
  * The window is 30 seconds rather than the Material default of a few seconds
  * because culling is fast and inattentive: the user is three frames further on
  * before they register that the last one was a mistake.
+ *
+ * The duration is [DeferredDeletion.UNDO_WINDOW_MILLIS] — the same constant the
+ * ViewModel's commit timer uses. Two copies of that number is a countdown that
+ * lies about how long is left (REQUIREMENTS §2).
  */
 @Composable
 fun SelectorSnackbar(
@@ -274,8 +278,22 @@ fun SelectorSnackbar(
 ) {
     if (message == null) return
 
+    // Driven from wall-clock time rather than an animation, because the line has
+    // to agree with a timer that is *also* wall-clock: the ViewModel commits the
+    // deletion 30 real seconds after it was requested. A frame-clock animation
+    // would drift from that under any clock manipulation and, in an instrumented
+    // test, would be fast-forwarded to zero the moment the harness waited for
+    // idle — dismissing the snackbar before the UNDO could be pressed.
+    val remaining = remember(message) { mutableFloatStateOf(1f) }
     LaunchedEffect(message) {
-        kotlinx.coroutines.delay(UNDO_WINDOW_MILLIS)
+        val startedAt = System.currentTimeMillis()
+        while (true) {
+            val left = DeferredDeletion.UNDO_WINDOW_MILLIS - (System.currentTimeMillis() - startedAt)
+            remaining.floatValue =
+                (left.toFloat() / DeferredDeletion.UNDO_WINDOW_MILLIS).coerceIn(0f, 1f)
+            if (left <= 0L) break
+            delay(COUNTDOWN_TICK_MILLIS)
+        }
         onDismiss()
     }
 
@@ -311,11 +329,24 @@ fun SelectorSnackbar(
                 )
             }
         }
+        // The line drains left to right over the undo window, so "how long have
+        // I got" is answerable at a glance rather than by counting. The fraction
+        // is read inside `graphicsLayer`, which defers it to the draw phase —
+        // 300 ticks over the window cost 300 draws of a 2 dp bar and zero
+        // recompositions of the snackbar around it.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(2.dp)
-                .background(Indigo500),
+                .graphicsLayer {
+                    scaleX = remaining.floatValue
+                    transformOrigin = TransformOrigin(0f, 0.5f)
+                }
+                .background(Indigo500)
+                .testTag("snackbar_countdown"),
         )
     }
 }
+
+/** How often the countdown line is redrawn. Fine enough to read as continuous. */
+private const val COUNTDOWN_TICK_MILLIS = 100L

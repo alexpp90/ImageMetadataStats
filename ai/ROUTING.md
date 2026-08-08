@@ -84,13 +84,17 @@ Routing is this file's job; the procedures below belong to skills, which own the
 - **Multi-product tasks:** split into one subtask per product; delegate each separately; do not
   let one product's implementation leak into another's subtask. This is the one duty that is
   purely the coordinator's.
+- **Numbers in briefs:** anything a subagent is handed arrives as a premise, not as advice.
+  Label every quantity **measured** (name the command and device), **computed** (state the model
+  and call it a prediction to check) or **assumed** — and where the subagent can measure cheaply,
+  brief the measurement rather than the answer. See `ai/memory/code_health.md` 2026-08-08.
 - **Lifecycle:** every delegated subtask starts with `task-lifecycle` and ends with
   `retrospective`.
 - **Requirements maintenance:** `sync-requirements`.
 - **Verification before finishing:** `verify-build`.
-- **Feature parity:** when a feature lands in one product, evaluate it for the others against
-  [`docs/shared/FEATURE_PARITY.md`](../docs/shared/FEATURE_PARITY.md) and record the decision —
-  including a decision *not* to port it.
+- **Feature parity:** evaluated at the end of every task by the `retrospective` skill, step 5,
+  against [`docs/shared/FEATURE_PARITY.md`](../docs/shared/FEATURE_PARITY.md). The coordinator's
+  own duty is only to route a *decided* port as one subtask per product.
 
 ## Shared skills
 
@@ -108,6 +112,8 @@ arrives rather than being read up front.
 | [`sync-framework`](skills/sync-framework/SKILL.md) | `ai/agents/` or `ai/skills/` was edited |
 | [`release-compliance`](skills/release-compliance/SKILL.md) | permissions, endpoints, SDKs, data flow, or a release |
 | [`refactoring-guide`](skills/refactoring-guide/SKILL.md) | any refactoring — centralised constants, controller/view separation, thread-pool sizing, image-loading safety, the EXIF data contract, error handling |
+| [`playbook-port-pattern-across-products`](skills/playbook-port-pattern-across-products/SKILL.md) | adapting an interaction or performance pattern proven in one product into another |
+| [`playbook-verify-android-desktop-on-reference-device`](skills/playbook-verify-android-desktop-on-reference-device/SKILL.md) | running the `:android-desktop` instrumented suite at the 1480×924 dp reference tablet geometry |
 | `playbook-*` | a learned procedure matches the task type (template: `skills/playbook-template/`) |
 
 ## Commands

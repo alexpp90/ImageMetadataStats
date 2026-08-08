@@ -19,6 +19,7 @@ import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -83,6 +84,11 @@ private fun DesktopModeApp(
                     } == true
 
                     NavigationRailItem(
+                        // Same tag the selector sidebar puts on its own
+                        // destination items, so "go to screen X" is one
+                        // selector regardless of which of the two navigation
+                        // surfaces is currently drawn.
+                        modifier = Modifier.testTag("nav_${screen.route}"),
                         icon = {
                             Icon(
                                 imageVector = screen.icon,
@@ -139,6 +145,12 @@ private fun DesktopModeApp(
                         } == true
 
                         NavigationBarItem(
+                            // The third navigation surface, tagged like the
+                            // other two. All of the sidebar (expanded selector),
+                            // the rail (expanded elsewhere) and this bar
+                            // (compact) answer to `nav_<route>`, so a test does
+                            // not have to know which one the window size chose.
+                            modifier = Modifier.testTag("nav_${screen.route}"),
                             icon = {
                                 Icon(
                                     imageVector = screen.icon,

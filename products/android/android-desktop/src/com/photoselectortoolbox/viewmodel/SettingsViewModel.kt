@@ -128,6 +128,18 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.setFilingAction(action) }
     }
 
+    /**
+     * Show every one-time explanation again.
+     *
+     * One repository call rather than a list of flags to clear here: the
+     * repository owns the fact that two of the dismissals predate the hint set
+     * and are stored separately, and a reset that leaves those two dismissed is
+     * not a reset.
+     */
+    fun resetGuidance() {
+        viewModelScope.launch { settingsRepository.resetGuidance() }
+    }
+
     private fun refreshCachedScoreCount() {
         viewModelScope.launch {
             try {

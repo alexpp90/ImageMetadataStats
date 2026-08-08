@@ -3,20 +3,34 @@ package com.photoselectortoolbox.data.repository
 import android.content.Context
 import android.net.Uri
 import com.photoselector.core.model.ExifData
+import com.photoselectortoolbox.data.model.ImageDimensions
 import com.photoselectortoolbox.data.model.ImageItem
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 
 @Singleton
 class FakeImageRepository @Inject constructor() : ImageRepository {
 
     val imagesFlow = MutableStateFlow<List<ImageItem>>(emptyList())
 
-    override fun discoverImages(folderUri: Uri): Flow<List<ImageItem>> {
-        return imagesFlow
-    }
+    /**
+     * Whether discovery **completes** after publishing the folder.
+     *
+     * Real enumeration ends: a first batch, then chunks, then a final snapshot
+     * and the flow closes, which is what clears `isEnumerating` and drops the
+     * `+` from `127 / 842+`. The default therefore models a settled folder.
+     * Setting this false leaves the folder permanently mid-enumeration, which is
+     * how a test can assert the still-growing readout.
+     */
+    var completeAfterFirstBatch: Boolean = true
+
+    override fun discoverImages(folderUri: Uri): Flow<List<ImageItem>> =
+        if (completeAfterFirstBatch) flowOf(imagesFlow.value) else imagesFlow
+
+    override suspend fun discoverAllImages(folderUri: Uri): List<ImageItem> = imagesFlow.value
 
     override suspend fun getExifData(context: Context, uri: Uri): ExifData? {
         return imagesFlow.value.find { it.uri == uri.toString() }?.exifData
@@ -32,14 +46,22 @@ class FakeImageRepository @Inject constructor() : ImageRepository {
 
     override fun canTrash(uri: Uri): Boolean = canTrashResult
 
+    val restoredFromTrash = mutableListOf<String>()
+
+    override suspend fun restoreFromTrash(context: Context, uri: Uri): Boolean {
+        if (!canTrashResult) return false
+        restoredFromTrash += uri.toString()
+        return true
+    }
+
     override suspend fun moveImage(
         context: Context,
         sourceUri: Uri,
         destFolderUri: Uri,
         sorting: Boolean
-    ): Boolean {
+    ): FileOperationResult {
         deleteImage(context, sourceUri)
-        return true
+        return FileOperationResult.success(sourceUri.toString(), destinationOf(sourceUri))
     }
 
     override suspend fun copyImage(
@@ -47,12 +69,29 @@ class FakeImageRepository @Inject constructor() : ImageRepository {
         sourceUri: Uri,
         destFolderUri: Uri,
         sorting: Boolean
-    ): Boolean {
-        return true
-    }
+    ): FileOperationResult =
+        FileOperationResult.success(sourceUri.toString(), destinationOf(sourceUri))
+
+    override suspend fun undoMove(
+        context: Context,
+        movedTo: Uri,
+        restoreFolderUri: Uri,
+    ): FileOperationResult =
+        FileOperationResult.success(movedTo.toString(), movedTo.toString())
+
+    /** A stand-in Selection destination, so undo paths have a URI to work with. */
+    private fun destinationOf(sourceUri: Uri): String = "$sourceUri.selection"
 
     override suspend fun getImageDimensions(context: Context, uri: Uri): Pair<Int, Int> {
         val img = imagesFlow.value.find { it.uri == uri.toString() }
         return if (img != null) Pair(img.imageWidth, img.imageHeight) else Pair(0, 0)
+    }
+
+    override suspend fun resolveDimensions(
+        context: Context,
+        uris: Collection<String>,
+    ): Map<String, ImageDimensions> = uris.associateWith { uri ->
+        val img = imagesFlow.value.find { it.uri == uri }
+        if (img != null) ImageDimensions.of(img.imageWidth, img.imageHeight) else ImageDimensions.UNKNOWN
     }
 }

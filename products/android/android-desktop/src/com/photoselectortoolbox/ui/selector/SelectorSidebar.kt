@@ -42,6 +42,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.photoselectortoolbox.domain.format.SelectorLabels
+import com.photoselectortoolbox.domain.session.SelectorWork
 import com.photoselectortoolbox.ui.navigation.Screen
 import com.photoselectortoolbox.ui.theme.Indigo500
 import com.photoselectortoolbox.ui.theme.ScoreBad
@@ -103,6 +105,9 @@ fun SelectorSidebar(
     onShowMenu: () -> Unit,
     onNavigate: (Screen) -> Unit,
     modifier: Modifier = Modifier,
+    isGrouping: Boolean = false,
+    queuedWork: SelectorWork? = null,
+    onCancelQueued: () -> Unit = {},
     overflowContent: @Composable () -> Unit = {},
 ) {
     Column(
@@ -110,6 +115,7 @@ fun SelectorSidebar(
             .width(SidebarWidth)
             .fillMaxHeight()
             .background(Zinc950)
+            .testTag("selector_sidebar")
             .padding(vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -130,16 +136,28 @@ fun SelectorSidebar(
             modifier = Modifier.testTag("sidebar_drive"),
         )
 
-        if (isScanning) {
+        when {
             // The scan replaces its own button in place rather than opening a
             // dialog: culling continues while it runs, so it must not take the
             // screen — or, here, a second slot in the sidebar.
-            ScanningItem(
-                statusText = scanStatusText,
+            isScanning -> BusyItem(
+                statusText = scanStatusText.removePrefix("Scanning "),
+                description = "$scanStatusText. Tap to cancel the scan.",
                 onCancel = onCancelScan,
+                testTag = "cancel_scan_button",
+                statusTestTag = "scan_progress",
             )
-        } else {
-            SidebarItem(
+            // A scan asked for while grouping runs waits rather than clobbering
+            // it — and says so, with a way out. The control is never disabled:
+            // a control that does nothing when tapped reads as a frozen app.
+            queuedWork == SelectorWork.SCAN -> BusyItem(
+                statusText = SelectorLabels.QUEUED,
+                description = "Scan queued until grouping finishes. Tap to cancel it.",
+                onCancel = onCancelQueued,
+                testTag = "cancel_queued_scan",
+                statusTestTag = "queued_scan",
+            )
+            else -> SidebarItem(
                 icon = Icons.Default.Radar,
                 label = "Scan",
                 description = "Scan images for quality scores",
@@ -150,19 +168,35 @@ fun SelectorSidebar(
             )
         }
 
-        SidebarItem(
-            icon = Icons.Default.BurstMode,
-            label = "Bursts",
-            description = if (groupingEnabled) {
-                "Group Similar Series, on"
-            } else {
-                "Group Similar Series, off"
-            },
-            active = groupingEnabled,
-            enabled = hasImages,
-            onClick = onToggleGrouping,
-            modifier = Modifier.testTag("grouping_toggle"),
-        )
+        when {
+            isGrouping -> BusyItem(
+                statusText = SelectorLabels.GROUPING,
+                description = "Grouping similar series. Tap to cancel.",
+                onCancel = onToggleGrouping,
+                testTag = "cancel_grouping",
+                statusTestTag = "grouping_progress",
+            )
+            queuedWork == SelectorWork.GROUPING -> BusyItem(
+                statusText = SelectorLabels.QUEUED,
+                description = "Grouping queued until the scan finishes. Tap to cancel it.",
+                onCancel = onCancelQueued,
+                testTag = "cancel_queued_grouping",
+                statusTestTag = "queued_grouping",
+            )
+            else -> SidebarItem(
+                icon = Icons.Default.BurstMode,
+                label = "Bursts",
+                description = if (groupingEnabled) {
+                    "Group Similar Series, on"
+                } else {
+                    "Group Similar Series, off"
+                },
+                active = groupingEnabled,
+                enabled = hasImages,
+                onClick = onToggleGrouping,
+                modifier = Modifier.testTag("grouping_toggle"),
+            )
+        }
 
         // Appears only once a scan has produced something to explain. A legend
         // for scores that do not exist yet is a dead control.
@@ -277,17 +311,22 @@ private fun SidebarItem(
 }
 
 /**
- * The Scan slot while a scan is running: a counter and a Cancel action, in the
+ * A slot whose control is busy or waiting: a status line over a Cancel, in the
  * same 72 dp the button occupied.
  *
- * Deliberately not a progress dialog. The scan is background work over hundreds
- * of frames and the photographer keeps culling while it runs; scores appear
- * under the frames as they are computed.
+ * Deliberately not a progress dialog and never a disabled button. The scan is
+ * background work over hundreds of frames and the photographer keeps culling
+ * while it runs; the same treatment carries a *queued* request, so "running" and
+ * "waiting its turn" read the same way and both offer a way out
+ * (`ai/memory/palette.md`, 2026-07-24).
  */
 @Composable
-private fun ScanningItem(
+private fun BusyItem(
     statusText: String,
+    description: String,
     onCancel: () -> Unit,
+    testTag: String,
+    statusTestTag: String,
 ) {
     Column(
         modifier = Modifier
@@ -298,20 +337,20 @@ private fun ScanningItem(
             .background(TonalIndigo)
             .pointerHoverIcon(PointerIcon.Hand)
             .clickable(onClick = onCancel)
-            .semantics { contentDescription = "$statusText. Tap to cancel the scan." }
-            .testTag("cancel_scan_button")
+            .semantics { contentDescription = description }
+            .testTag(testTag)
             .padding(horizontal = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
         Text(
-            text = statusText.removePrefix("Scanning "),
+            text = statusText,
             fontSize = 11.sp,
             fontFamily = FontFamily.Monospace,
             color = Zinc50,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.testTag("scan_progress"),
+            modifier = Modifier.testTag(statusTestTag),
         )
         Text(
             text = "Cancel",

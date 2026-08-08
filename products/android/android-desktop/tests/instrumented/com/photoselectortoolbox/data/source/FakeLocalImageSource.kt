@@ -1,6 +1,7 @@
 package com.photoselectortoolbox.data.source
 
 import android.net.Uri
+import com.photoselectortoolbox.data.model.ImageDimensions
 import com.photoselectortoolbox.data.model.ImageItem
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -16,4 +17,8 @@ class FakeLocalImageSource @Inject constructor() : LocalImageSource {
     override suspend fun getImageDimensions(uri: Uri): Pair<Int, Int> {
         return Pair(0, 0)
     }
+
+    override suspend fun resolveDimensions(
+        uris: Collection<String>,
+    ): Map<String, ImageDimensions> = uris.associateWith { ImageDimensions.UNKNOWN }
 }

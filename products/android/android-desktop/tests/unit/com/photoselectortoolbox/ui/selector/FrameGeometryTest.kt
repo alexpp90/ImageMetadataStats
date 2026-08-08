@@ -154,4 +154,210 @@ class FrameGeometryTest {
         assertTrue(size.width.value >= 0f)
         assertTrue(size.height.value >= 0f)
     }
+
+    // ── The whole arrangement, shared with the coach-mark overlay ────────
+
+    @Test
+    fun `the arrangement leaves both flanks their space beside the frame`() {
+        // The overlay reserves this arrangement so its callouts land in the
+        // slack. If the flanks and the frame did not add up to the region, the
+        // callouts would be laid out over the photographs.
+        val layout = FrameGeometry.threeUpLayout(referenceWidth, referenceHeight)
+        val used = layout.flankWidth.value * 2 + layout.frame.width.value +
+            FrameGeometry.Gap.value * 2
+
+        assertEquals(referenceWidth.value, used, 1f)
+    }
+
+    @Test
+    fun `hiding the readouts gives the whole width to the frames`() {
+        val layout = FrameGeometry.threeUpLayout(
+            regionWidth = referenceWidth,
+            regionHeight = referenceHeight,
+            detailsVisible = false,
+        )
+
+        assertEquals(0f, layout.flankWidth.value, 0.01f)
+    }
+
+    @Test
+    fun `the filmstrip keeps a flank of its own when the readouts are hidden`() {
+        // It shares the control flank, so with the readouts off the flank must
+        // still hold the strip *and* the view toggles — otherwise the toggle
+        // silently does nothing, or the strip lands on the controls.
+        val layout = FrameGeometry.threeUpLayout(
+            regionWidth = referenceWidth,
+            regionHeight = referenceHeight,
+            detailsVisible = false,
+            filmstripVisible = true,
+        )
+
+        assertTrue(
+            "flank collapsed to ${layout.flankWidth.value}dp with the filmstrip on",
+            layout.flankWidth >= FrameGeometry.MinimumFilmstripFlankWidth,
+        )
+        assertEquals(
+            FrameGeometry.FilmstripWidth.value,
+            layout.filmstripWidth.value,
+            0.01f,
+        )
+    }
+
+    @Test
+    fun `showing the filmstrip costs the frames nothing`() {
+        // The measured regression this replaces: a 76dp full-width strip took
+        // the reference frames from 675x450 to 618x412. As a 72dp *vertical*
+        // strip inside the control flank's 82.5dp of horizontal slack the frames
+        // do not move at all when it is toggled, which is the whole reason it
+        // sits there. This is the assertion that prices any future widening of
+        // the strip: past 74.5dp it starts taking height off all three frames.
+        val without = FrameGeometry.threeUpLayout(
+            regionWidth = referenceWidth,
+            regionHeight = referenceHeight,
+            aspect = 1.5f,
+            filmstripVisible = false,
+        )
+        val with = FrameGeometry.threeUpLayout(
+            regionWidth = referenceWidth,
+            regionHeight = referenceHeight,
+            aspect = 1.5f,
+            filmstripVisible = true,
+        )
+
+        assertEquals(without.frame.height.value, with.frame.height.value, 0.01f)
+        assertEquals(without.frame.width.value, with.frame.width.value, 0.01f)
+        assertEquals(0f, without.filmstripWidth.value, 0.01f)
+        assertEquals(FrameGeometry.FilmstripWidth.value, with.filmstripWidth.value, 0.01f)
+    }
+
+    @Test
+    fun `the strip and the controls both fit inside the flank they share`() {
+        // Two controls that share bounds is the defect this arithmetic prevents.
+        // Whatever the flank resolves to, the strip may only take what is left
+        // once the view-toggle row has its width.
+        listOf(
+            referenceWidth to referenceHeight,
+            2400.dp to 900.dp,
+            1200.dp to 800.dp,
+            700.dp to 1100.dp,
+        ).forEach { (w, h) ->
+            val layout = FrameGeometry.threeUpLayout(
+                regionWidth = w,
+                regionHeight = h,
+                aspect = 1.5f,
+                filmstripVisible = true,
+            )
+
+            assertTrue(
+                "strip ${layout.filmstripWidth.value}dp overruns a " +
+                    "${layout.flankWidth.value}dp flank at ${w.value}x${h.value}",
+                layout.filmstripWidth + FrameGeometry.Gap +
+                    FrameGeometry.MinimumControlBlockWidth <= layout.flankWidth ||
+                    layout.filmstripWidth.value == 0f,
+            )
+        }
+    }
+
+    @Test
+    fun `a flank never claims more than a quarter of the region`() {
+        // Tablet portrait is 700dp wide and still Medium, so it still gets this
+        // layout. Uncapped, the two 260dp minima plus the strip leave nothing
+        // for the photographs and the solver returns a frame of a few dp.
+        val layout = FrameGeometry.threeUpLayout(
+            regionWidth = 596.dp,
+            regionHeight = 1084.dp,
+            aspect = 1.5f,
+            detailsVisible = true,
+            filmstripVisible = true,
+        )
+
+        assertTrue(
+            "flank took ${layout.flankWidth.value}dp of a 596dp region",
+            layout.flankWidth.value <= 596f / 4f + 1f,
+        )
+        assertTrue(
+            "frames collapsed to ${layout.frame.width.value}dp",
+            layout.frame.width.value > 200f,
+        )
+    }
+
+    @Test
+    fun `the image region is the window minus the sidebar and the outer padding`() {
+        // The whole permitted chrome budget. If anything else ever appears in
+        // the vertical stack, the instrumented test that compares the drawn
+        // frames against this fails.
+        val region = FrameGeometry.imageRegion(1480.dp, 924.dp, sidebarWidth = 88.dp)
+
+        assertEquals(referenceWidth.value, region.width.value, 0.01f)
+        assertEquals(referenceHeight.value, region.height.value, 0.01f)
+    }
+
+    @Test
+    fun `a 16 to 9 frame on the reference device is width-bound, not short-changed`() {
+        // Measured 2026-08-08: 684 x 385 on the reference device, and no amount
+        // of freed height changes it — two 16:9 frames abreast want 1464dp of a
+        // 1376dp region. Reading that 385 as a height leak is what sent the last
+        // investigation looking for 146dp that were never spent.
+        val layout = FrameGeometry.threeUpLayout(
+            regionWidth = referenceWidth,
+            regionHeight = referenceHeight,
+            aspect = 16f / 9f,
+        )
+
+        assertEquals(684f, layout.frame.width.value, 1f)
+        assertEquals(385f, layout.frame.height.value, 1f)
+
+        // Twice the height budget, same frame: the constraint is the width.
+        val taller = FrameGeometry.threeUpLayout(
+            regionWidth = referenceWidth,
+            regionHeight = referenceHeight * 2,
+            aspect = 16f / 9f,
+        )
+        assertEquals(layout.frame.height.value, taller.frame.height.value, 0.01f)
+    }
+
+    @Test
+    fun `3 to 2 frames clear the reference floor once nothing is stacked above or below`() {
+        val layout = FrameGeometry.threeUpLayout(
+            regionWidth = referenceWidth,
+            regionHeight = referenceHeight,
+            aspect = 1.5f,
+            filmstripVisible = true,
+        )
+
+        assertEquals(675f, layout.frame.width.value, 1f)
+        assertEquals(450f, layout.frame.height.value, 1f)
+        assertTrue(layout.frame.height >= FrameGeometry.MinimumReferenceFrameHeight)
+    }
+
+    @Test
+    fun `the arrangement agrees with the frame solver it is built on`() {
+        // One source of truth: two answers that differ by a dp is an overlay
+        // that drifts onto a frame.
+        listOf(
+            referenceWidth to referenceHeight,
+            2400.dp to 900.dp,
+            700.dp to 1100.dp,
+        ).forEach { (w, h) ->
+            val layout = FrameGeometry.threeUpLayout(w, h)
+
+            assertEquals(
+                "overlay placement disagrees at ${w.value}x${h.value}",
+                FrameGeometry.overlayFitsOutside(w, layout.frame.width),
+                layout.overlayOutside,
+            )
+            assertTrue(layout.frame.height.value * 2 + FrameGeometry.Gap.value <= h.value + 1f)
+        }
+    }
+
+    @Test
+    fun `the arrangement honours the aspect it is given`() {
+        val layout = FrameGeometry.threeUpLayout(
+            regionWidth = referenceWidth,
+            regionHeight = referenceHeight,
+            aspect = 1.5f,
+        )
+
+        assertEquals(1.5f, layout.frame.width.value / layout.frame.height.value, 0.01f)
+    }
 }
