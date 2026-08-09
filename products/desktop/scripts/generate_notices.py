@@ -50,7 +50,11 @@ def get_production_packages():
         return set()
 
 def generate_notices():
-    output_file = Path("THIRDPARTY_NOTICES.txt")
+    # The notices file is tracked at the repository root (shared with the
+    # README and the release archives), and build.py runs with
+    # cwd=products/desktop, so anchor it to this script rather than the cwd.
+    repo_root = Path(__file__).resolve().parent.parent.parent.parent
+    output_file = repo_root / "THIRDPARTY_NOTICES.txt"
 
     print("Generating third-party notices...")
 

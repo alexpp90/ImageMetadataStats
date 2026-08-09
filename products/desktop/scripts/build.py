@@ -16,6 +16,46 @@ SF_BASE_URL = "https://downloads.sourceforge.net/project/exiftool"
 PROJECT_ROOT = Path(__file__).parent.parent
 BIN_DIR = PROJECT_ROOT / "src" / "photo_selector_toolbox" / "bin"
 
+# Branding and licence texts are shared with the README and the Android
+# products, so they stay at the repository root rather than inside
+# products/desktop/. Resolve them from the script's own location: CI runs this
+# with cwd=products/desktop, where "assets/logo.png" does not exist.
+REPO_ROOT = PROJECT_ROOT.parent.parent
+ASSETS_DIR = REPO_ROOT / "assets"
+
+# Roots of the PyObjC import chain used by the Apple Vision aesthetics engine.
+# `tools/aesthetic.py` imports `Vision` and `Foundation` inside function bodies
+# guarded by try/except, and `Vision.__init__` pulls Quartz/CoreML/objc and its
+# own `_Vision` extension module from inside a `_setup()` function as well.
+# PyInstaller ships no hook for PyObjC, so if the graph walker ever stops
+# following those deferred imports the frozen app raises ImportError,
+# `apple_vision_available()` returns False, and aesthetic scoring silently
+# degrades to the ~200x slower Ollama engine — a defect that exists only in the
+# shipped bundle and never in development. Naming the two roots as hidden
+# imports removes that dependence on static analysis.
+#
+# Measured (PyInstaller 6.19.0, PyObjC 12.2.1, Python 3.14.6, arm64), onedir
+# probe importing the real `AppleVisionAestheticEngine`: 49400 KiB without any
+# flags and 49400 KiB with these two — the guarantee is free, because analysis
+# happens to find the same modules today. `--collect-all` on the same packages
+# costs +2228 KiB, over half of it PyObjC's `.dSYM` debug bundles, so it is
+# deliberately not used.
+MACOS_PYOBJC_HIDDEN_IMPORTS = ["Vision", "Foundation"]
+
+
+def pyobjc_hidden_import_args(target):
+    """PyInstaller flags that pin the PyObjC Vision bridge into the bundle.
+
+    macOS only, and GUI only: the CLI never imports `tools/`, so the CLI binary
+    would carry bindings it can never reach.
+    """
+    if platform.system() != "Darwin" or target != "gui":
+        return []
+    args = []
+    for module in MACOS_PYOBJC_HIDDEN_IMPORTS:
+        args.extend(["--hidden-import", module])
+    return args
+
 def download_file(url, dest_path):
     print(f"Downloading {url}...")
     try:
@@ -170,24 +210,26 @@ def run_pyinstaller(target):
     else:
         cmd.append("--onefile")
 
+    cmd.extend(pyobjc_hidden_import_args(target))
+
     if target == "gui":
         # Add icon file to data
-        icon_src = "assets/logo.png"
+        icon_src = str(ASSETS_DIR / "logo.png")
         icon_dst = "."
         cmd.extend(["--add-data", f"{icon_src}{sep}{icon_dst}"])
 
         # Add splash screen (not supported on macOS)
         if platform.system() != "Darwin":
-            cmd.extend(["--splash", "assets/logo.png"])
+            cmd.extend(["--splash", str(ASSETS_DIR / "logo.png")])
 
         # Set executable icon
         if platform.system() == "Windows":
-             cmd.extend(["--icon", "assets/logo.ico"])
+            cmd.extend(["--icon", str(ASSETS_DIR / "logo.ico")])
         elif platform.system() == "Darwin":
-             cmd.extend(["--icon", "assets/logo.icns"])
+            cmd.extend(["--icon", str(ASSETS_DIR / "logo.icns")])
         else:
-             # Linux .desktop files handle icons, but we can set window icon in code.
-             pass
+            # Linux .desktop files handle icons, but we can set window icon in code.
+            pass
 
         cmd.extend([
             "--windowed",
@@ -248,8 +290,8 @@ def main():
     print("Copying licenses to dist/...")
     dist_dir = Path("dist")
     if dist_dir.exists():
-        shutil.copy("LICENSE", dist_dir / "LICENSE")
-        shutil.copy("THIRDPARTY_NOTICES.txt", dist_dir / "THIRDPARTY_NOTICES.txt")
+        shutil.copy(REPO_ROOT / "LICENSE", dist_dir / "LICENSE")
+        shutil.copy(REPO_ROOT / "THIRDPARTY_NOTICES.txt", dist_dir / "THIRDPARTY_NOTICES.txt")
         print("Licenses copied.")
     else:
         print("Warning: dist/ directory not found. Licenses were not copied.")

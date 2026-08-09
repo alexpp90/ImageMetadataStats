@@ -116,6 +116,36 @@ MIT-CMU
 "Jeffrey A. Clark" <aclark@aclark.net>
 https://python-pillow.github.io
 
+pyobjc-core
+12.2.1
+MIT
+Ronald Oussoren, bbum, SteveM, LeleG, many others stretching back through the reaches of time...
+https://github.com/ronaldoussoren/pyobjc
+
+pyobjc-framework-Cocoa
+12.2.1
+MIT
+Ronald Oussoren
+https://github.com/ronaldoussoren/pyobjc
+
+pyobjc-framework-CoreML
+12.2.1
+MIT
+Ronald Oussoren
+https://github.com/ronaldoussoren/pyobjc
+
+pyobjc-framework-Quartz
+12.2.1
+MIT
+Ronald Oussoren
+https://github.com/ronaldoussoren/pyobjc
+
+pyobjc-framework-Vision
+12.2.1
+MIT
+Ronald Oussoren
+https://github.com/ronaldoussoren/pyobjc
+
 pyparsing
 3.3.2
 MIT
