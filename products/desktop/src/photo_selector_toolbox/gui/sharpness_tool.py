@@ -7,8 +7,6 @@ from typing import List, Dict
 from tkinter import messagebox, ttk
 from photo_selector_toolbox.gui.widgets import ask_directory
 import os
-import json
-import urllib.request
 
 import send2trash
 import shutil
@@ -26,8 +24,8 @@ from photo_selector_toolbox.core.utils import (
     group_files_by_similarity,
     select_representative,
     load_image_preview,
-    NoRedirectHandler,
 )
+from photo_selector_toolbox.gui.aesthetic_settings import AestheticSettingsDialog
 from photo_selector_toolbox.gui.controllers import ImageCacheManager, ScanController
 from photo_selector_toolbox.core.models import ScanResult, ExifData
 from photo_selector_toolbox.exif.reader import get_exif_data, RAW_EXTENSIONS
@@ -596,7 +594,8 @@ class SharpnessTool(ttk.Frame, ImagePanelsMixin):
             sd_row, text="Shadow Clipping Analysis", variable=self.tool_shadow_var
         ).pack(side="left", padx=5)
 
-        # Aesthetic row (Ollama VLM)
+        # Aesthetic row (engine chosen in the Aesthetic Scoring Settings dialog:
+        # Apple Vision, a NIMA ONNX model, or Ollama)
         aesthetic_row = ttk.Frame(container)
         aesthetic_row.pack(fill="x", pady=5)
         ttk.Checkbutton(
@@ -604,7 +603,10 @@ class SharpnessTool(ttk.Frame, ImagePanelsMixin):
         ).pack(side="left", padx=5)
 
         config_btn = ttk.Button(
-            aesthetic_row, text="⚙️ Configure AI...", command=self.show_ollama_config_dialog, width=15
+            aesthetic_row,
+            text="⚙️ Scoring Engine...",
+            command=self.show_aesthetic_config_dialog,
+            width=18,
         )
         config_btn.pack(side="left", padx=10)
 
@@ -642,205 +644,9 @@ class SharpnessTool(ttk.Frame, ImagePanelsMixin):
         # Bind <Escape> to close the dialog safely
         dialog.bind("<Escape>", lambda e: dialog.destroy())
 
-    def show_ollama_config_dialog(self):
-        config = load_config()
-
-        dialog = tk.Toplevel(self)
-        dialog.configure(bg="#18181B")
-        dialog.title("Ollama Aesthetic Settings")
-        dialog.transient(self.winfo_toplevel())
-        dialog.grab_set()
-
-        # Title
-        ttk.Label(
-            dialog,
-            text="🤖 Configure Ollama VLM Integration",
-            font=("Helvetica", 12, "bold")
-        ).pack(pady=10)
-
-        container = ttk.Frame(dialog, padding=15)
-        container.pack(fill="both", expand=True)
-
-        # URL
-        url_frame = ttk.Frame(container)
-        url_frame.pack(fill="x", pady=5)
-        ttk.Label(url_frame, text="🌐 Ollama URL:", width=15, anchor="w").pack(side="left")
-        url_var = tk.StringVar(value=config.get("ollama_url", ""))
-        url_ent = ttk.Entry(url_frame, textvariable=url_var)
-        url_ent.pack(side="left", fill="x", expand=True)
-
-        # Model
-        model_frame = ttk.Frame(container)
-        model_frame.pack(fill="x", pady=5)
-        ttk.Label(model_frame, text="🤖 Model Name:", width=15, anchor="w").pack(side="left")
-        model_var = tk.StringVar(value=config.get("ollama_model", ""))
-        model_ent = ttk.Entry(model_frame, textvariable=model_var)
-        model_ent.pack(side="left", fill="x", expand=True)
-
-        # Prompt
-        prompt_frame = ttk.Frame(container)
-        prompt_frame.pack(fill="both", expand=True, pady=5)
-        ttk.Label(prompt_frame, text="📝 Prompt:", width=15, anchor="w").pack(side="top", anchor="w", pady=(0, 2))
-
-        prompt_text = tk.Text(
-            prompt_frame,
-            height=5,
-            font=("Helvetica", 10),
-            bg="#27272A",
-            fg="#F4F4F5",
-            insertbackground="#F4F4F5",
-            highlightbackground="#27272A",
-            highlightcolor="#6366F1",
-            borderwidth=1,
-            relief="flat"
-        )
-        prompt_text.pack(fill="both", expand=True)
-        prompt_text.insert("1.0", config.get("ollama_prompt", ""))
-
-        # Status & Connection Test
-        status_frame = ttk.LabelFrame(container, text="Connection Status", padding=8)
-        status_frame.pack(fill="x", pady=10)
-
-        status_lbl = ttk.Label(
-            status_frame,
-            text="Click 'Test Connection' to check setup.",
-            foreground="gray",
-            wraplength=480
-        )
-        status_lbl.pack(fill="x", pady=5)
-
-        def run_test():
-            status_lbl.config(text="Connecting to Ollama...", foreground="blue")
-            dialog.update_idletasks()
-            url = url_var.get().strip()
-            model = model_var.get().strip()
-            try:
-                if not url.lower().startswith(('http://', 'https://')):
-                    raise ValueError("URL must start with http:// or https://")
-
-                from urllib.parse import urlparse
-                import socket
-                import ipaddress
-
-                hostname = urlparse(url).hostname or ""
-                clean_hostname = hostname.strip("[]")
-
-                def is_forbidden_ip(ip_str):
-                    try:
-                        ip_obj = ipaddress.ip_address(ip_str)
-                        if ip_obj.is_link_local:
-                            return True
-                        if ip_obj.is_unspecified:
-                            return True
-                        if getattr(ip_obj, "ipv4_mapped", None) and ip_obj.ipv4_mapped.is_link_local:
-                            return True
-                        return False
-                    except ValueError:
-                        return False
-
-                if is_forbidden_ip(clean_hostname):
-                    raise ValueError("SSRF Protection: Cloud metadata IPs are not allowed.")
-
-                try:
-                    addr_info = socket.getaddrinfo(clean_hostname, None)
-                    safe_ips = []
-                    for res in addr_info:
-                        ip_str = res[4][0]
-                        if is_forbidden_ip(ip_str):
-                            raise ValueError("SSRF Protection: Cloud metadata IPs are not allowed.")
-                        safe_ips.append(ip_str)
-                except socket.gaierror as e:
-                    raise ValueError(f"SSRF Protection: Could not resolve hostname {clean_hostname}: {e}")
-
-                from photo_selector_toolbox.core.utils import SafeSSRFHTTPHandler, SafeSSRFHTTPSHandler
-                opener = urllib.request.build_opener(
-                    NoRedirectHandler,
-                    SafeSSRFHTTPHandler(safe_ips),
-                    SafeSSRFHTTPSHandler(safe_ips),
-                )
-                req = urllib.request.Request(f"{url.rstrip('/')}/api/tags")
-                with opener.open(req, timeout=2.0) as resp:
-                    data = json.loads(resp.read().decode('utf-8'))
-                    models_list = data.get("models", [])
-                    models = [m["name"] for m in models_list]
-
-                # Check for standard model match, e.g. "llava" matches "llava:latest" or "llava:7b"
-                matched = False
-                for m in models:
-                    if m == model or m.split(":")[0] == model:
-                        matched = True
-                        break
-
-                if matched:
-                    status_lbl.config(
-                        text=f"Success! Model '{model}' is running locally and ready for analysis.",
-                        foreground="green"
-                    )
-                else:
-                    available = ", ".join(models) if models else "none"
-                    status_lbl.config(
-                        text=(
-                            f"Connected to Ollama, but model '{model}' is not pulled.\n"
-                            f"Available models: {available}\n"
-                            f"Please run 'ollama pull {model}' in your terminal."
-                        ),
-                        foreground="orange"
-                    )
-            except Exception as e:
-                status_lbl.config(
-                    text=(
-                        f"Cannot connect to Ollama at '{url}'.\n"
-                        "Is the service running? Install it from https://ollama.com.\n"
-                        f"Error: {e}"
-                    ),
-                    foreground="red"
-                )
-
-        test_btn = ttk.Button(
-            status_frame, text="🔌 Test Connection",
-            command=lambda: threading.Thread(target=run_test, daemon=True).start()
-        )
-        test_btn.pack(anchor="e")
-
-        # Dialog Action Buttons
-        btn_frame = ttk.Frame(dialog, padding=10)
-        btn_frame.pack(fill="x")
-
-        def save_and_close():
-            new_config = {
-                "ollama_url": url_var.get().strip(),
-                "ollama_model": model_var.get().strip(),
-                "ollama_prompt": prompt_text.get("1.0", "end-1c").strip()
-            }
-            save_config(new_config)
-            dialog.destroy()
-
-        ttk.Button(btn_frame, text="💾 Save Settings", command=save_and_close).pack(side="left", expand=True, padx=5)
-        ttk.Button(btn_frame, text="❌ Cancel", command=dialog.destroy).pack(side="right", expand=True, padx=5)
-
-        # Force layout calculations
-        dialog.update_idletasks()
-
-        # Calculate size dynamically
-        width = max(550, int(dialog.winfo_reqwidth()))
-        height = max(450, int(dialog.winfo_reqheight()))
-
-        # Center it relative to parent using root coordinates
-        parent = self.winfo_toplevel()
-        parent_width = parent.winfo_width()
-        parent_height = parent.winfo_height()
-        parent_x = parent.winfo_rootx()
-        parent_y = parent.winfo_rooty()
-
-        x = parent_x + (parent_width - width) // 2
-        y = parent_y + (parent_height - height) // 2
-
-        dialog.geometry(f"{width}x{height}+{x}+{y}")
-        dialog.minsize(width, height)
-        dialog.resizable(True, True)
-
-        # Bind <Escape> to close the dialog
-        dialog.bind("<Escape>", lambda e: dialog.destroy())
+    def show_aesthetic_config_dialog(self):
+        """Open the aesthetic scoring settings (engine choice + engine setup)."""
+        return AestheticSettingsDialog(self)
 
     def update_scan_button_state(self):
         if self.is_scanning:

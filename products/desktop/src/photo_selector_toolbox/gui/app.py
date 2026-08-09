@@ -187,6 +187,22 @@ def _configure_button_styles(style: ttk.Style, colors: ThemeColors) -> None:
         focuscolor=[("focus", colors.accent_blue)],
     )
 
+    # `clam` drops the focus ring on radio buttons unless focuscolor is set in
+    # BOTH configure and map — without the map, keyboard users lose the cursor.
+    style.configure(
+        "TRadiobutton",
+        background=colors.bg_dark,
+        foreground=colors.fg_light,
+        focuscolor=colors.accent_blue,
+    )
+    style.map(
+        "TRadiobutton",
+        background=[("active", colors.bg_dark), ("disabled", colors.bg_dark)],
+        foreground=[("active", colors.fg_light), ("disabled", colors.fg_muted)],
+        indicatorcolor=[("selected", colors.accent_blue)],
+        focuscolor=[("focus", colors.accent_blue)],
+    )
+
 
 def _configure_input_styles(style: ttk.Style, colors: ThemeColors) -> None:
     style.configure(
@@ -196,6 +212,7 @@ def _configure_input_styles(style: ttk.Style, colors: ThemeColors) -> None:
         bordercolor=colors.border_color,
         lightcolor=colors.bg_panel,
         darkcolor=colors.bg_panel,
+        focuscolor=colors.accent_blue,
         padding=4,
     )
     style.map(
@@ -221,6 +238,7 @@ def _configure_input_styles(style: ttk.Style, colors: ThemeColors) -> None:
         foreground=colors.fg_light,
         bordercolor=colors.border_color,
         arrowcolor=colors.fg_light,
+        focuscolor=colors.accent_blue,
     )
     style.map(
         "TCombobox",
