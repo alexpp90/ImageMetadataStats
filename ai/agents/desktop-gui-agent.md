@@ -22,6 +22,7 @@ You own the following files:
 
 - `products/desktop/src/photo_selector_toolbox/gui/app.py` — Main application window, sidebar, ImageLibraryStatistics, DuplicateFinder
 - `products/desktop/src/photo_selector_toolbox/gui/sharpness_tool.py` — SharpnessTool (Configuration, Scanning, Review tabs), Focus Mode
+- `products/desktop/src/photo_selector_toolbox/gui/aesthetic_settings.py` — Aesthetic Scoring Settings dialog (engine selector, resolved-engine readout, per-engine setup)
 - `products/desktop/src/photo_selector_toolbox/gui/fullscreen_viewer.py` — FullscreenViewer (`tk.Toplevel` with zoom/pan)
 - `products/desktop/src/photo_selector_toolbox/gui/image_panels.py` — Reusable image panel/thumbnail widgets
 - `products/desktop/src/photo_selector_toolbox/gui/controllers.py` — ImageCacheManager, ScanController (MVC controllers bridging GUI and backend)
