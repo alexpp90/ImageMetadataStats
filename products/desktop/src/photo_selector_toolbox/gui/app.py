@@ -249,6 +249,13 @@ def apply_dark_theme(root: tk.Tk) -> None:
     _configure_button_styles(style, colors)
     _configure_input_styles(style, colors)
 
+    # Set default cursors for interactive widgets globally
+    root.option_add("*TButton.cursor", "hand2")
+    root.option_add("*Primary.TButton.cursor", "hand2")
+    root.option_add("*TCheckbutton.cursor", "hand2")
+    root.option_add("*TRadiobutton.cursor", "hand2")
+    root.option_add("*TCombobox.cursor", "hand2")
+
     # Configure native menus globally
     root.option_add("*Menu.background", colors.bg_panel)
     root.option_add("*Menu.foreground", colors.fg_light)
