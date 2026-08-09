@@ -208,6 +208,7 @@ class TestLoadImagePreview(unittest.TestCase):
 
         mock_img = MagicMock()
         mock_img.copy.return_value = mock_img
+        mock_img.convert.return_value = mock_img
         mock_fromarray.return_value = mock_img
 
         path = Path('test.arw')
@@ -322,6 +323,7 @@ class TestLoadImagePreview(unittest.TestCase):
 
         mock_img = MagicMock()
         mock_img.copy.return_value = mock_img
+        mock_img.convert.return_value = mock_img
         mock_fromarray.return_value = mock_img
 
         path = Path('test.arw')

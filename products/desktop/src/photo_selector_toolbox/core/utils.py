@@ -9,7 +9,7 @@ import functools
 from pathlib import Path
 from collections import Counter
 from typing import List, Set, Tuple, Optional
-from PIL import Image
+from PIL import Image, ImageOps
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -276,12 +276,48 @@ def aggregate_focal_lengths(
     return _generate_aggregated_buckets(unique_fls, counts, max_buckets)
 
 
+def apply_exif_orientation(img: Image.Image) -> Image.Image:
+    """
+    Rotates/flips an image in place according to its EXIF orientation tag.
+
+    Camera JPEG/HEIC files and the JPEG thumbnails embedded in RAW files are
+    stored in the sensor's native orientation with an `Orientation` tag (1-8)
+    describing how a viewer must rotate them. Ignoring the tag renders every
+    portrait shot as landscape.
+
+    `ImageOps.exif_transpose(..., in_place=True)` mutates the image and returns
+    `None`; it also strips the orientation tag from the result, so no consumer
+    downstream can rotate the same image a second time. Images without EXIF
+    (e.g. anything built by `Image.fromarray`, such as a rawpy postprocess
+    result, which libraw has already flipped via its default `user_flip=-1`)
+    are left untouched.
+
+    Args:
+        img: The image to orient.
+
+    Returns:
+        The oriented image (the same object that was passed in).
+    """
+    try:
+        result = ImageOps.exif_transpose(img, in_place=True)
+    except Exception as e:
+        # A truncated/corrupt EXIF block must never cost us the preview.
+        logger.debug("Could not apply EXIF orientation: %s", e)
+        return img
+    # in_place=True returns None; tolerate a copy-returning implementation too.
+    return result if result is not None else img
+
+
 def load_image_preview(
     path: Path, max_size: Tuple[int, int] = (150, 150), full_res: bool = False
 ) -> Optional[Image.Image]:
     """
     Loads an image for preview, handling both standard formats (via Pillow)
     and RAW formats (via rawpy). Resizes the image to fit within max_size.
+
+    The EXIF orientation tag is always applied (see `apply_exif_orientation`)
+    before the image is converted or resized, so every display path agrees on
+    which way up a photograph is.
 
     Args:
         path: Path to the image file.
@@ -312,13 +348,11 @@ def load_image_preview(
                                 import io
 
                                 img = Image.open(io.BytesIO(thumb.data))
-                                img = img.convert("RGB")
                             elif (
                                 hasattr(rawpy, "ThumbFormat")
                                 and thumb.format == rawpy.ThumbFormat.BITMAP
                             ):
                                 img = Image.fromarray(thumb.data)
-                                img = img.convert("RGB")
                         except Exception as e:
                             logger.debug(
                                 "Failed to extract embedded thumbnail for %s: %s",
@@ -339,7 +373,20 @@ def load_image_preview(
         # Fallback to Pillow if not RAW or rawpy failed
         if img is None:
             img = Image.open(path)
-            img = img.convert("RGB")  # REQUIRED — prevents I;16 crashes in ImageTk
+
+        # Orientation must be applied BEFORE thumbnailing: fitting an unrotated
+        # portrait into the max_size box sizes it as if it were landscape, so a
+        # later rotation would yield the wrong box. One call site here covers
+        # the Pillow path, the RAW embedded-thumbnail path and the rawpy
+        # postprocess path (a no-op for the latter, which libraw already
+        # flipped).
+        img = apply_exif_orientation(img)
+
+        # REQUIRED — prevents I;16 crashes in ImageTk. Skipped when the decoded
+        # image is already RGB, since convert() would otherwise copy the whole
+        # (possibly full-resolution) buffer for nothing.
+        if img.mode != "RGB":
+            img = img.convert("RGB")
 
         # Resize (thumbnail modifies in-place)
         if not full_res:
