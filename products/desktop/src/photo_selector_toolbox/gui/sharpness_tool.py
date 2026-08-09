@@ -728,11 +728,10 @@ class SharpnessTool(ttk.Frame, ImagePanelsMixin):
                 def is_forbidden_ip(ip_str):
                     try:
                         ip_obj = ipaddress.ip_address(ip_str)
-                        if ip_obj.is_link_local:
+                        if ip_obj.is_link_local or ip_obj.is_unspecified:
                             return True
-                        if ip_obj.is_unspecified:
-                            return True
-                        if getattr(ip_obj, "ipv4_mapped", None) and ip_obj.ipv4_mapped.is_link_local:
+                        mapped = getattr(ip_obj, "ipv4_mapped", None)
+                        if mapped and (mapped.is_link_local or mapped.is_unspecified):
                             return True
                         return False
                     except ValueError:
