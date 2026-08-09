@@ -35,6 +35,7 @@ When a new feature is added to any product, it must be evaluated for inclusion i
 | Image Grouping (similarity) | ✅ Full | ✅ Time-only default | Phone defaults to fast time+filename grouping |
 | Persistent Score Cache | ✅ Room DB | ✅ Room DB | Same 10,000 MRU limit |
 | Local AI (Ollama VLM) | ❌ Excluded | ❌ Excluded | Battery/compute constraints |
+| Apple Vision aesthetic scoring (on-device) | ❌ N/A | ❌ N/A | Evaluated 2026-08-09 when the PyObjC Vision bridge became a default macOS dependency. `VNCalculateImageAestheticsScoresRequest` is an Apple-platform API with no Android equivalent; the transferable part is the *packaging* rule (a default-off engine is a disabled engine), which is a build concern, not a feature to port. |
 | CLI | ❌ N/A | ❌ N/A | Android has no CLI equivalent |
 | Homebrew Distribution | ❌ N/A | ❌ N/A | Distributed via APK/Play Store |
 | SMB Path Resolution | ❌ Excluded | ❌ Excluded | Android handles network shares via SAF providers |
@@ -62,6 +63,8 @@ products is a defect (`ai/ROUTING.md`, the separation rule).
 | Chrome that hides its own escape hatch is a one-way door | Android Desktop 2026-08-08 | ⬜ evaluate — panels are toggled from a persistent menu bar, which cannot hide itself | ✅ origin | ⬜ evaluate — overlays are gesture-dismissed, no persistent toggle to strand | 2026-08-08 |
 | A background pass merges the field it computed, never the item | Android Desktop 2026-08-08 | ⬜ evaluate — analysis results are written into a dict keyed by path, no list snapshot | ✅ origin | ◐ gap — check `optimistic copy/move` and DataStore reads for the same snapshot-merge shape | 2026-08-08 |
 | No second cloud source: SAF already mounts the providers | PhotoTok (policy, `REQUIREMENTS.md` §No Dedicated Cloud Integration) | ❌ N/A — desktop mounts are the OS's job | ✅ ported 2026-08-08 | ✅ origin | 2026-08-08 |
+| A photograph's orientation is the EXIF tag, never the stored pixel dimensions | Desktop 2026-08-09 | ✅ origin — `load_image_preview` applies `exif_transpose` before any resize | ❌ N/A — Coil applies the tag when decoding, and nothing branches on stored dimensions | ◐ gap — Coil renders correctly, but `readImageDimensions` reads bounds only, so `ImageItem.isLandscape` and the "sort by orientation" feed split misclassify rotated JPEGs | 2026-08-09 |
+| An automatic engine/backend choice must be able to state its own reason | Desktop 2026-08-09 | ✅ origin — `select_engine_with_reason` returns `(engine, reason)`; logged once and shown in settings | ⬜ evaluate — `AestheticAnalyzer` goes inert when no `.tflite` asset is bundled and says nothing | ⬜ evaluate — same analyzer path | 2026-08-09 |
 
 Rationale for the negatives, so a future agent does not re-open a settled question:
 

@@ -31,6 +31,7 @@ You own the following files:
 - `products/desktop/src/photo_selector_toolbox/cli.py` — Command-line interface entry point
 - `products/desktop/src/photo_selector_toolbox/core/visualizer.py` — Matplotlib plot generation
 - `products/desktop/src/photo_selector_toolbox/tools/registry.py` — `AnalysisTool` abstraction and tool registry
+- `products/desktop/src/photo_selector_toolbox/tools/aesthetic.py` — The registered `aesthetic` tool: engine selection (`auto` | Apple Vision | NIMA ONNX | Ollama), score mapping, availability probes
 - `products/desktop/src/photo_selector_toolbox/tools/ollama.py` — Local AI aesthetic scoring via Ollama REST API (Desktop-only feature)
 - `products/desktop/src/photo_selector_toolbox/core/cache.py` — SQLite-based analysis result cache
 - `products/desktop/src/photo_selector_toolbox/core/config.py` — Settings persistence (`~/.photo_selector_toolbox/settings.json`), recent folders, secure file permissions
@@ -52,4 +53,5 @@ You own the following files:
 - **Noise** uses Median Absolute Deviation of the Laplacian.
 - **Duplicates** group by file size first, then SHA256 hash. Uses `send2trash` with exception-based error handling.
 - **Focal length aggregation** uses adaptive threshold-based bucketing with binary search.
-- **`load_image_preview`** MUST convert images to RGB mode to handle 16-bit RAW data (`I;16`).
+- **`load_image_preview`** MUST convert images to RGB mode to handle 16-bit RAW data (`I;16`), and MUST apply the EXIF orientation tag (`ImageOps.exif_transpose`) before converting or thumbnailing — it is the single chokepoint every display path funnels through, so a missing rotation there shows every portrait photograph in landscape.
+- **Aesthetic engines** map onto the canonical 1.0–10.0 scale with monotone functions over each engine's *documented* range; never narrow a range to "what real photos do" without measuring, or the mapping clamps most of the library to one value. An `auto` engine decision must carry a reason string (`select_engine_with_reason`), because falling back from Apple Vision (~0.1 s/image) to Ollama (~19 s/image) is invisible otherwise.

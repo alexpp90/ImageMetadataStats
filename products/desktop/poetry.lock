@@ -1284,10 +1284,10 @@ setuptools = ">=42.0.0"
 name = "pyobjc-core"
 version = "12.2.1"
 description = "Python<->ObjC Interoperability Module"
-optional = true
+optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "sys_platform == \"darwin\" and extra == \"apple\""
+markers = "sys_platform == \"darwin\""
 files = [
     {file = "pyobjc_core-12.2.1-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:aa5c889961d79d7704f17eeb27f80ee791335819c1bb14babeff7b9ea665b5f0"},
     {file = "pyobjc_core-12.2.1-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:24b76a63caf0b5369d4a377c7c0438cd70df81539057af3db839bfaa3579e04a"},
@@ -1305,10 +1305,10 @@ files = [
 name = "pyobjc-framework-cocoa"
 version = "12.2.1"
 description = "Wrappers for the Cocoa frameworks on macOS"
-optional = true
+optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "sys_platform == \"darwin\" and extra == \"apple\""
+markers = "sys_platform == \"darwin\""
 files = [
     {file = "pyobjc_framework_cocoa-12.2.1-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:05443c1494532779cccff83e9792fdd6f0a4800cac56620132bf28e0bf966e9d"},
     {file = "pyobjc_framework_cocoa-12.2.1-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:dc6da84f4fc62cc25463bbb85e77a57b8d5ac6caf9a60702daf2edb601332f15"},
@@ -1329,10 +1329,10 @@ pyobjc-core = ">=12.2.1"
 name = "pyobjc-framework-coreml"
 version = "12.2.1"
 description = "Wrappers for the framework CoreML on macOS"
-optional = true
+optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "sys_platform == \"darwin\" and extra == \"apple\""
+markers = "sys_platform == \"darwin\""
 files = [
     {file = "pyobjc_framework_coreml-12.2.1-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:3d04c58b18ce9a136ea9184f604658d50b8753ad4634638ac50e360298a3eb81"},
     {file = "pyobjc_framework_coreml-12.2.1-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:711be8528b0cbbc49b5bd4669309f0ad0de6ed76499ffb706b0dd2f1b294293f"},
@@ -1354,10 +1354,10 @@ pyobjc-framework-Cocoa = ">=12.2.1"
 name = "pyobjc-framework-quartz"
 version = "12.2.1"
 description = "Wrappers for the Quartz frameworks on macOS"
-optional = true
+optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "sys_platform == \"darwin\" and extra == \"apple\""
+markers = "sys_platform == \"darwin\""
 files = [
     {file = "pyobjc_framework_quartz-12.2.1-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:c8fed57ac8a1927e4fe4f48ab4042cbc1087d881743182b6f3f2e6e227a9209f"},
     {file = "pyobjc_framework_quartz-12.2.1-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:60f29408b4f9ed5391a29c6b63e2aa56ddfb8b66b3fb47962930427981e14462"},
@@ -1379,10 +1379,10 @@ pyobjc-framework-Cocoa = ">=12.2.1"
 name = "pyobjc-framework-vision"
 version = "12.2.1"
 description = "Wrappers for the framework Vision on macOS"
-optional = true
+optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "sys_platform == \"darwin\" and extra == \"apple\""
+markers = "sys_platform == \"darwin\""
 files = [
     {file = "pyobjc_framework_vision-12.2.1-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:c9792afbc3ba16483095d9a90c3f7a562383a6d7e86d2783824fab9b4b562219"},
     {file = "pyobjc_framework_vision-12.2.1-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:86f221d7ced483e7292194293b791a255e0bd1e4011048533501679e378d40fd"},
@@ -1743,10 +1743,9 @@ files = [
 ]
 
 [extras]
-apple = ["pyobjc-framework-Vision"]
 nima = ["onnxruntime"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<3.15"
-content-hash = "65a0befdc32af0925db4606eace1c16bf343f93191fb39125132114ef809eebf"
+content-hash = "b70bd1e7b9238ff03a2d85acbf7e1a67d64b563a999ce7c98e7c801256369981"

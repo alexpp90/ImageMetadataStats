@@ -40,7 +40,7 @@ code where it does not fit. Copying a file from one product into another is a de
 | Core algorithms, models, EXIF reading, caching, config, CLI, plotting — `products/desktop/src/photo_selector_toolbox/{core,exif,tools}/`, `cli.py` | `@desktop-backend-agent` |
 | Tkinter UI, controllers, threading — `products/desktop/src/photo_selector_toolbox/gui/` | `@desktop-gui-agent` |
 | Tests and benchmarks — `products/desktop/tests/`, `products/desktop/benchmarks/` | `@desktop-test-agent` |
-| Build, packaging, desktop CI — `scripts/`, `.github/workflows/desktop.yml`, `Formula/`, `Casks/`, `products/desktop/pyproject.toml` | `@desktop-build-agent` |
+| Build, packaging, desktop CI — `products/desktop/scripts/` (build tooling), `scripts/run_tests.sh` (the cross-product CI mirror), `.github/workflows/desktop.yml`, `Formula/`, `Casks/`, `products/desktop/pyproject.toml`, `products/desktop/poetry.lock` | `@desktop-build-agent` |
 
 ### Android Desktop (`:android-desktop`)
 
