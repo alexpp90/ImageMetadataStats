@@ -30,8 +30,10 @@ distribution→score, engine selection). Verify the live engines on a Mac /
 target machine.
 """
 
+import importlib
 import logging
 import platform
+import threading
 from pathlib import Path
 from typing import Any, Dict, Optional, Sequence, Tuple
 
@@ -61,15 +63,25 @@ def _clamp10(value: float) -> float:
 def map_apple_score_to_10(overall_score: float) -> float:
     """Map Apple Vision's ``overallScore`` onto the app's 1.0-10.0 scale.
 
-    Apple's ``overallScore`` is a float in ``[-1.0, 1.0]`` where higher
-    is more aesthetically pleasing.
+    Apple documents ``overallScore`` as a float in ``[-1.0, 1.0]``, higher
+    being more aesthetically pleasing. That documented range is mapped
+    linearly onto ``[1.0, 10.0]``; the mapping is monotone, so it preserves
+    Vision's ordering, which is what ranking a library needs.
 
-    Observed real-world photos on macOS 15 typically cluster tightly between
-    ``[-0.5, 0.5]``. We rescale this narrower effective range linearly to
-    ``[1.0, 10.0]`` to ensure the UI scores aren't all compressed into the middle.
+    An earlier version assumed an *effective* range of ``[-0.5, 0.5]`` on the
+    grounds that real photos cluster there. Measurement contradicts it: 84 real
+    JPEGs scored with ``VNCalculateImageAestheticsScoresRequest``
+    (pyobjc-framework-Vision 12.2.1, macOS 26.6, M4 Air) gave min -0.042,
+    median 0.565, p90 0.720, max 0.915 — under the narrow mapping 59 of those
+    84 images (70%) clamped to exactly 10.0, leaving 15 distinct values in the
+    whole library. Over the documented range the same corpus pins nothing and
+    spreads across 23 distinct values in 5.3-9.6. That corpus is a Lightroom
+    "saved photos" export (keepers only) and therefore biased upward, so it is
+    used to reject the narrow range rather than to fit a bespoke curve to it.
     """
-    # Map [-0.5, 0.5] -> [0, 1]. Clamping handles outliers automatically.
-    normalized = (float(overall_score) + 0.5) / 1.0
+    # Map [-1.0, 1.0] -> [0, 1]. Clamping only guards against out-of-contract
+    # values; in practice nothing reaches the endpoints.
+    normalized = (float(overall_score) + 1.0) / 2.0
     return round(_clamp10(1.0 + normalized * 9.0), 1)
 
 
@@ -103,29 +115,150 @@ def _macos_version_tuple() -> Optional[Tuple[int, ...]]:
         return None
 
 
+# Import probes are the expensive part of the availability checks (a failed
+# import walks the whole sys.path, a successful one loads a PyObjC framework),
+# and they are re-run for every scored image. Their answer cannot change within
+# a process, so memoise it behind a lock — the scan runs on a thread pool.
+# The *config* is deliberately not cached: the user can switch engines mid
+# session and must not have to restart.
+_PROBE_LOCK = threading.Lock()
+_PROBE_CACHE: Dict[str, bool] = {}
+
+
+def _module_importable(module_name: str) -> bool:
+    """True when ``import <module_name>`` succeeds. Memoised per process."""
+    with _PROBE_LOCK:
+        cached = _PROBE_CACHE.get(module_name)
+        if cached is not None:
+            return cached
+    try:
+        importlib.import_module(module_name)
+        ok = True
+    except Exception:
+        ok = False
+    with _PROBE_LOCK:
+        _PROBE_CACHE[module_name] = ok
+    return ok
+
+
+def reset_availability_probe_cache() -> None:
+    """Forget the memoised import probes (tests, and after installing extras)."""
+    with _PROBE_LOCK:
+        _PROBE_CACHE.clear()
+
+
+def apple_vision_unavailable_reason() -> Optional[str]:
+    """Why Apple Vision cannot be used here, or ``None`` when it can.
+
+    The string is user-facing: it is what the settings dialog shows to explain
+    an ``auto`` decision.
+    """
+    ver = _macos_version_tuple()
+    if ver is None:
+        return "not macOS"
+    if ver[0] < 15:
+        pretty = ".".join(str(p) for p in ver) or "unknown"
+        return f"macOS {pretty} is older than macOS 15"
+    if not _module_importable("Vision"):
+        return (
+            "pyobjc-framework-Vision not importable "
+            "(install the optional 'apple' extra)"
+        )
+    return None
+
+
 def apple_vision_available() -> bool:
     """True when the Apple Vision aesthetics request can be used (macOS 15+ with
     the PyObjC Vision bridge importable)."""
-    ver = _macos_version_tuple()
-    if ver is None or ver[0] < 15:
-        return False
-    try:
-        import Vision  # noqa: F401  (PyObjC framework)
-        return True
-    except Exception:
-        return False
+    return apple_vision_unavailable_reason() is None
 
 
 def onnxruntime_available() -> bool:
-    try:
-        import onnxruntime  # noqa: F401
-        return True
-    except Exception:
-        return False
+    return _module_importable("onnxruntime")
 
 
 def _nima_model_path(config: Dict[str, Any]) -> str:
     return str(config.get("nima_model_path") or DEFAULT_CONFIG.get("nima_model_path", "") or "")
+
+
+def _nima_unavailable_reason(
+    config: Dict[str, Any], onnx_ok: bool, nima_model_exists: bool
+) -> Optional[str]:
+    """Why the NIMA ONNX engine cannot be used, or ``None`` when it can."""
+    if not onnx_ok:
+        return "onnxruntime not installed (install the optional 'nima' extra)"
+    if nima_model_exists:
+        return None
+    model_path = _nima_model_path(config)
+    if not model_path:
+        return "no model configured (set 'nima_model_path' in settings.json)"
+    return f"model file not found: {model_path}"
+
+
+def select_engine_with_reason(
+    config: Dict[str, Any],
+    *,
+    apple_ok: Optional[bool] = None,
+    onnx_ok: Optional[bool] = None,
+    nima_model_exists: Optional[bool] = None,
+) -> Tuple[str, str]:
+    """Resolve which engine to use, and say why.
+
+    An explicit ``aesthetic_engine`` other than ``auto`` is honoured verbatim.
+    In ``auto`` mode we prefer Apple Vision, then a NIMA ONNX model (only if a
+    model file is present), and finally fall back to Ollama so existing
+    installs keep working.
+
+    That last fallback is the dangerous one — Ollama costs seconds per image
+    where Apple Vision costs milliseconds, so an install that silently lands on
+    it looks like a slow, bad feature rather than a missing optional
+    dependency. The second element of the return value is a human-readable
+    explanation of the decision, intended for logs and for the settings dialog.
+
+    The availability flags are injectable purely so this decision can be
+    unit-tested without native dependencies.
+
+    Returns:
+        ``(engine, reason)`` where ``engine`` is one of :data:`VALID_ENGINES`
+        minus ``auto``, and ``reason`` is a non-empty, user-presentable string.
+    """
+    raw_engine = str(config.get("aesthetic_engine", ENGINE_AUTO) or ENGINE_AUTO)
+    engine = raw_engine
+    prefix = ""
+    if engine not in VALID_ENGINES:
+        logger.warning("Unknown aesthetic_engine '%s'; falling back to auto.", engine)
+        engine = ENGINE_AUTO
+        prefix = f"unknown aesthetic_engine '{raw_engine}', resolved automatically: "
+    if engine != ENGINE_AUTO:
+        return engine, f"{prefix}explicitly configured as '{engine}'"
+
+    if apple_ok is None:
+        apple_reason = apple_vision_unavailable_reason()
+        apple_ok = apple_reason is None
+    else:
+        apple_reason = None if apple_ok else "reported unavailable"
+    if onnx_ok is None:
+        onnx_ok = onnxruntime_available()
+    if nima_model_exists is None:
+        mp = _nima_model_path(config)
+        nima_model_exists = bool(mp) and Path(mp).is_file()
+
+    if apple_ok:
+        return ENGINE_APPLE_VISION, f"{prefix}auto: apple_vision available"
+
+    nima_reason = _nima_unavailable_reason(config, onnx_ok, nima_model_exists)
+    if nima_reason is None:
+        return (
+            ENGINE_NIMA_ONNX,
+            f"{prefix}auto: apple_vision unavailable: {apple_reason}; "
+            f"using nima_onnx",
+        )
+
+    return (
+        ENGINE_OLLAMA,
+        f"{prefix}auto: apple_vision unavailable: {apple_reason}; "
+        f"nima_onnx unavailable: {nima_reason}; falling back to ollama",
+    )
 
 
 def select_engine(
@@ -137,34 +270,15 @@ def select_engine(
 ) -> str:
     """Resolve which engine to use.
 
-    An explicit ``aesthetic_engine`` other than ``auto`` is honoured verbatim.
-    In ``auto`` mode we prefer Apple Vision, then a NIMA ONNX model (only if a
-    model file is present), and finally fall back to Ollama so existing
-    installs keep working.
-
-    The availability flags are injectable purely so this decision can be
-    unit-tested without native dependencies.
+    Thin wrapper over :func:`select_engine_with_reason` for callers that only
+    need the decision. See that function for the selection rules.
     """
-    engine = str(config.get("aesthetic_engine", ENGINE_AUTO) or ENGINE_AUTO)
-    if engine not in VALID_ENGINES:
-        logger.warning("Unknown aesthetic_engine '%s'; falling back to auto.", engine)
-        engine = ENGINE_AUTO
-    if engine != ENGINE_AUTO:
-        return engine
-
-    if apple_ok is None:
-        apple_ok = apple_vision_available()
-    if onnx_ok is None:
-        onnx_ok = onnxruntime_available()
-    if nima_model_exists is None:
-        mp = _nima_model_path(config)
-        nima_model_exists = bool(mp) and Path(mp).is_file()
-
-    if apple_ok:
-        return ENGINE_APPLE_VISION
-    if onnx_ok and nima_model_exists:
-        return ENGINE_NIMA_ONNX
-    return ENGINE_OLLAMA
+    return select_engine_with_reason(
+        config,
+        apple_ok=apple_ok,
+        onnx_ok=onnx_ok,
+        nima_model_exists=nima_model_exists,
+    )[0]
 
 
 # --------------------------------------------------------------------------- #
@@ -282,6 +396,35 @@ class NimaOnnxAestheticEngine:
 # Dispatcher tool (the single registered "aesthetic" tool)
 # --------------------------------------------------------------------------- #
 
+def describe_active_engine() -> Tuple[str, str]:
+    """Resolve the engine for the *current* settings and explain the choice.
+
+    Convenience entry point for the GUI (settings dialog) so it does not have
+    to load the config itself. Returns ``(engine, reason)``.
+    """
+    return select_engine_with_reason(load_config())
+
+
+_LAST_DECISION_LOCK = threading.Lock()
+_last_logged_decision: Optional[Tuple[str, str]] = None
+
+
+def _log_engine_decision(engine: str, reason: str) -> None:
+    """Log the engine choice at INFO, once per distinct decision.
+
+    Scoring runs per image on a thread pool; repeating an identical line for
+    every photo would bury the one message that matters (that we silently
+    degraded to a much slower engine).
+    """
+    global _last_logged_decision
+    with _LAST_DECISION_LOCK:
+        first_time = _last_logged_decision != (engine, reason)
+        _last_logged_decision = (engine, reason)
+    if first_time:
+        logger.info("Aesthetic scoring engine: %s (%s)", engine, reason)
+    else:
+        logger.debug("Aesthetic scoring engine: %s (%s)", engine, reason)
+
 @ToolRegistry.register
 class AestheticTool(AnalysisTool):
     """Aesthetic scoring tool that delegates to the configured engine."""
@@ -290,9 +433,11 @@ class AestheticTool(AnalysisTool):
     display_name = "AI Aesthetic Evaluation"
 
     def analyze(self, filepath: Path, **kwargs: Any) -> Tuple[float, str]:
+        # The config is re-read per image on purpose: the user may switch
+        # engines mid-session. Only the import probes behind it are memoised.
         config = load_config()
-        engine = select_engine(config)
-        logger.info("Aesthetic scoring engine: %s", engine)
+        engine, reason = select_engine_with_reason(config)
+        _log_engine_decision(engine, reason)
 
         if engine == ENGINE_APPLE_VISION:
             return AppleVisionAestheticEngine().analyze(filepath, **kwargs)
