@@ -49,7 +49,7 @@ adb shell dumpsys window | grep -o "w[0-9]*dp h[0-9]*dp" | head -1
 cd products/android && ./gradlew :android-desktop:connectedDebugAndroidTest
 ```
 
-**Expected: 36/36 passing** at this geometry (2026-08-08). A different total means tests were
+**Expected: 38/38 passing** at this geometry (2026-08-08). A different total means tests were
 added or removed — update this number when that happens.
 
 Reading the results without scrolling a wall of Gradle output:
@@ -102,7 +102,12 @@ Restore the device afterwards: `adb shell wm size reset && adb shell wm density 
   instrumented probe printing the real region bounds settles it in minutes — see
   `ai/memory/code_health.md` (2026-08-08) on unmeasured numbers becoming established facts.
 - Instrumented sources are only compiled by `assembleDebugAndroidTest`; `./scripts/run_tests.sh`
-  runs that, so a compile break is caught without a device.
+  runs that, so a compile break is caught without a device. The corollary bites: a green
+  `run_tests.sh` is **not** evidence for a layout change, because it never ran a layout
+  assertion. Boot the AVD.
+- **`emulator -list-avds` may offer a phone image.** `medium_tablet` is the one to pick; a
+  phone AVD resolves to the compact layout, where most selector tests early-return and the
+  suite goes green without asserting anything. Step 5's dp readout catches this too.
 
 ## Definition of done
 

@@ -170,14 +170,90 @@ class FrameGeometryTest {
     }
 
     @Test
-    fun `hiding the readouts gives the whole width to the frames`() {
+    fun `hiding the readouts costs the frames nothing on the reference device`() {
+        // Width is the surplus axis here, so the readouts were never taking
+        // anything off the frames and switching them off cannot give any back.
         val layout = FrameGeometry.threeUpLayout(
             regionWidth = referenceWidth,
             regionHeight = referenceHeight,
             detailsVisible = false,
         )
+        val withDetails = FrameGeometry.threeUpLayout(referenceWidth, referenceHeight)
 
-        assertEquals(0f, layout.flankWidth.value, 0.01f)
+        assertEquals(withDetails.frame.width.value, layout.frame.width.value, 0.01f)
+        assertEquals(withDetails.flankWidth.value, layout.flankWidth.value, 0.01f)
+    }
+
+    @Test
+    fun `hiding the readouts widens the frames only where width actually binds`() {
+        // A narrow window is the case where the flank is genuinely competing with
+        // the photographs, so that is where the toggle earns its keep.
+        val narrow = 900.dp
+        val hidden = FrameGeometry.threeUpLayout(
+            regionWidth = narrow,
+            regionHeight = referenceHeight,
+            detailsVisible = false,
+        )
+        val shown = FrameGeometry.threeUpLayout(narrow, referenceHeight)
+
+        assertTrue(
+            "frame did not grow: ${hidden.frame.width.value}dp vs ${shown.frame.width.value}dp",
+            hidden.frame.width > shown.frame.width,
+        )
+        // But never all of it. The control block lives in this flank, and the
+        // details toggle lives in the control block, so a flank of 0 dp is a
+        // one-way door: nothing on screen or on the keyboard could switch the
+        // readouts back on.
+        assertTrue(
+            "flank collapsed to ${hidden.flankWidth.value}dp, stranding the controls",
+            hidden.flankWidth >= FrameGeometry.MinimumControlBlockWidth,
+        )
+    }
+
+    @Test
+    fun `the controls keep a flank in every combination of the view toggles`() {
+        for (details in listOf(true, false)) {
+            for (filmstrip in listOf(true, false)) {
+                val layout = FrameGeometry.threeUpLayout(
+                    regionWidth = referenceWidth,
+                    regionHeight = referenceHeight,
+                    detailsVisible = details,
+                    filmstripVisible = filmstrip,
+                )
+                assertTrue(
+                    "details=$details filmstrip=$filmstrip left the controls " +
+                        "${layout.flankWidth.value}dp",
+                    layout.flankWidth >= FrameGeometry.MinimumControlBlockWidth,
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `the top row never overflows the region, so the frame stays centred`() {
+        // The frame is centred by arithmetic — flank | frame | flank — not by an
+        // Alignment. If the three ever sum to more than the region, the surplus
+        // is paid on one side and the frame slides off centre.
+        for (details in listOf(true, false)) {
+            for (filmstrip in listOf(true, false)) {
+                for (width in listOf(700.dp, 1000.dp, referenceWidth, 2000.dp)) {
+                    val layout = FrameGeometry.threeUpLayout(
+                        regionWidth = width,
+                        regionHeight = referenceHeight,
+                        detailsVisible = details,
+                        filmstripVisible = filmstrip,
+                    )
+                    val used = layout.flankWidth.value * 2 + layout.frame.width.value +
+                        FrameGeometry.Gap.value * 2
+
+                    assertTrue(
+                        "width=$width details=$details filmstrip=$filmstrip " +
+                            "used ${used}dp of ${width.value}dp",
+                        used <= width.value + 0.01f,
+                    )
+                }
+            }
+        }
     }
 
     @Test

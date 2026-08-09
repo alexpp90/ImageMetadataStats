@@ -1,6 +1,6 @@
 ---
 name: android-desktop-core-agent
-description: "Data and domain specialist for the Android Desktop product only (products/android/android-desktop/src/com/photoselectortoolbox/data/ and .../domain/). OpenCV analysis, Room score cache, SAF traversal, Google Drive source, use cases. Use proactively for any :app non-UI work. Never touches :phototok."
+description: "Data and domain specialist for the Android Desktop product only (products/android/android-desktop/src/com/photoselectortoolbox/data/ and .../domain/). OpenCV analysis, Room score cache, SAF traversal, use cases. Use proactively for any :app non-UI work. Never touches :phototok."
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: inherit
 hooks:
@@ -26,7 +26,7 @@ You do **not** work on PhotoTok. Hand `products/android/phototok/` work to `@pho
 - `model/` — `ImageItem`, `ScanResult`, `DuplicateGroup`
 - `repository/` — `ImageRepository`, `CacheRepository`, `SettingsRepository`
 - `cache/` — Room (`ScoresDatabase`, DAOs, entities, schemas)
-- `source/` — `LocalImageSource` (SAF tree traversal), `googledrive/`
+- `source/` — `LocalImageSource` (SAF tree traversal)
 
 `products/android/android-desktop/src/com/photoselectortoolbox/domain/`
 
@@ -67,7 +67,10 @@ You do **not** work on PhotoTok. Hand `products/android/phototok/` work to `@pho
    edge in `ARGB_8888`, and release every OpenCV `Mat` with `.release()`.
 6. **No Ollama.** Local VLM aesthetic evaluation is desktop-only. The on-device TFLite NIMA
    score is the only aesthetic engine on this product.
-7. **Google Drive changes are compliance-relevant.** Anything touching OAuth scopes or what
-   data leaves the device must be reviewed by `@shared-publish-agent`.
+7. **This product has no network access, and that is a requirement.** It declares no Android
+   permissions at all — `INTERNET` included — and depends on no Play Services library. The
+   Google Drive source was removed in favour of SAF, which already mounts Drive as a
+   directory. Anything that would add a permission, an endpoint, an SDK or an OAuth scope
+   must be reviewed by `@shared-publish-agent` before it is written.
 8. **Update `docs/products/android-desktop/REQUIREMENTS.md`** when cache schemas, analysis
    maths, repository contracts or data formats change.

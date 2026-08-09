@@ -167,12 +167,25 @@ object FrameGeometry {
         detailsVisible: Boolean = true,
         filmstripVisible: Boolean = false,
     ): ThreeUpLayout {
-        val needsFlank = detailsVisible || filmstripVisible
         val stripSpace = if (filmstripVisible) FilmstripWidth + Gap else 0.dp
-        val requestedFlank = when {
-            detailsVisible -> MinimumFlankWidth + stripSpace
-            filmstripVisible -> MinimumFilmstripFlankWidth
-            else -> 0.dp
+
+        // A flank is always reserved, even with every panel switched off, because
+        // the control block is not optional chrome — it holds the only route back
+        // to the details and filmstrip toggles themselves.
+        //
+        // Returning 0 dp here did not merely hide the controls, it stranded the
+        // photographer: no key is bound to the details toggle, so the control that
+        // would undo the choice went with the ones it was switched off with. It
+        // also un-centred the screen. The current frame is centred *by
+        // arithmetic* — flank | frame | flank, all three consuming the region —
+        // and with both flanks at zero the row's default `Arrangement.Start` drew
+        // the frame hard against the left edge while the neighbour row below,
+        // which centres explicitly, stayed put. One collapsed number, and the
+        // screen reads as "the picture is on the left and the controls are gone".
+        val requestedFlank = if (detailsVisible) {
+            MinimumFlankWidth + stripSpace
+        } else {
+            MinimumControlBlockWidth + stripSpace
         }
 
         // A flank may never claim more than a quarter of the region, so the two
@@ -205,11 +218,7 @@ object FrameGeometry {
         )
         val frame = if (bottomRowFit.width < topRowFit.width) bottomRowFit else topRowFit
 
-        val flankWidth = if (needsFlank) {
-            ((regionWidth - frame.width - Gap * 2) / 2).coerceAtLeast(minFlank)
-        } else {
-            0.dp
-        }
+        val flankWidth = ((regionWidth - frame.width - Gap * 2) / 2).coerceAtLeast(minFlank)
 
         // The strip is drawn down the outer edge of the control flank, so what
         // it gets is what the flank has left once the controls have their

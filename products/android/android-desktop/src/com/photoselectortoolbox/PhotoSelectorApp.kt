@@ -1,16 +1,12 @@
 package com.photoselectortoolbox
 
 import android.app.Application
-import android.net.Uri
 import android.util.Log
 import coil.Coil
 import coil.ImageLoader
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
-import com.photoselectortoolbox.data.source.googledrive.DriveCoilFetcher
-import com.photoselectortoolbox.data.source.googledrive.GoogleDriveImageSource
 import dagger.hilt.android.HiltAndroidApp
-import javax.inject.Inject
 import org.opencv.android.OpenCVLoader
 
 @HiltAndroidApp
@@ -20,12 +16,10 @@ class PhotoSelectorApp : Application() {
         private const val TAG = "PhotoSelectorApp"
     }
 
-    @Inject lateinit var driveImageSource: GoogleDriveImageSource
-
     override fun onCreate() {
         super.onCreate()
         initOpenCV()
-        initCoilWithDrive()
+        initCoil()
     }
 
     private fun initOpenCV() {
@@ -56,17 +50,15 @@ class PhotoSelectorApp : Application() {
      * with the scan; lower would evict a neighbour between two comparisons of
      * the same pair, which is the one thing this screen must never do.
      *
-     * The disk cache exists mainly for Google Drive folders, where a re-decode
-     * means a re-download; 512 MB holds a full culling session's worth of
-     * downloaded originals. Local SAF files are already on disk and cost little
-     * here. Source images are immutable once written, so HTTP cache headers are
-     * ignored rather than re-validated.
+     * The disk cache holds Coil's *decoded, downsampled* frames, which is a
+     * different thing from the originals: a 45 MP RAW re-read and re-downsampled
+     * costs far more than reading back the 1350x900 result, and a culling
+     * session scrubs over the same frames repeatedly. 512 MB holds a full
+     * session's worth. Source images are immutable once written, so cache
+     * headers are ignored rather than re-validated.
      */
-    private fun initCoilWithDrive() {
+    private fun initCoil() {
         val imageLoader = ImageLoader.Builder(this)
-            .components {
-                add(DriveCoilFetcher.Factory(driveImageSource))
-            }
             .memoryCache {
                 MemoryCache.Builder(this)
                     .maxSizePercent(0.30)

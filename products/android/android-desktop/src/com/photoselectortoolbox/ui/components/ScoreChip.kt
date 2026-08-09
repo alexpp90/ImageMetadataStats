@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.photoselectortoolbox.data.model.ScanResult
 import com.photoselectortoolbox.domain.scoring.ScoreMetric
+import com.photoselectortoolbox.ui.selector.vector
 import com.photoselectortoolbox.ui.theme.Indigo500
 import com.photoselectortoolbox.ui.theme.ScoreBad
 import com.photoselectortoolbox.ui.theme.ScoreGood
@@ -57,15 +58,6 @@ import com.photoselectortoolbox.ui.theme.Zinc400
 import com.photoselectortoolbox.ui.theme.Zinc500
 import com.photoselectortoolbox.ui.theme.Zinc700
 import com.photoselectortoolbox.ui.theme.Zinc800
-
-/** The icon that represents each metric. */
-fun ScoreMetric.icon(): ImageVector = when (this) {
-    ScoreMetric.SHARPNESS -> Icons.Default.CenterFocusStrong
-    ScoreMetric.NOISE -> Icons.Default.Grain
-    ScoreMetric.HIGHLIGHT_CLIPPING -> Icons.Default.Highlight
-    ScoreMetric.SHADOW_CLIPPING -> Icons.Default.WbShade
-    ScoreMetric.AESTHETIC -> Icons.Default.AutoAwesome
-}
 
 /**
  * The colour a goodness value gets on the direction bar and on filmstrip dots.
@@ -136,7 +128,7 @@ fun ScoreChip(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                imageVector = metric.icon(),
+                imageVector = metric.icon.vector(),
                 contentDescription = null,
                 modifier = Modifier.size(14.dp),
                 tint = Zinc400,

@@ -3,8 +3,12 @@
     xmlns:tools="http://schemas.android.com/tools">
 
 
-
-    <uses-permission android:name="android.permission.INTERNET" />
+    <!--
+      No permissions are declared, and INTERNET in particular is not.
+      Every photograph is read through the Storage Access Framework grant the
+      photographer hands over, all analysis is on-device (OpenCV via JNI, the
+      aesthetic model from assets), and nothing is uploaded anywhere.
+    -->
 
     <!-- Touchscreen not required — supports Samsung DeX mouse input -->
     <uses-feature

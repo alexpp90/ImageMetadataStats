@@ -1,6 +1,7 @@
 package com.photoselectortoolbox.domain.guidance
 
 import com.photoselectortoolbox.domain.interaction.FilingAction
+import com.photoselectortoolbox.domain.scoring.ScoreMetric
 import com.photoselectortoolbox.domain.interaction.GestureRow
 import com.photoselectortoolbox.domain.interaction.SelectorGestures
 import com.photoselectortoolbox.domain.interaction.SelectorShortcut
@@ -50,6 +51,28 @@ data class TourCallout(
     val title: String,
     val body: String,
     val rows: List<GestureRow> = emptyList(),
+    /**
+     * Things on screen this callout *names*, as opposed to inputs it advertises.
+     *
+     * Kept apart from [rows] because they answer different questions — "what is
+     * that icon" versus "what key does this" — and because the invariant test
+     * over the bound input set reads [rows] alone.
+     */
+    val legend: List<LegendRow> = emptyList(),
+)
+
+/**
+ * One line of the legend: something visible, named and explained.
+ *
+ * [metric] is set when the row describes a score, so the UI can draw that
+ * metric's real glyph rather than a second one chosen here — the failure this
+ * replaces was a legend teaching a spotlight and a lampshade for clipping while
+ * the frames showed a sun and a moon.
+ */
+data class LegendRow(
+    val label: String,
+    val meaning: String,
+    val metric: ScoreMetric? = null,
 )
 
 /**
@@ -104,21 +127,31 @@ object SelectorTour {
         filingAction: FilingAction,
         detailsVisible: Boolean,
         filmstripVisible: Boolean,
+        /**
+         * The destinations in the lower half of the sidebar, named.
+         *
+         * Passed in rather than declared here because a `Screen` carries a
+         * Compose `ImageVector` and this object stays free of Compose types, so
+         * `Screen.all` cannot be read from it.
+         */
+        screenLegend: List<LegendRow> = emptyList(),
     ): List<TourCallout> = buildList {
         add(
             TourCallout(
                 region = TourRegion.SIDEBAR_SESSION,
                 title = "The shoot",
-                body = "Open a folder, scan it for scores, group bursts. " +
-                    "These act on every photograph, not on the one in front of you.",
+                body = "These act on every photograph, not on the one in front of you.",
+                legend = SidebarAction.entries.map { action ->
+                    LegendRow(label = action.label, meaning = action.meaning)
+                },
             )
         )
         add(
             TourCallout(
                 region = TourRegion.SIDEBAR_SCREENS,
                 title = "The screens",
-                body = "Culling, statistics, duplicates and settings. " +
-                    "Your place in the folder is kept when you come back.",
+                body = "Your place in the folder is kept when you come back.",
+                legend = screenLegend,
             )
         )
         if (detailsVisible) {
@@ -126,9 +159,9 @@ object SelectorTour {
                 TourCallout(
                     region = TourRegion.READOUT,
                     title = "This frame's values",
-                    body = "Filename, exposure, then one row per metric for the centre " +
-                        "frame. The bar is the score: longer is better, whichever way the " +
-                        "raw number runs.",
+                    body = "Filename, exposure, then one row per metric. The bar is the " +
+                        "score: longer is always better, whichever way the raw number runs.",
+                    legend = metricLegend(),
                 )
             )
         }
@@ -175,6 +208,21 @@ object SelectorTour {
                 )
             )
         }
+    }
+
+    /**
+     * One row per score, in the order the readout draws them.
+     *
+     * The direction is stated rather than left to be inferred: half these
+     * metrics are better low, and a photographer reading a bare number has no
+     * way to know which half they are looking at.
+     */
+    fun metricLegend(): List<LegendRow> = ScoreMetric.entries.map { metric ->
+        LegendRow(
+            label = metric.displayName,
+            meaning = "${metric.direction.hint} — ${metric.description}",
+            metric = metric,
+        )
     }
 
     /**

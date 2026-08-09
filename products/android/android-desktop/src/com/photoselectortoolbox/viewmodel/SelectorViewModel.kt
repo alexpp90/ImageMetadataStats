@@ -1,10 +1,8 @@
 package com.photoselectortoolbox.viewmodel
 
 import android.content.Context
-import android.content.Intent
 import android.net.Uri
 import android.util.Log
-import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import coil.Coil
@@ -20,9 +18,6 @@ import com.photoselectortoolbox.data.model.ScanResult
 import com.photoselectortoolbox.data.repository.CacheRepository
 import com.photoselectortoolbox.data.repository.ImageRepository
 import com.photoselectortoolbox.data.repository.SettingsRepository
-import com.photoselectortoolbox.data.source.googledrive.GoogleDriveAuth
-import com.photoselectortoolbox.data.source.googledrive.GoogleDriveClient
-import com.photoselectortoolbox.data.source.googledrive.GoogleDriveImageSource
 import com.photoselectortoolbox.di.ApplicationScope
 import com.photoselectortoolbox.domain.curation.CurationAction
 import com.photoselectortoolbox.domain.curation.DeferredDeletion
@@ -41,6 +36,7 @@ import com.photoselectortoolbox.domain.grouping.ImageGrouper
 import com.photoselectortoolbox.domain.format.SelectionActionLabels
 import com.photoselectortoolbox.domain.interaction.FilingAction
 import com.photoselectortoolbox.domain.session.ProgressiveMerge
+import com.photoselectortoolbox.domain.session.ScoreMerge
 import com.photoselectortoolbox.domain.session.SelectorWindows
 import com.photoselectortoolbox.domain.session.SelectorWork
 import com.photoselectortoolbox.domain.session.SelectorWorkQueue
@@ -226,8 +222,6 @@ class SelectorViewModel @Inject constructor(
     private val cacheRepository: CacheRepository,
     private val settingsRepository: SettingsRepository,
     private val scoreDao: ScoreDao,
-    val driveAuth: GoogleDriveAuth,
-    val driveClient: GoogleDriveClient,
     @ApplicationScope private val appScope: CoroutineScope,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
@@ -423,13 +417,6 @@ class SelectorViewModel @Inject constructor(
     }
 
     fun selectFolder(uri: Uri) {
-        // Handle Google Drive URIs
-        if (GoogleDriveImageSource.isDriveUri(uri)) {
-            val folderId = GoogleDriveImageSource.extractId(uri) ?: return
-            selectDriveFolder(folderId, "Google Drive")
-            return
-        }
-
         resetSession()
         discoveryJob = viewModelScope.launch {
             _uiState.update {
@@ -441,28 +428,17 @@ class SelectorViewModel @Inject constructor(
                 )
             }
 
-            try {
-                val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                context.contentResolver.takePersistableUriPermission(uri, takeFlags)
-            } catch (e: Exception) {
-                Log.e("SelectorViewModel", "Failed to persist URI permission for $uri", e)
-            }
-
-            val folderDoc = try {
-                DocumentFile.fromTreeUri(context, uri)
-            } catch (e: SecurityException) {
-                Log.e("SelectorViewModel", "SecurityException loading folder $uri", e)
-                null
-            }
-
-            if (folderDoc == null || !folderDoc.exists()) {
+            // Claiming the folder — persisting the grant and confirming it is
+            // still there — belongs to the repository, not here. See
+            // [ImageRepository.openFolder].
+            val folderName = imageRepository.openFolder(context, uri)
+            if (folderName == null) {
                 _uiState.update { it.copy(isLoading = false, isEnumerating = false) }
                 reportError("Failed to load folder: permission revoked or directory deleted.")
                 settingsRepository.setLastFolderUri(null)
                 return@launch
             }
 
-            val folderName = folderDoc.name ?: "Unknown"
             _uiState.update { it.copy(folderName = folderName) }
 
             settingsRepository.setLastFolderUri(uri.toString())
@@ -470,27 +446,6 @@ class SelectorViewModel @Inject constructor(
             collectDiscovery(uri, "images") { e ->
                 if (e is SecurityException) settingsRepository.setLastFolderUri(null)
             }
-        }
-    }
-
-    /** Select a Google Drive folder by its Drive folder ID. */
-    fun selectDriveFolder(folderId: String, folderName: String) {
-        val driveUri = GoogleDriveImageSource.buildUri(folderId)
-        resetSession()
-        discoveryJob = viewModelScope.launch {
-            _uiState.update {
-                it.copy(
-                    isLoading = true,
-                    isEnumerating = true,
-                    error = null,
-                    folderUri = driveUri.toString(),
-                    folderName = folderName,
-                )
-            }
-
-            settingsRepository.setLastFolderUri(driveUri.toString())
-
-            collectDiscovery(driveUri, "Google Drive images")
         }
     }
 
@@ -679,29 +634,20 @@ class SelectorViewModel @Inject constructor(
                     }
                     analysed = progress.processed
 
-                    // Efficient update: use URI→index map instead of O(n) list scan
-                    val currentImages = _uiState.value.images
-                    val uriToIndex = currentImages.withIndex().associate { (i, img) -> img.uri to i }
-                    val mutableImages = currentImages.toMutableList()
-                    var changed = false
-
-                    for ((uri, result) in progress.results) {
-                        val idx = uriToIndex[uri] ?: continue
-                        val existing = mutableImages[idx]
-                        if (existing.scanResult == null) {
-                            mutableImages[idx] = existing.copy(scanResult = result)
-                            changed = true
-                        }
-                    }
-
-                    _uiState.update {
-                        it.copy(
+                    // Merged *inside* the update, against the state as it is at
+                    // that moment. Building the new list from a snapshot read
+                    // beforehand loses whatever landed in between — the EXIF and
+                    // dimension loads run on their own coroutines and a scan is
+                    // long.
+                    _uiState.update { state ->
+                        val merged = ScoreMerge.apply(state.images, progress.results)
+                        state.copy(
                             scanProgress = fraction,
                             scanStatusText = SelectorLabels.scanProgress(
                                 progress.processed,
                                 progress.total,
                             ),
-                            images = if (changed) mutableImages.toList() else it.images
+                            images = merged,
                         )
                     }
                 }
@@ -1482,15 +1428,11 @@ class SelectorViewModel @Inject constructor(
             }
         }
 
-        // Merge by URI rather than replacing wholesale: batches may have been
-        // appended, or frames filed away, while the cache was being read.
-        val byUri = updatedImages.associateBy { it.uri }
+        // Only the scores travel forward out of the snapshot. See [ScoreMerge]
+        // for why merging the items themselves is a rollback rather than a merge.
+        val restored = ScoreMerge.scoresOf(updatedImages)
         _uiState.update { state ->
-            state.copy(
-                images = state.images.map { image ->
-                    if (image.scanResult != null) image else byUri[image.uri] ?: image
-                }
-            )
+            state.copy(images = ScoreMerge.apply(state.images, restored))
         }
     }
 

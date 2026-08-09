@@ -25,7 +25,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
@@ -64,11 +63,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.photoselectortoolbox.domain.format.SelectorLabels
-import com.photoselectortoolbox.ui.components.DriveFolderPickerDialog
 import com.photoselectortoolbox.ui.components.EmptyStateCard
-import com.photoselectortoolbox.ui.components.ScoreLegendSheet
 import com.photoselectortoolbox.ui.theme.Zinc800
 import com.photoselectortoolbox.ui.theme.Zinc900
 import com.photoselectortoolbox.ui.navigation.Screen
@@ -105,8 +101,6 @@ fun SelectorScreen(
     var showScanConfig by remember { mutableStateOf(false) }
     var showFullscreen by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
-    var showDrivePicker by remember { mutableStateOf(false) }
-    var showScoreLegend by remember { mutableStateOf(false) }
     var showGuide by remember { mutableStateOf(false) }
     var contextMenuAt by remember { mutableStateOf<Offset?>(null) }
     var lastPointerPosition by remember { mutableStateOf(Offset.Zero) }
@@ -136,7 +130,7 @@ fun SelectorScreen(
     // Any open sheet swallows the shortcuts, so a stray M while configuring a
     // scan cannot move the frame behind the sheet. Esc is the exception — it is
     // what closes the sheet.
-    val sheetOpen = showScanConfig || showScoreLegend || showDrivePicker || guideOpen ||
+    val sheetOpen = showScanConfig || guideOpen ||
         uiState.showDeleteConfirmation
 
     val dismissGuide: () -> Unit = {
@@ -161,29 +155,9 @@ fun SelectorScreen(
         }
     }
 
-    val googleSignInLauncher = rememberLauncherForActivityResult(StartActivityForResult()) { result ->
-        val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
-        try {
-            val account = task.getResult(com.google.android.gms.common.api.ApiException::class.java)
-            viewModel.driveAuth.handleSignInResult(account)
-            showDrivePicker = true
-        } catch (e: Exception) {
-            android.util.Log.e("SelectorScreen", "Google Sign-In failed", e)
-            viewModel.setError("Google Sign-In failed: ${e.message}")
-        }
-    }
-
     val folderPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { uri: Uri? -> uri?.let { viewModel.selectFolder(it) } }
-
-    val openDrive: () -> Unit = {
-        if (viewModel.driveAuth.isSignedIn) {
-            showDrivePicker = true
-        } else {
-            googleSignInLauncher.launch(viewModel.driveAuth.getSignInIntent())
-        }
-    }
 
     // Move and Delete advance to the next frame; Copy stays put. That asymmetry
     // is the culling loop: a moved or deleted frame is finished with, a copied
@@ -242,20 +216,7 @@ fun SelectorScreen(
         )
     }
 
-    if (showDrivePicker) {
-        DriveFolderPickerDialog(
-            driveClient = viewModel.driveClient,
-            onFolderSelected = { folderId, folderName ->
-                showDrivePicker = false
-                viewModel.selectDriveFolder(folderId, folderName)
-            },
-            onDismiss = { showDrivePicker = false },
-        )
-    }
 
-    if (showScoreLegend) {
-        ScoreLegendSheet(onDismiss = { showScoreLegend = false })
-    }
 
     if (showScanConfig) {
         ScanConfigSheet(
@@ -337,7 +298,6 @@ fun SelectorScreen(
                                         showFullscreen -> showFullscreen = false
                                         contextMenuAt != null -> contextMenuAt = null
                                         showScanConfig -> showScanConfig = false
-                                        showScoreLegend -> showScoreLegend = false
                                         guideOpen -> dismissGuide()
                                         uiState.maximisedFrame != null -> viewModel.clearMaximised()
                                     }
@@ -358,20 +318,17 @@ fun SelectorScreen(
                 SelectorSidebar(
                     currentRoute = currentRoute,
                     groupingEnabled = uiState.groupingEnabled,
-                    hasScores = uiState.hasAnyScores,
                     hasImages = uiState.images.isNotEmpty(),
-                    driveSignedIn = viewModel.driveAuth.isSignedIn,
                     isScanning = uiState.isScanRunning,
                     scanStatusText = uiState.scanStatusText,
                     isGrouping = uiState.isGroupingRunning,
                     queuedWork = uiState.queuedWork,
                     onCancelQueued = viewModel::cancelQueuedWork,
                     onOpenFolder = { folderPickerLauncher.launch(null) },
-                    onOpenDrive = openDrive,
                     onScan = { showScanConfig = true },
                     onCancelScan = viewModel::cancelScan,
                     onToggleGrouping = viewModel::toggleGrouping,
-                    onShowLegend = { showScoreLegend = true },
+                    onShowLegend = openGuide,
                     onShowMenu = { showMenu = true },
                     onNavigate = onNavigate,
                     overflowContent = {
@@ -387,10 +344,6 @@ fun SelectorScreen(
                             DropdownMenuItem(
                                 text = { Text("Open folder") },
                                 onClick = { showMenu = false; folderPickerLauncher.launch(null) },
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Open from Google Drive") },
-                                onClick = { showMenu = false; openDrive() },
                             )
                             DropdownMenuItem(
                                 text = { Text("Clear scores") },
@@ -410,7 +363,6 @@ fun SelectorScreen(
                 if (uiState.folderUri == null || uiState.images.isEmpty()) {
                     EmptySelectorState(
                         onOpenFolder = { folderPickerLauncher.launch(null) },
-                        onOpenDrive = openDrive,
                     )
                 } else {
                     // Tagged because the height budget is the thing this screen
@@ -535,29 +487,18 @@ fun SelectorScreen(
 @Composable
 private fun EmptySelectorState(
     onOpenFolder: () -> Unit,
-    onOpenDrive: () -> Unit,
 ) {
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center,
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            EmptyStateCard(
-                icon = Icons.Default.PhotoCamera,
-                title = "Select a Folder",
-                description = "Choose a shoot folder to start comparing and culling frames.",
-                actionLabel = "Open Folder",
-                onAction = onOpenFolder,
-            )
-            FilledTonalButton(onClick = onOpenDrive) {
-                Icon(Icons.Default.Cloud, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Open from Google Drive")
-            }
-        }
+        EmptyStateCard(
+            icon = Icons.Default.PhotoCamera,
+            title = "Select a Folder",
+            description = "Choose a shoot folder to start comparing and culling frames.",
+            actionLabel = "Open Folder",
+            onAction = onOpenFolder,
+        )
     }
 }
 

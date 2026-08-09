@@ -10,11 +10,26 @@ import kotlinx.coroutines.flow.Flow
 /**
  * Everything the selector needs from storage, with the storage backend hidden.
  *
- * Callers above this interface must never branch on a URI scheme: whether a
- * photograph lives behind SAF or in Google Drive decides which source runs, and
- * that decision belongs here rather than in a ViewModel.
+ * Callers above this interface must never branch on a URI scheme, and must never
+ * reach past it for a storage API of their own. What a folder URI is worth
+ * before discovery starts is a storage question, and it belongs here rather than
+ * in a ViewModel.
  */
 interface ImageRepository {
+    /**
+     * Claim a folder for this session: persist the permission grant and confirm
+     * the folder is still there. Returns its display name, or `null` when the
+     * grant was revoked or the directory has gone.
+     *
+     * This exists so the ViewModel does not touch `DocumentFile` or
+     * `takePersistableUriPermission` itself. It did, once, and the cost was not
+     * only the layering: it left the tests with no way to open a folder without
+     * a real SAF grant, so both suites reached for a second URI scheme purely to
+     * skip past it. A fake repository can satisfy this; a `DocumentFile` cannot
+     * be faked at all.
+     */
+    suspend fun openFolder(context: Context, folderUri: Uri): String?
+
     /**
      * Progressive folder discovery. Emissions are cumulative and append-only —
      * a consumer merges by appending and must not re-sort what is already
@@ -39,13 +54,20 @@ interface ImageRepository {
 
     suspend fun deleteImage(context: Context, uri: Uri): Boolean
 
-    /** Returns true if the image can be moved to trash (recoverable) rather than permanently deleted. */
+    /**
+     * Whether a delete of [uri] is recoverable rather than final.
+     *
+     * SAF offers no trash, so today this is always false and the UI offers no
+     * UNDO on a delete. It stays a question rather than becoming a constant the
+     * UI assumes: it is a property of the storage backend, and the selector
+     * deciding that for itself is what this interface exists to prevent.
+     */
     fun canTrash(uri: Uri): Boolean
 
     /**
-     * Bring a trashed file back. Only meaningful where [canTrash] is true; for
-     * every other backend a delete is final and this returns false, which is the
-     * signal to offer no UNDO at all rather than one that quietly fails.
+     * Bring a trashed file back. Only meaningful where [canTrash] is true;
+     * otherwise a delete is final and this returns false, which is the signal to
+     * offer no UNDO at all rather than one that quietly fails.
      */
     suspend fun restoreFromTrash(context: Context, uri: Uri): Boolean
 

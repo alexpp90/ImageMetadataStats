@@ -1,15 +1,19 @@
 package com.photoselectortoolbox.viewmodel
 
+import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
 import com.photoselectortoolbox.data.cache.ScoreDao
+import kotlinx.coroutines.yield
+import com.photoselectortoolbox.domain.usecase.ScanProgress
+import com.photoselectortoolbox.data.model.ScanResult
+import com.photoselectortoolbox.data.cache.ScoreEntity
+import com.photoselector.core.model.ExifData
 import com.photoselectortoolbox.data.model.ImageDimensions
 import com.photoselectortoolbox.data.model.ImageItem
 import com.photoselectortoolbox.data.repository.CacheRepository
 import com.photoselectortoolbox.data.repository.FileOperationResult
 import com.photoselectortoolbox.data.repository.ImageRepository
 import com.photoselectortoolbox.data.repository.SettingsRepository
-import com.photoselectortoolbox.data.source.googledrive.GoogleDriveAuth
-import com.photoselectortoolbox.data.source.googledrive.GoogleDriveClient
 import com.photoselectortoolbox.domain.curation.UndoableOperation
 import com.photoselectortoolbox.domain.grouping.GroupingLevel
 import com.photoselectortoolbox.domain.interaction.FilingAction
@@ -21,12 +25,14 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -48,9 +54,10 @@ import org.robolectric.annotation.Config
  *
  * Robolectric rather than an emulator because everything under test here is
  * state transition — the Android surface actually needed is `Uri.parse` and a
- * `Context`. The Google Drive folder path is used throughout because it skips
- * SAF's `DocumentFile` permission dance while exercising exactly the same
- * discovery, merge and filing code.
+ * `Context`. Folders are opened through [ImageRepository.openFolder], which is
+ * the seam that keeps SAF's `DocumentFile` dance behind the repository — so a
+ * stubbed folder name is all it takes to exercise the real discovery, merge and
+ * filing code.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -58,6 +65,16 @@ import org.robolectric.annotation.Config
 class SelectorViewModelTest {
 
     private val testDispatcher = UnconfinedTestDispatcher()
+
+    /**
+     * The application scope the ViewModel files and deletes on.
+     *
+     * Held by the test rather than created per ViewModel so [tearDown] can cancel
+     * it. It outlives `viewModelScope` by design — that is what lets a filing
+     * operation survive the screen going away — so work left running on it would
+     * otherwise still be dispatching while `resetMain` swaps the dispatcher out.
+     */
+    private val appScope = CoroutineScope(testDispatcher)
 
     private val groupingEnabledFlow = MutableStateFlow(false)
     private val groupingLevelFlow = MutableStateFlow(GroupingLevel.TIME_FILENAME)
@@ -75,6 +92,11 @@ class SelectorViewModelTest {
     /** Discovery batches, pushed by the test to imitate progressive enumeration. */
     private val discovery = MutableSharedFlow<List<ImageItem>>(replay = 1)
 
+    private companion object {
+        const val FOLDER_URI = "content://test/folder"
+        const val OTHER_FOLDER_URI = "content://test/other"
+    }
+
     private val settingsRepository: SettingsRepository = mockk(relaxed = true) {
         every { groupingEnabled } returns groupingEnabledFlow
         every { groupingLevel } returns groupingLevelFlow
@@ -91,6 +113,7 @@ class SelectorViewModelTest {
     }
 
     private val imageRepository: ImageRepository = mockk(relaxed = true) {
+        coEvery { openFolder(any(), any()) } returns "Test Shoot"
         every { discoverImages(any()) } returns discovery
         every { canTrash(any()) } returns false
         coEvery { getExifData(any(), any()) } returns null
@@ -98,12 +121,14 @@ class SelectorViewModelTest {
         coEvery { deleteImage(any(), any()) } returns true
     }
 
+    private val scanImagesUseCase: ScanImagesUseCase = mockk(relaxed = true)
+
     private val scoreDao: ScoreDao = mockk(relaxed = true) {
         coEvery { getScore(any()) } returns null
     }
 
     private fun image(name: String) = ImageItem(
-        uri = "gdrive://folder/$name",
+        uri = "content://test/folder/$name",
         fileName = name,
         fileSize = 1,
         lastModified = 1,
@@ -112,20 +137,18 @@ class SelectorViewModelTest {
 
     private fun buildViewModel() = SelectorViewModel(
         imageRepository = imageRepository,
-        scanImagesUseCase = mockk(relaxed = true),
+        scanImagesUseCase = scanImagesUseCase,
         moveToSelectionUseCase = mockk<MoveToSelectionUseCase>(relaxed = true),
         cacheRepository = mockk<CacheRepository>(relaxed = true),
         settingsRepository = settingsRepository,
         scoreDao = scoreDao,
-        driveAuth = mockk<GoogleDriveAuth>(relaxed = true),
-        driveClient = mockk<GoogleDriveClient>(relaxed = true),
-        appScope = CoroutineScope(testDispatcher),
+        appScope = appScope,
         context = ApplicationProvider.getApplicationContext(),
     )
 
     private suspend fun loadFolder(vararg images: ImageItem): SelectorViewModel {
         val viewModel = buildViewModel()
-        viewModel.selectDriveFolder("folder", "Test Shoot")
+        viewModel.selectFolder(Uri.parse(FOLDER_URI))
         discovery.emit(images.toList())
         return viewModel
     }
@@ -137,6 +160,7 @@ class SelectorViewModelTest {
 
     @After
     fun tearDown() {
+        appScope.cancel()
         Dispatchers.resetMain()
         discovery.resetReplayCache()
     }
@@ -159,7 +183,7 @@ class SelectorViewModelTest {
     @Test
     fun `a frame filed away is not resurrected by the next batch`() = runTest {
         coEvery { imageRepository.moveImage(any(), any(), any(), any()) } returns
-            FileOperationResult.success("gdrive://folder/a", "gdrive://selection/a")
+            FileOperationResult.success("content://test/folder/a", "content://test/selection/a")
 
         val viewModel = loadFolder(image("a"), image("b"))
         viewModel.moveToSelection()
@@ -185,7 +209,7 @@ class SelectorViewModelTest {
             flowOf(listOf(image("a"), image("b")))
 
         val settled = buildViewModel()
-        settled.selectDriveFolder("folder", "Test Shoot")
+        settled.selectFolder(Uri.parse(FOLDER_URI))
 
         assertFalse(settled.uiState.value.isEnumerating)
         assertEquals(2, settled.uiState.value.images.size)
@@ -198,7 +222,7 @@ class SelectorViewModelTest {
 
         // Same URIs, different folder. A surviving published set would
         // de-duplicate them all away and leave a silently empty screen.
-        viewModel.selectDriveFolder("other", "Other Shoot")
+        viewModel.selectFolder(Uri.parse(OTHER_FOLDER_URI))
         discovery.emit(listOf(image("a"), image("b")))
 
         assertEquals(2, viewModel.uiState.value.images.size)
@@ -226,7 +250,7 @@ class SelectorViewModelTest {
         assertFalse("no spinner for a filing action", viewModel.uiState.value.isLoading)
         assertEquals("Moved to Selection", viewModel.uiState.value.snackbarMessage)
 
-        transfer.complete(FileOperationResult.success("gdrive://folder/a", "gdrive://sel/a"))
+        transfer.complete(FileOperationResult.success("content://test/folder/a", "content://test/sel/a"))
         assertEquals(listOf("b", "c"), viewModel.uiState.value.images.map { it.fileName })
     }
 
@@ -239,7 +263,7 @@ class SelectorViewModelTest {
         // reaching the snackbar proves the ViewModel actually threads it.
         selectionFolderNameFlow.value = "Picks"
         coEvery { imageRepository.moveImage(any(), any(), any(), any()) } returns
-            FileOperationResult.success("gdrive://folder/a", "gdrive://sel/a")
+            FileOperationResult.success("content://test/folder/a", "content://test/sel/a")
 
         val viewModel = loadFolder(image("a"), image("b"))
         viewModel.moveToSelection()
@@ -259,13 +283,13 @@ class SelectorViewModelTest {
 
         assertEquals(listOf("a", "b"), viewModel.uiState.value.images.map { it.fileName })
         assertEquals("Copied to Selection", viewModel.uiState.value.snackbarMessage)
-        transfer.complete(FileOperationResult.success("gdrive://folder/a", "gdrive://sel/a"))
+        transfer.complete(FileOperationResult.success("content://test/folder/a", "content://test/sel/a"))
     }
 
     @Test
     fun `a failed move puts the frame back where it was`() = runTest {
         coEvery { imageRepository.moveImage(any(), any(), any(), any()) } returns
-            FileOperationResult.failure("gdrive://folder/b", "disk full")
+            FileOperationResult.failure("content://test/folder/b", "disk full")
 
         val viewModel = loadFolder(image("a"), image("b"), image("c"))
         viewModel.navigateToImage(1)
@@ -280,7 +304,7 @@ class SelectorViewModelTest {
     @Test
     fun `a failed copy rewinds nothing, because the source never left`() = runTest {
         coEvery { imageRepository.copyImage(any(), any(), any(), any()) } returns
-            FileOperationResult.failure("gdrive://folder/a", "disk full")
+            FileOperationResult.failure("content://test/folder/a", "disk full")
 
         val viewModel = loadFolder(image("a"), image("b"))
         viewModel.copyToSelection()
@@ -293,9 +317,9 @@ class SelectorViewModelTest {
     @Test
     fun `a completed move offers an undo, a copy never does`() = runTest {
         coEvery { imageRepository.moveImage(any(), any(), any(), any()) } returns
-            FileOperationResult.success("gdrive://folder/a", "gdrive://sel/a")
+            FileOperationResult.success("content://test/folder/a", "content://test/sel/a")
         coEvery { imageRepository.copyImage(any(), any(), any(), any()) } returns
-            FileOperationResult.success("gdrive://folder/a", "gdrive://sel/a")
+            FileOperationResult.success("content://test/folder/a", "content://test/sel/a")
 
         val moved = loadFolder(image("a"), image("b"))
         moved.moveToSelection()
@@ -310,7 +334,7 @@ class SelectorViewModelTest {
     @Test
     fun `a move with no destination URI offers no undo`() = runTest {
         coEvery { imageRepository.moveImage(any(), any(), any(), any()) } returns
-            FileOperationResult.success("gdrive://folder/a", null)
+            FileOperationResult.success("content://test/folder/a", null)
 
         val viewModel = loadFolder(image("a"), image("b"))
         viewModel.moveToSelection()
@@ -368,7 +392,7 @@ class SelectorViewModelTest {
         // Reaching onCleared through a folder change would also do it; this is
         // the path where viewModelScope dies, which is why the commit is on the
         // application scope.
-        viewModel.selectDriveFolder("other", "Other Shoot")
+        viewModel.selectFolder(Uri.parse(OTHER_FOLDER_URI))
 
         coVerify(exactly = 1) {
             imageRepository.deleteImage(any(), match { it.toString().endsWith("/a") })
@@ -407,9 +431,41 @@ class SelectorViewModelTest {
     @Test
     fun `an error reaches the photographer through the snackbar with no undo`() = runTest {
         val viewModel = loadFolder(image("a"))
-        viewModel.setError("Google Sign-In failed")
+        viewModel.setError("Could not read the folder")
 
-        assertEquals("Google Sign-In failed", viewModel.uiState.value.snackbarMessage)
+        assertEquals("Could not read the folder", viewModel.uiState.value.snackbarMessage)
         assertNull(viewModel.uiState.value.undoOperation)
+    }
+
+    // ── Background merges must not roll back what landed while they ran ──
+
+    @Test
+    fun `a scan does not roll back the EXIF already on screen`() = runTest {
+        val exif = ExifData(iso = 800, aperture = 4.0)
+        coEvery { imageRepository.getExifData(any(), any()) } returns exif
+        val progress = MutableSharedFlow<ScanProgress>(replay = 1)
+        every { scanImagesUseCase(any(), any()) } returns progress
+
+        val viewModel = loadFolder(image("a"))
+        assertEquals(exif, viewModel.uiState.value.currentImage?.exifData)
+
+        viewModel.startScan()
+        progress.emit(
+            ScanProgress(
+                processed = 1,
+                total = 1,
+                currentFile = "a",
+                results = mapOf(
+                    "content://test/folder/a" to ScanResult(
+                        filePath = "content://test/folder/a",
+                        sharpnessScore = 70.0,
+                    )
+                ),
+            )
+        )
+
+        val current = viewModel.uiState.value.currentImage
+        assertEquals("the scan rolled EXIF back", exif, current?.exifData)
+        assertEquals(70.0, current?.scanResult?.sharpnessScore!!, 0.01)
     }
 }

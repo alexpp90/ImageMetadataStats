@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BurstMode
-import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Radar
@@ -44,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.photoselectortoolbox.domain.format.SelectorLabels
 import com.photoselectortoolbox.domain.session.SelectorWork
+import com.photoselectortoolbox.domain.guidance.SidebarAction
 import com.photoselectortoolbox.ui.navigation.Screen
 import com.photoselectortoolbox.ui.theme.Indigo500
 import com.photoselectortoolbox.ui.theme.ScoreBad
@@ -91,13 +91,10 @@ private val SidebarItemHeight = 72.dp
 fun SelectorSidebar(
     currentRoute: String?,
     groupingEnabled: Boolean,
-    hasScores: Boolean,
     hasImages: Boolean,
-    driveSignedIn: Boolean,
     isScanning: Boolean,
     scanStatusText: String,
     onOpenFolder: () -> Unit,
-    onOpenDrive: () -> Unit,
     onScan: () -> Unit,
     onCancelScan: () -> Unit,
     onToggleGrouping: () -> Unit,
@@ -122,18 +119,10 @@ fun SelectorSidebar(
         // ── Session actions — what was in the top app bar ────────────────
         SidebarItem(
             icon = Icons.Default.FolderOpen,
-            label = "Folder",
-            description = "Open a folder",
+            label = SidebarAction.FOLDER.label,
+            description = SidebarAction.FOLDER.description,
             onClick = onOpenFolder,
             modifier = Modifier.testTag("sidebar_open_folder"),
-        )
-        SidebarItem(
-            icon = Icons.Default.Cloud,
-            label = "Drive",
-            description = "Open from Google Drive",
-            active = driveSignedIn,
-            onClick = onOpenDrive,
-            modifier = Modifier.testTag("sidebar_drive"),
         )
 
         when {
@@ -159,8 +148,8 @@ fun SelectorSidebar(
             )
             else -> SidebarItem(
                 icon = Icons.Default.Radar,
-                label = "Scan",
-                description = "Scan images for quality scores",
+                label = SidebarAction.SCAN.label,
+                description = SidebarAction.SCAN.description,
                 emphasised = true,
                 enabled = hasImages,
                 onClick = onScan,
@@ -185,7 +174,7 @@ fun SelectorSidebar(
             )
             else -> SidebarItem(
                 icon = Icons.Default.BurstMode,
-                label = "Bursts",
+                label = SidebarAction.BURSTS.label,
                 description = if (groupingEnabled) {
                     "Group Similar Series, on"
                 } else {
@@ -198,23 +187,23 @@ fun SelectorSidebar(
             )
         }
 
-        // Appears only once a scan has produced something to explain. A legend
-        // for scores that do not exist yet is a dead control.
-        if (hasScores) {
-            SidebarItem(
-                icon = Icons.Outlined.Info,
-                label = "Legend",
-                description = "What the scan icons mean",
-                onClick = onShowLegend,
-                modifier = Modifier.testTag("score_legend_button"),
-            )
-        }
+        // Always present. It was once gated on a scan having produced scores,
+        // because it explained nothing else; now it names every icon on the
+        // screen — this rail included — so it is at its most useful before the
+        // photographer has worked anything out.
+        SidebarItem(
+            icon = Icons.Outlined.Info,
+            label = SidebarAction.LEGEND.label,
+            description = SidebarAction.LEGEND.description,
+            onClick = onShowLegend,
+            modifier = Modifier.testTag("score_legend_button"),
+        )
 
         Box {
             SidebarItem(
                 icon = Icons.Default.MoreVert,
-                label = "More",
-                description = "More options",
+                label = SidebarAction.MORE.label,
+                description = SidebarAction.MORE.description,
                 onClick = onShowMenu,
             )
             overflowContent()

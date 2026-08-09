@@ -31,6 +31,7 @@ import com.photoselectortoolbox.MainActivity
 import com.photoselectortoolbox.data.cache.ScoreDao
 import com.photoselectortoolbox.data.cache.ScoreEntity
 import com.photoselectortoolbox.data.model.ImageItem
+import com.photoselectortoolbox.domain.guidance.SidebarAction
 import com.photoselectortoolbox.data.repository.FakeImageRepository
 import com.photoselectortoolbox.data.repository.ImageRepository
 import com.photoselectortoolbox.data.repository.SettingsRepository
@@ -71,7 +72,7 @@ class SelectorScreenTest {
 
     private val mockImages = listOf(
         ImageItem(
-            uri = "gdrive://test_folder/image1.jpg",
+            uri = "content://test/test_folder/image1.jpg",
             fileName = "image1.jpg",
             fileSize = 1024L,
             lastModified = 1000L,
@@ -89,7 +90,7 @@ class SelectorScreenTest {
             )
         ),
         ImageItem(
-            uri = "gdrive://test_folder/image2.jpg",
+            uri = "content://test/test_folder/image2.jpg",
             fileName = "image2.jpg",
             fileSize = 2048L,
             lastModified = 2000L,
@@ -168,7 +169,7 @@ class SelectorScreenTest {
 
         // Simulate folder loading by setting preferred folder URI
         runBlocking {
-            settingsRepository.setLastFolderUri("gdrive://test_folder")
+            settingsRepository.setLastFolderUri("content://test/test_folder")
         }
 
         // Wait until empty state disappears and review UI appears
@@ -204,7 +205,7 @@ class SelectorScreenTest {
         // first by default, so a wide frame quietly derives a different height
         // from a narrow one. See the 2026-07-27 entry in ai/memory/palette.md.
         fakeRepo.imagesFlow.value = mockImages
-        runBlocking { settingsRepository.setLastFolderUri("gdrive://test_folder") }
+        runBlocking { settingsRepository.setLastFolderUri("content://test/test_folder") }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
             composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
@@ -240,6 +241,43 @@ class SelectorScreenTest {
     }
 
     @Test
+    fun hidingTheDetails_keepsTheControlsAndLeavesTheFrameCentred() {
+        // The reported bug, in one test. Switching the readouts off collapsed
+        // the flank to 0 dp, which took the control block with it — including
+        // the details toggle that is the only way back — and un-centred the
+        // current frame, because it is centred by flank | frame | flank rather
+        // than by an Alignment.
+        fakeRepo.imagesFlow.value = mockImages
+        runBlocking { settingsRepository.setLastFolderUri("content://test/test_folder") }
+
+        composeRule.waitUntil(timeoutMillis = 15000) {
+            composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        dismissGestureTutorialIfShown()
+
+        if (isCompactLayout()) return
+        if (composeRule.onAllNodesWithTag("details_toggle").fetchSemanticsNodes().isEmpty()) return
+
+        composeRule.onNodeWithTag("details_toggle").performClick()
+        composeRule.waitForIdle()
+
+        // The way back is still on screen.
+        composeRule.onNodeWithTag("control_block").assertExists()
+        composeRule.onNodeWithTag("details_toggle").assertExists()
+
+        val region = composeRule.onNodeWithTag("image_region").getUnclippedBoundsInRoot()
+        val current = composeRule.onNodeWithTag("column_current").getUnclippedBoundsInRoot()
+        val leftGap = (current.left - region.left).value
+        val rightGap = (region.right - current.right).value
+
+        assert(kotlin.math.abs(leftGap - rightGap) <= 2f) {
+            "current frame is off centre with the readouts hidden: " +
+                "${leftGap}dp to its left, ${rightGap}dp to its right"
+        }
+    }
+
+    @Test
     fun threeUpLayout_framesUseTheHeightTheDisplayAllows() {
         // A size floor, not a style preference. Both previous revisions of this
         // screen shipped with frames far smaller than the display allowed — the
@@ -263,7 +301,7 @@ class SelectorScreenTest {
         fakeRepo.imagesFlow.value = mockImages.map {
             it.copy(imageWidth = 3000, imageHeight = 2000)
         }
-        runBlocking { settingsRepository.setLastFolderUri("gdrive://test_folder") }
+        runBlocking { settingsRepository.setLastFolderUri("content://test/test_folder") }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
             composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
@@ -324,7 +362,7 @@ class SelectorScreenTest {
             settingsRepository.setFilmstripVisible(
                 SettingsRepository.DEFAULT_FILMSTRIP_VISIBLE,
             )
-            settingsRepository.setLastFolderUri("gdrive://test_folder")
+            settingsRepository.setLastFolderUri("content://test/test_folder")
         }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
@@ -367,7 +405,7 @@ class SelectorScreenTest {
         fakeRepo.imagesFlow.value = mockImages.map {
             it.copy(imageWidth = 3000, imageHeight = 2000)
         }
-        runBlocking { settingsRepository.setLastFolderUri("gdrive://test_folder") }
+        runBlocking { settingsRepository.setLastFolderUri("content://test/test_folder") }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
             composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
@@ -429,7 +467,7 @@ class SelectorScreenTest {
         // invisible in review — this is the same class of bug as the layout
         // toggle that once rendered on top of the fullscreen button.
         fakeRepo.imagesFlow.value = mockImages
-        runBlocking { settingsRepository.setLastFolderUri("gdrive://test_folder") }
+        runBlocking { settingsRepository.setLastFolderUri("content://test/test_folder") }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
             composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
@@ -463,7 +501,7 @@ class SelectorScreenTest {
     fun navigateBetweenImages_updatesActiveExif() {
         fakeRepo.imagesFlow.value = mockImages
         runBlocking {
-            settingsRepository.setLastFolderUri("gdrive://test_folder")
+            settingsRepository.setLastFolderUri("content://test/test_folder")
         }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
@@ -501,7 +539,7 @@ class SelectorScreenTest {
     fun cullingAction_CopyAndMove_showSnackbar() {
         fakeRepo.imagesFlow.value = mockImages
         runBlocking {
-            settingsRepository.setLastFolderUri("gdrive://test_folder")
+            settingsRepository.setLastFolderUri("content://test/test_folder")
         }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
@@ -562,7 +600,7 @@ class SelectorScreenTest {
     fun cullingAction_DeleteImage_removesImageAfterConfirmation() {
         fakeRepo.imagesFlow.value = mockImages
         runBlocking {
-            settingsRepository.setLastFolderUri("gdrive://test_folder")
+            settingsRepository.setLastFolderUri("content://test/test_folder")
         }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
@@ -618,7 +656,7 @@ class SelectorScreenTest {
         runBlocking {
             scoreDao.insertOrUpdate(
                 ScoreEntity(
-                    filePath = "gdrive://test_folder/image1.jpg",
+                    filePath = "content://test/test_folder/image1.jpg",
                     fileSize = 1024L,
                     lastModified = 1000L,
                     sharpnessScore = 78.5,
@@ -627,7 +665,7 @@ class SelectorScreenTest {
                     shadowClipping = 0.5
                 )
             )
-            settingsRepository.setLastFolderUri("gdrive://test_folder")
+            settingsRepository.setLastFolderUri("content://test/test_folder")
         }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
@@ -668,7 +706,7 @@ class SelectorScreenTest {
         // review. The layout toggle is gone with the second layout, but the
         // class of bug is not, so this now checks every control in the block.
         fakeRepo.imagesFlow.value = mockImages
-        runBlocking { settingsRepository.setLastFolderUri("gdrive://test_folder") }
+        runBlocking { settingsRepository.setLastFolderUri("content://test/test_folder") }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
             composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
@@ -714,7 +752,7 @@ class SelectorScreenTest {
         // happens to the file. "Keep" describes a feeling, and under a move
         // configuration it is simply false — the file leaves the folder.
         fakeRepo.imagesFlow.value = mockImages
-        runBlocking { settingsRepository.setLastFolderUri("gdrive://test_folder") }
+        runBlocking { settingsRepository.setLastFolderUri("content://test/test_folder") }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
             composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
@@ -739,7 +777,7 @@ class SelectorScreenTest {
         fakeRepo.imagesFlow.value = mockImages
         runBlocking {
             settingsRepository.setHasSeenNavHint(false)
-            settingsRepository.setLastFolderUri("gdrive://test_folder")
+            settingsRepository.setLastFolderUri("content://test/test_folder")
         }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
@@ -782,7 +820,7 @@ class SelectorScreenTest {
             )
         }
         fakeRepo.imagesFlow.value = scanned
-        runBlocking { settingsRepository.setLastFolderUri("gdrive://test_folder") }
+        runBlocking { settingsRepository.setLastFolderUri("content://test/test_folder") }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
             composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
@@ -799,21 +837,10 @@ class SelectorScreenTest {
     }
 
     @Test
-    fun scoreLegend_explainsWhatTheScanIconsMean() {
-        val scannedImages = mockImages.mapIndexed { idx, item ->
-            if (idx == 0) item.copy(
-                scanResult = com.photoselectortoolbox.data.model.ScanResult(
-                    filePath = item.uri,
-                    sharpnessScore = 78.5,
-                    noiseLevel = 1.2,
-                    highlightClipping = 2.4,
-                    shadowClipping = 0.5,
-                )
-            ) else item
-        }
-        fakeRepo.imagesFlow.value = scannedImages
+    fun legend_namesTheScoresAndTheSidebarIconsInPlace() {
+        fakeRepo.imagesFlow.value = mockImages
         runBlocking {
-            settingsRepository.setLastFolderUri("gdrive://test_folder")
+            settingsRepository.setLastFolderUri("content://test/test_folder")
         }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
@@ -824,22 +851,42 @@ class SelectorScreenTest {
 
         if (isCompactLayout()) return
 
-        // The legend button appears once there are scores to explain.
+        // No scan has run. The legend is still offered, because it now explains
+        // the rail as well as the scores — which is when a new photographer
+        // needs it most.
         composeRule.waitUntil(timeoutMillis = 15000) {
             composeRule.onAllNodesWithTag("score_legend_button", useUnmergedTree = true)
                 .fetchSemanticsNodes().isNotEmpty()
         }
-        composeRule.onAllNodesWithTag("score_legend_button", useUnmergedTree = true).onFirst().performClick()
+        composeRule.onAllNodesWithTag("score_legend_button", useUnmergedTree = true)
+            .onFirst().performClick()
 
         composeRule.waitUntil(timeoutMillis = 15000) {
-            composeRule.onAllNodes(hasText("What the scan icons mean", ignoreCase = true), useUnmergedTree = true)
+            composeRule.onAllNodesWithTag("selector_coach_overlay", useUnmergedTree = true)
                 .fetchSemanticsNodes().isNotEmpty()
         }
-        val inLegend = hasAnyAncestor(hasTestTag("score_legend_sheet"))
-        composeRule.onAllNodes(hasText("Sharpness") and inLegend, useUnmergedTree = true).onFirst().assertExists()
-        composeRule.onAllNodes(hasText("Noise") and inLegend, useUnmergedTree = true).onFirst().assertExists()
-        composeRule.onAllNodes(hasText("higher is better", substring = true) and inLegend, useUnmergedTree = true).onFirst().assertExists()
-        composeRule.onAllNodes(hasText("lower is better", substring = true) and inLegend, useUnmergedTree = true).onFirst().assertExists()
+        val inOverlay = hasAnyAncestor(hasTestTag("selector_coach_overlay"))
+
+        // The scores, with the direction spelled out.
+        composeRule.onAllNodes(hasText("Sharpness") and inOverlay, useUnmergedTree = true)
+            .onFirst().assertExists()
+        composeRule.onAllNodes(hasText("Noise") and inOverlay, useUnmergedTree = true)
+            .onFirst().assertExists()
+        composeRule.onAllNodes(
+            hasText("higher is better", substring = true) and inOverlay,
+            useUnmergedTree = true,
+        ).onFirst().assertExists()
+        composeRule.onAllNodes(
+            hasText("lower is better", substring = true) and inOverlay,
+            useUnmergedTree = true,
+        ).onFirst().assertExists()
+
+        // ...and the icons down the left, which the sheet this replaces never
+        // mentioned at all.
+        SidebarAction.entries.forEach { action ->
+            composeRule.onAllNodes(hasText(action.label) and inOverlay, useUnmergedTree = true)
+                .onFirst().assertExists()
+        }
     }
 
     @Test
@@ -848,7 +895,7 @@ class SelectorScreenTest {
         // is a running total. `2 / 2` would state a folder size nobody counted.
         fakeRepo.completeAfterFirstBatch = false
         fakeRepo.imagesFlow.value = mockImages
-        runBlocking { settingsRepository.setLastFolderUri("gdrive://test_folder") }
+        runBlocking { settingsRepository.setLastFolderUri("content://test/test_folder") }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
             composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
@@ -874,7 +921,7 @@ class SelectorScreenTest {
     @Test
     fun positionReadout_hasNoPlusOnceEnumerationHasSettled() {
         fakeRepo.imagesFlow.value = mockImages
-        runBlocking { settingsRepository.setLastFolderUri("gdrive://test_folder") }
+        runBlocking { settingsRepository.setLastFolderUri("content://test/test_folder") }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
             composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
@@ -909,7 +956,7 @@ class SelectorScreenTest {
         // delete is the strongest case: nothing has touched the disk, so the
         // undo is a list insertion and cannot fail.
         fakeRepo.imagesFlow.value = mockImages
-        runBlocking { settingsRepository.setLastFolderUri("gdrive://test_folder") }
+        runBlocking { settingsRepository.setLastFolderUri("content://test/test_folder") }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
             composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
@@ -953,7 +1000,7 @@ class SelectorScreenTest {
         // asked for. An UNDO that silently does nothing — or does the wrong
         // thing — is worse than none.
         fakeRepo.imagesFlow.value = mockImages
-        runBlocking { settingsRepository.setLastFolderUri("gdrive://test_folder") }
+        runBlocking { settingsRepository.setLastFolderUri("content://test/test_folder") }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
             composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
@@ -974,6 +1021,50 @@ class SelectorScreenTest {
     }
 
     @Test
+    fun coachOverlay_calloutsNeverOverlapEachOther() {
+        // The guide now carries the legend too — every score named, every icon
+        // in the rail named — so the left flank holds three stacked blocks
+        // where it once held one. Compose will happily draw them through each
+        // other rather than complain, and unreadable overlapping text is
+        // exactly the failure a legend cannot afford.
+        fakeRepo.imagesFlow.value = mockImages
+        runBlocking { settingsRepository.setLastFolderUri("content://test/test_folder") }
+
+        composeRule.waitUntil(timeoutMillis = 15000) {
+            composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        dismissGestureTutorialIfShown()
+
+        if (isCompactLayout()) return
+        if (composeRule.onAllNodesWithTag("shortcuts_button", useUnmergedTree = true)
+                .fetchSemanticsNodes().isEmpty()
+        ) return
+
+        composeRule.onAllNodesWithTag("shortcuts_button", useUnmergedTree = true)
+            .onFirst().performClick()
+
+        composeRule.waitUntil(timeoutMillis = 15000) {
+            composeRule.onAllNodesWithTag("coach_callout", useUnmergedTree = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+
+        val callouts = composeRule.onAllNodesWithTag("coach_callout", useUnmergedTree = true)
+            .fetchSemanticsNodes()
+            .map { it.boundsInRoot }
+
+        for (i in callouts.indices) {
+            for (j in i + 1 until callouts.size) {
+                val a = callouts[i]
+                val b = callouts[j]
+                val intersects = a.left < b.right && b.left < a.right &&
+                    a.top < b.bottom && b.top < a.bottom
+                assert(!intersects) { "coach marks overlap: $a and $b" }
+            }
+        }
+    }
+
+    @Test
     fun coachOverlay_neverCoversAFrame() {
         // The whole reason this is a coach-mark overlay rather than a sheet is
         // that it labels the real chrome in place — which is only true if the
@@ -981,7 +1072,7 @@ class SelectorScreenTest {
         // photographs is invisible in review and obvious in use, so it is
         // asserted the same way the badge-versus-overlay rule is.
         fakeRepo.imagesFlow.value = mockImages
-        runBlocking { settingsRepository.setLastFolderUri("gdrive://test_folder") }
+        runBlocking { settingsRepository.setLastFolderUri("content://test/test_folder") }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
             composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
@@ -1022,7 +1113,7 @@ class SelectorScreenTest {
     @Test
     fun coachOverlay_opensFromTheControlBlockAndClosesOnGotIt() {
         fakeRepo.imagesFlow.value = mockImages
-        runBlocking { settingsRepository.setLastFolderUri("gdrive://test_folder") }
+        runBlocking { settingsRepository.setLastFolderUri("content://test/test_folder") }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
             composeRule.onAllNodesWithText("image1.jpg", ignoreCase = true)
@@ -1073,7 +1164,7 @@ class SelectorScreenTest {
             settingsRepository.resetGuidance()
             settingsRepository.markHintSeen(SelectorHint.TOUR)
             settingsRepository.setHasSeenNavHint(true)
-            settingsRepository.setLastFolderUri("gdrive://test_folder")
+            settingsRepository.setLastFolderUri("content://test/test_folder")
         }
 
         composeRule.waitUntil(timeoutMillis = 15000) {
