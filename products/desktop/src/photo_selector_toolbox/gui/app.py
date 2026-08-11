@@ -259,6 +259,14 @@ def apply_dark_theme(root: tk.Tk) -> None:
         except Exception:
             pass
 
+    # Improve UX by applying hand cursor to interactive elements globally
+    root.option_add('*TButton.cursor', 'hand2')
+    root.option_add('*Treeview.cursor', 'hand2')
+    root.option_add('*TCombobox.cursor', 'hand2')
+    root.option_add('*TCheckbutton.cursor', 'hand2')
+    root.option_add('*TRadiobutton.cursor', 'hand2')
+    root.option_add('*TNotebook.Tab.cursor', 'hand2')
+
     colors = ThemeColors()
 
     _configure_base_styles(style, colors)
