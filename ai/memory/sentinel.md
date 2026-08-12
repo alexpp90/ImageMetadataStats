@@ -26,3 +26,7 @@
 **Learning:** Even if an initial URL's hostname resolves to a safe IP (thereby passing validation logic), a malicious server can return a `3xx` redirect pointing to an internal/forbidden IP (e.g., cloud metadata at `169.254.169.254`). Because `urlopen` follows this redirect under the hood, the final request reaches the forbidden IP *without* triggering the initial validation logic again.
 **Prevention:** Implement a custom `HTTPRedirectHandler` that raises an exception in `redirect_request`, and use `urllib.request.build_opener()` to enforce this handler instead of relying on the default `urlopen`.
 
+## 2026-07-16 - Unspecified IP Bypasses on IPv4-Mapped IPv6 Addresses
+**Vulnerability:** The SSRF protection logic checked `is_unspecified` on the primary IP object, but failed to mirror this check on the `ipv4_mapped` object. Attackers could bypass IP validation by using IPv4-mapped IPv6 representations of `0.0.0.0`, such as `::ffff:0.0.0.0`.
+**Learning:** Security validations applied to IPv6 addresses must account for the fact that IPv4-mapped IPv6 literals evaluate independently. If an application blocks IPv4 localhost or unspecified addresses, it must identically apply those same blocking checks to the embedded mapped IPv4 object to ensure logical parity and prevent bypasses.
+**Prevention:** Always mirror security checks (e.g., `is_link_local`, `is_unspecified`) symmetrically across both the primary `ipaddress` object and its `ipv4_mapped` counterpart.
