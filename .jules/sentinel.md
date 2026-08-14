@@ -1,0 +1,4 @@
+## 2024-10-24 - SSRF Bypass via IPv4-mapped IPv6 unspecified address
+**Vulnerability:** The SSRF protection mechanism blocked `0.0.0.0` but could be bypassed using its IPv4-mapped IPv6 equivalent `::ffff:0.0.0.0` because the `is_unspecified` check was only applied to the primary IP object and not the `ipv4_mapped` object.
+**Learning:** Python's `ipaddress` module applies checks like `is_unspecified` strictly to the provided address format. For SSRF protections to be effective, any check applied to the primary IP object must be identically mirrored on the `ipv4_mapped` object to prevent bypasses.
+**Prevention:** Always apply symmetric validation to both the primary IP and its `ipv4_mapped` equivalent (if one exists) when verifying IP safety (e.g., checking `is_link_local`, `is_unspecified`, etc.).
