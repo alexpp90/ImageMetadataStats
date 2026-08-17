@@ -273,6 +273,13 @@ def apply_dark_theme(root: tk.Tk) -> None:
     root.option_add("*Menu.activeBackground", colors.accent_blue)
     root.option_add("*Menu.activeForeground", "#FFFFFF")
 
+    # Add hand cursor to interactive elements globally
+    root.option_add("*TButton.cursor", "hand2")
+    root.option_add("*TCheckbutton.cursor", "hand2")
+    root.option_add("*TRadiobutton.cursor", "hand2")
+    root.option_add("*TCombobox.cursor", "hand2")
+    root.option_add("*TNotebook.cursor", "hand2")
+
     # Set root window color
     root.configure(bg=colors.bg_dark)
 
