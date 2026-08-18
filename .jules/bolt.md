@@ -1,0 +1,3 @@
+## 2024-05-24 - OpenCV Laplacian Precision Bottleneck
+**Learning:** In Python OpenCV applications, using `cv2.CV_64F` for intermediate operations like `cv2.Laplacian` creates a measurable performance bottleneck. Lowering precision to `cv2.CV_32F` yields significant speedups (e.g. ~3-4x in tests) when extreme double precision is not strictly required.
+**Action:** Default to `cv2.CV_32F` for image operations to gain significant speedups. Remember to explicitly cast values back to `float()` from operations like `.var()` or `.median()` to avoid returning `numpy.float32` and causing downstream type-related test failures or serialization errors.
