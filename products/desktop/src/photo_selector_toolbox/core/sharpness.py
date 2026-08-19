@@ -93,7 +93,8 @@ def get_image_data(filepath: Path) -> Optional[np.ndarray]:
 
 def _calculate_noise_from_gray(gray: np.ndarray) -> float:
     """Estimates noise from a pre-loaded grayscale array using MAD of the Laplacian."""
-    # ⚡ Bolt optimization: Use 32-bit float for Laplacian (40-60% speedup) without losing necessary precision.
+    # ⚡ Bolt optimization: Use 32-bit float for Laplacian (40-60% speedup)
+    # without losing necessary precision.
     # Casting back to float() prevents downstream numpy.float32 type serialization issues.
     laplacian = cv2.Laplacian(gray, cv2.CV_32F)
     mad = float(np.median(np.abs(laplacian - np.median(laplacian))))
@@ -113,7 +114,8 @@ def _calculate_sharpness_from_gray(gray: np.ndarray, grid_size: int = 1) -> floa
     else:
         cropped = gray[h_start:h_end, w_start:w_end]
 
-    # ⚡ Bolt optimization: Use 32-bit float for Laplacian (40-60% speedup). Cast back to float() to match original type signature.
+    # ⚡ Bolt optimization: Use 32-bit float for Laplacian (40-60% speedup).
+    # Cast back to float() to match original type signature.
     if grid_size <= 1:
         return float(cv2.Laplacian(cropped, cv2.CV_32F).var())
 
