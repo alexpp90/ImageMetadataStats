@@ -289,8 +289,7 @@ def _is_forbidden_ip(ip_str: str) -> bool:
             return True
         if ip_obj.is_unspecified:
             return True
-        mapped = getattr(ip_obj, "ipv4_mapped", None)
-        if mapped is not None and mapped.is_link_local:
+        if getattr(ip_obj, "ipv4_mapped", None) and (ip_obj.ipv4_mapped.is_link_local or ip_obj.ipv4_mapped.is_unspecified):
             return True
         return False
     except ValueError:
