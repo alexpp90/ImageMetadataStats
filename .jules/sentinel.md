@@ -1,0 +1,4 @@
+## 2025-02-09 - SSRF Protection Bypass via IPv4-Mapped IPv6
+**Vulnerability:** The SSRF protection in Ollama URL validation correctly blocks link-local and unspecified IP addresses. However, it had a logical inconsistency when evaluating `ipv4_mapped` addresses: it blocked link-local mapped addresses but allowed unspecified mapped addresses (e.g. `::ffff:0.0.0.0`). This creates a bypass via IPv4-mapped IPv6 literals.
+**Learning:** Security checks applied to the primary IP object (e.g., `is_unspecified`) must be identically mirrored on the `ipv4_mapped` object to prevent bypasses. Asymmetric checks introduce logical inconsistencies.
+**Prevention:** When validating IP addresses to prevent SSRF, ensure all relevant checks (`is_link_local`, `is_unspecified`, `is_loopback`, etc.) are consistently applied to both the original IP and its mapped equivalent (e.g., `ipv4_mapped`).
