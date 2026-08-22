@@ -113,7 +113,7 @@ def _calculate_sharpness_from_gray(gray: np.ndarray, grid_size: int = 1) -> floa
         cropped = gray[h_start:h_end, w_start:w_end]
 
     if grid_size <= 1:
-        # Bolt: Use CV_32F instead of CV_64F for ~40-60% faster computation, explicit float cast for downstream compatibility
+        # Bolt: Use CV_32F for ~40-60% faster computation, explicit float cast for compatibility
         return float(cv2.Laplacian(cropped, cv2.CV_32F).var())
 
     ch, cw = cropped.shape
@@ -121,7 +121,7 @@ def _calculate_sharpness_from_gray(gray: np.ndarray, grid_size: int = 1) -> floa
     block_w = cw // grid_size
 
     if block_h < 10 or block_w < 10:
-        # Bolt: Use CV_32F instead of CV_64F for ~40-60% faster computation, explicit float cast for downstream compatibility
+        # Bolt: Use CV_32F for ~40-60% faster computation, explicit float cast for compatibility
         return float(cv2.Laplacian(cropped, cv2.CV_32F).var())
 
     max_score = 0.0
