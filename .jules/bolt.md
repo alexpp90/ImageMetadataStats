@@ -1,0 +1,3 @@
+## 2025-02-23 - OpenCV Precision and Type Casting
+**Learning:** Using `cv2.CV_64F` for intermediate operations like `cv2.Laplacian` creates a measurable performance bottleneck (up to ~75% slower on test data). However, lowering precision to `cv2.CV_32F` causes subsequent NumPy operations like `.var()` or `.median()` to return `numpy.float32` objects instead of standard Python `float` or `numpy.float64`, which can break downstream serialization or type checks if not cast back properly.
+**Action:** Default to `cv2.CV_32F` for performance when extreme precision isn't required, and explicitly cast resulting values back to `float()` (e.g., `float(cv2.Laplacian(img, cv2.CV_32F).var())`).
