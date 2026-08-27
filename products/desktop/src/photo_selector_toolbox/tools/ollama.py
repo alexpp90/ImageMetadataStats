@@ -86,8 +86,12 @@ class OllamaAestheticTool(AnalysisTool):
                     return True
                 if ip_obj.is_unspecified:
                     return True
-                if getattr(ip_obj, "ipv4_mapped", None) and ip_obj.ipv4_mapped.is_link_local:
-                    return True
+                mapped = getattr(ip_obj, "ipv4_mapped", None)
+                if mapped is not None:
+                    if mapped.is_link_local:
+                        return True
+                    if mapped.is_unspecified:
+                        return True
                 return False
             except ValueError:
                 return False
