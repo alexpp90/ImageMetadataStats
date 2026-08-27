@@ -1,0 +1,4 @@
+## 2024-08-27 - SSRF Bypass via IPv4-Mapped IPv6 Unspecified Address
+**Vulnerability:** The SSRF protection logic in `_is_forbidden_ip` blocked unspecified IP addresses (e.g., `0.0.0.0`) and link-local addresses, and correctly mapped link-local checks to `ipv4_mapped.is_link_local`. However, it missed the check for `ipv4_mapped.is_unspecified`. This allowed bypassing the `is_unspecified` check using IPv4-mapped IPv6 literals (e.g., `::ffff:0.0.0.0`), which evaluates to `True` for `.ipv4_mapped.is_unspecified` but `False` for `.is_unspecified`.
+**Learning:** Any security checks applied to the primary IP object (e.g., `is_unspecified`, `is_link_local`) must be identically mirrored on the `ipv4_mapped` object to prevent bypasses using IPv4-mapped IPv6 literals.
+**Prevention:** Always ensure symmetric validation between the primary IP object and its mapped version (e.g., `ipv4_mapped`) when writing IP validation logic to block malicious addresses comprehensively.
