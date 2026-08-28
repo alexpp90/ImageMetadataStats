@@ -1,0 +1,3 @@
+## 2024-05-18 - Hand cursors in Tkinter Desktop App
+**Learning:** In Tkinter `ttk` clam themes, pointer cursors aren't automatically applied to interactive elements like buttons, checkboxes, and tabs upon hover, which is a key UX deficiency for discoverability. Setting `cursor="hand2"` in individual styles doesn't always apply correctly, but setting it via the Tk root option database (`root.option_add`) globally fixes it for all `ttk` elements of that class.
+**Action:** Always use `root.option_add("*<Element>.cursor", "hand2")` to ensure mouse cursors correctly change to pointers on hover for interactive elements in Tkinter `ttk` applications.
