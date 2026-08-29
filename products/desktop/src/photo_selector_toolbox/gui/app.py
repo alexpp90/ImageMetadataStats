@@ -273,6 +273,9 @@ def apply_dark_theme(root: tk.Tk) -> None:
     root.option_add("*Menu.activeBackground", colors.accent_blue)
     root.option_add("*Menu.activeForeground", "#FFFFFF")
 
+    # Configure global ttk widget cursors
+    root.option_add("*TButton.cursor", "hand2")
+
     # Set root window color
     root.configure(bg=colors.bg_dark)
 
