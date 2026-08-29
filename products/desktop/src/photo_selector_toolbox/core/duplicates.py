@@ -14,13 +14,10 @@ IMAGE_EXTENSIONS = SUPPORTED_EXTENSIONS | {".bmp", ".gif"}
 
 
 def get_file_hash(filepath, block_size=65536):
-    """Calculates the SHA256 hash of a file."""
-    sha256_hash = hashlib.sha256()
+    """Calculates the blake2b hash of a file."""
     try:
         with open(filepath, "rb") as f:
-            for block in iter(lambda: f.read(block_size), b""):
-                sha256_hash.update(block)
-        return sha256_hash.hexdigest()
+            return hashlib.file_digest(f, "blake2b").hexdigest()
     except OSError:
         return None
 

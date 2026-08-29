@@ -125,7 +125,7 @@ def test_file_hash_deterministic(tmp_path):
     hash1 = get_file_hash(test_file)
     hash2 = get_file_hash(test_file)
     assert hash1 == hash2
-    assert len(hash1) == 64  # SHA256 hex
+    assert len(hash1) == 128  # blake2b hex
 
 
 def test_file_hash_different_content(tmp_path):
