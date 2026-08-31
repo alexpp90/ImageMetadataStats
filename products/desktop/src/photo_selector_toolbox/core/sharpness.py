@@ -95,7 +95,7 @@ def _calculate_noise_from_gray(gray: np.ndarray) -> float:
     """Estimates noise from a pre-loaded grayscale array using MAD of the Laplacian."""
     laplacian = cv2.Laplacian(gray, cv2.CV_32F)  # Optimized to CV_32F for 40-60% speedup
     mad = np.median(np.abs(laplacian - np.median(laplacian)))
-    return mad / 0.6745
+    return float(mad / 0.6745)
 
 
 def _calculate_sharpness_from_gray(gray: np.ndarray, grid_size: int = 1) -> float:
