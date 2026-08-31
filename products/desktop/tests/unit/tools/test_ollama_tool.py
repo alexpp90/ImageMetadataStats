@@ -132,3 +132,21 @@ def test_ollama_tool_fallback_analysis(mock_open, dummy_image_file, temp_config_
 
 
 
+
+@pytest.mark.parametrize("malicious_url,expected_error", [
+    ("http://0.0.0.0:11434/", "SSRF Protection: Cloud metadata IPs are not allowed."),
+    ("http://[::ffff:0.0.0.0]:11434/", "SSRF Protection: Cloud metadata IPs are not allowed."),
+    ("http://169.254.169.254:11434/", "SSRF Protection: Cloud metadata IPs are not allowed."),
+    ("http://[::ffff:169.254.169.254]:11434/", "SSRF Protection: Cloud metadata IPs are not allowed.")
+])
+def test_ollama_tool_ssrf_protection(dummy_image_file, temp_config_dir, malicious_url, expected_error):
+    custom_config = {
+        "ollama_url": malicious_url,
+    }
+    save_config(custom_config)
+
+    tool = OllamaAestheticTool()
+    with pytest.raises(RuntimeError) as exc_info:
+        tool.analyze(dummy_image_file)
+
+    assert expected_error in str(exc_info.value)
