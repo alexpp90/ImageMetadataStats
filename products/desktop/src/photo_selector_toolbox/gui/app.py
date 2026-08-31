@@ -276,6 +276,12 @@ def apply_dark_theme(root: tk.Tk) -> None:
     # Set root window color
     root.configure(bg=colors.bg_dark)
 
+    # Set hand cursor for interactive elements globally
+    root.option_add("*TButton.cursor", "hand2")
+    root.option_add("*TCheckbutton.cursor", "hand2")
+    root.option_add("*TRadiobutton.cursor", "hand2")
+    root.option_add("*TCombobox.cursor", "hand2")
+
 
 def apply_dark_theme_to_fig(fig):
     bg_dark = "#18181B"
