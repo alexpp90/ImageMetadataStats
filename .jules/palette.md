@@ -1,0 +1,3 @@
+## 2025-02-19 - Global Tkinter Hover Cursors
+**Learning:** In Tkinter, `cursor` is a widget-level option, not a style option, meaning `ttk.Style().configure('TButton', cursor='hand2')` is silently ignored. Using `root.option_add` applies it correctly, but adding it to container widgets like `TNotebook` causes all their non-interactive children to inherit the cursor, creating severe UX regressions.
+**Action:** Always apply global cursors exclusively to specific interactive leaf widgets (e.g., `*TButton.cursor`, `*TCheckbutton.cursor`) using the Tk option database, and use `pointinghand` on macOS / `hand2` on Windows/Linux for native feel.
