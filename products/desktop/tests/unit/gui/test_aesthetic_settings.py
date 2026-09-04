@@ -208,6 +208,8 @@ def test_probe_ollama_reports_a_missing_model_with_the_pull_command():
         ("169.254.169.254", True),          # cloud metadata
         ("::ffff:169.254.169.254", True),   # IPv4-mapped IPv6 bypass
         ("0.0.0.0", True),
+        ("::ffff:0.0.0.0", True),
+        ("::ffff:169.254.169.254", True),
         ("127.0.0.1", False),
         ("192.168.1.10", False),
         ("localhost", False),               # not an IP literal
