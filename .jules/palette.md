@@ -1,0 +1,3 @@
+## 2024-03-24 - Tkinter Cursor Inheritance Issues
+**Learning:** Applying cursors via container widgets (e.g., `*TNotebook.cursor` or via style on containers) in Tkinter introduces severe UX regressions because child widgets incorrectly inherit the cursor, causing the entire page to display a hand cursor instead of just the interactive elements.
+**Action:** Only apply global cursors to specific interactive leaf widgets like `TButton`, `TCheckbutton`, `TRadiobutton`, and `TCombobox` via the Tk option database (e.g., `root.option_add('*TButton.cursor', 'hand2')`). Additionally, use `pointinghand` for macOS for a native feel.
