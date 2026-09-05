@@ -267,6 +267,12 @@ def apply_dark_theme(root: tk.Tk) -> None:
     _configure_button_styles(style, colors)
     _configure_input_styles(style, colors)
 
+    # Global cursors for interactive widgets
+    cursor_name = "pointinghand" if sys.platform == "darwin" else "hand2"
+    root.option_add("*TButton.cursor", cursor_name)
+    root.option_add("*TCheckbutton.cursor", cursor_name)
+    root.option_add("*TRadiobutton.cursor", cursor_name)
+
     # Configure native menus globally
     root.option_add("*Menu.background", colors.bg_panel)
     root.option_add("*Menu.foreground", colors.fg_light)
