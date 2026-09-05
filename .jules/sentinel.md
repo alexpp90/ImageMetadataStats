@@ -1,0 +1,4 @@
+## 2025-03-10 - Asymmetric SSRF IP Checks via IPv4-mapped IPv6 Literals
+**Vulnerability:** An SSRF bypass existed because the `is_unspecified` (0.0.0.0) check was applied to the primary `ipaddress` object but omitted from the `ipv4_mapped` object, allowing an attacker to bypass the block using `::ffff:0.0.0.0`.
+**Learning:** Python's `ipaddress` module evaluates `is_unspecified`, `is_link_local`, etc., strictly based on the provided address format. IPv4-mapped IPv6 literals (e.g., `::ffff:0.0.0.0`) are treated as IPv6, meaning `ip_obj.is_unspecified` is False, but `ip_obj.ipv4_mapped.is_unspecified` is True. Security logic must be mirrored identically across both the primary and mapped objects.
+**Prevention:** Whenever applying restrictions based on IP types (like blocking `is_link_local` or `is_unspecified`), always extract the `ipv4_mapped` object (if it exists) and recursively apply the exact same checks to prevent bypasses via mapping.
