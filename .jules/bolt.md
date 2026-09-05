@@ -1,0 +1,3 @@
+## 2024-09-05 - Optimize OpenCV Laplacian calculation
+**Learning:** Using `cv2.CV_64F` for intermediate operations like `cv2.Laplacian` creates a measurable performance bottleneck compared to `cv2.CV_32F`. Values from functions like `.var()` or `.median()` on these lower-precision arrays may be returned as `numpy.float32`, requiring explicit casting back to standard Python `float()` to avoid serialization/test errors.
+**Action:** Default to `cv2.CV_32F` for OpenCV image transformations and filters to gain significant speedups (40-60%) unless extreme double precision is strictly required, and remember to cast results.
