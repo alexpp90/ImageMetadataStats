@@ -111,3 +111,31 @@ def test_scan_controller_run(tmp_path):
     assert "sharpness" in progress_results[0].scores
     assert "noise" in progress_results[0].scores
 
+
+def test_scan_controller_lifecycle_and_nice():
+    from photo_selector_toolbox.gui.controllers import ScanController, _init_scan_worker
+
+    # Test _init_scan_worker executes cleanly
+    _init_scan_worker()
+
+    controller = ScanController()
+    assert not controller.is_scanning
+    assert not controller.stop_event.is_set()
+
+    # Simulate running state
+    controller.is_scanning = True
+    # Trying to start scan while already running should return False
+    started = controller.start_scan(
+        files=[],
+        grid_size=8,
+        tools={},
+        progress_callback=lambda *a: None,
+        finished_callback=lambda *a: None,
+    )
+    assert started is False
+
+    # Stop scan should set stop_event
+    controller.stop_scan()
+    assert controller.stop_event.is_set()
+
+

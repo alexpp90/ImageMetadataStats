@@ -886,3 +886,77 @@ def test_focus_mode_hides_aesthetic_score_when_absent():
     # No aesthetic value -> the label is hidden (pack_forget), never packed.
     assert tool.focus_aesthetic_lbl.pack_forget.called
     assert not tool.focus_aesthetic_lbl.pack.called
+
+
+def test_load_folder_contents_immediate_display(tmp_path):
+    from unittest.mock import MagicMock, patch
+
+    # Create dummy images
+    img1 = tmp_path / "img1.jpg"
+    img2 = tmp_path / "img2.jpg"
+    img1.write_bytes(b"\xff\xd8\xff\xe0" + b"\x00" * 20)
+    img2.write_bytes(b"\xff\xd8\xff\xe0" + b"\x00" * 20)
+
+    tool = _make_tool()
+    tool.candidate_listbox = MagicMock()
+    tool.switch_to_review_mode = MagicMock()
+    tool.on_candidate_select = MagicMock()
+    tool._preload_all_metadata_and_dhashes = MagicMock()
+
+    with (
+        patch("photo_selector_toolbox.gui.sharpness_tool.ScoreCache"),
+        patch("photo_selector_toolbox.exif.reader.SUPPORTED_EXTENSIONS", {".jpg"}),
+    ):
+        tool._load_folder_contents(str(tmp_path))
+
+    assert len(tool.candidates) == 2
+    assert tool.switch_to_review_mode.called
+    assert tool.candidate_listbox.selection_set.called
+
+
+def test_refresh_folder(tmp_path):
+    tool = _make_tool()
+    tool.folder_var = MagicMock()
+    tool.folder_var.get.return_value = str(tmp_path)
+    tool._load_folder_contents = MagicMock()
+
+    tool.refresh_folder()
+    tool._load_folder_contents.assert_called_once_with(str(tmp_path))
+
+
+def test_modern_metadata_card_badges():
+    from pathlib import Path
+    from unittest.mock import MagicMock, patch
+    from photo_selector_toolbox.core.models import ScanResult
+
+    tool = _make_tool()
+    tool.meta_lbl = MagicMock()
+    tool.meta_file_lbl = MagicMock()
+    tool.meta_expo_lbl = MagicMock()
+    tool.meta_chips_frame = MagicMock()
+    tool.meta_chips_frame.winfo_children.return_value = []
+
+    p = Path("test_shot.jpg")
+    res = ScanResult(path=p)
+    res.scores = {
+        "sharpness": 8.4,
+        "noise": 2.1,
+        "highlight_clipping": "N/A",
+        "shadow_clipping": 4.5,
+        "aesthetic": 7.8,
+    }
+    tool.files_map = {p: res}
+
+    with patch("photo_selector_toolbox.gui.sharpness_tool.ttk.Label") as mock_label:
+        tool.update_metadata_label(p)
+        assert tool.meta_file_lbl.config.called
+        assert tool.meta_expo_lbl.config.called
+        # Check that badges were constructed for the valid metrics (sharpness, noise, shadow, aesthetic)
+        badge_texts = [call.kwargs.get("text", "") for call in mock_label.call_args_list]
+        assert any("Sharpness" in t for t in badge_texts)
+        assert any("Noise" in t for t in badge_texts)
+        assert any("Shadow" in t for t in badge_texts)
+        assert any("AI" in t for t in badge_texts)
+        # Highlight is N/A, so no Highlight badge should be constructed
+        assert not any("High" in t for t in badge_texts)
+
