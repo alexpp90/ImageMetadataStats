@@ -236,17 +236,27 @@ def _process_single_file(
     )
 
 
+def _init_scan_worker() -> None:
+    """Lower scheduling priority of background scan processes so GUI and preview decoding remain responsive."""
+    if hasattr(os, "nice"):
+        try:
+            os.nice(10)
+        except Exception:
+            pass
+
+
 class ScanController:
     """
-    Handles background scanning of images for sharpness and noise.
-    Decouples scanning logic from the GUI.
+    Manages the background execution of the image scanning and scoring pipeline.
+    Decouples process management and caching logic from the GUI.
     """
 
     def __init__(self):
-        self.stop_event = threading.Event()
         self.is_scanning = False
+        self.stop_event = threading.Event()
+        self.scan_thread: Optional[threading.Thread] = None
 
-    def run_scan(
+    def start_scan(
         self,
         files: List[Path],
         grid_size: int,
@@ -254,12 +264,14 @@ class ScanController:
         progress_callback: Callable[[ScanResult, int, int], None],
         finished_callback: Callable[[], None],
         log_callback: Optional[Callable[[str], None]] = None,
-    ):
-        """Starts the scan in a background thread."""
+    ) -> bool:
+        if self.is_scanning:
+            return False
+
         self.is_scanning = True
         self.stop_event.clear()
 
-        thread = threading.Thread(
+        self.scan_thread = threading.Thread(
             target=self._scan_worker,
             args=(
                 files,
@@ -271,11 +283,15 @@ class ScanController:
             ),
             daemon=True,
         )
-        thread.start()
+        self.scan_thread.start()
+        return True
 
-    def cancel(self):
-        if self.is_scanning:
-            self.stop_event.set()
+    def stop_scan(self):
+        self.stop_event.set()
+
+    # Aliases for backwards compatibility
+    run_scan = start_scan
+    cancel = stop_scan
 
     def _scan_worker(
         self,
@@ -302,9 +318,11 @@ class ScanController:
             cache = ScoreCache()
             all_cached_scores = cache.get_multiple_scores(files)
 
-            max_workers = max(1, os.cpu_count() or 4)
+            cpu_cnt = os.cpu_count() or 4
+            # Prioritize UI responsiveness by reserving at least 2 cores for Tk and preview threads
+            max_workers = max(1, min(cpu_cnt - 2, 6)) if cpu_cnt > 2 else 1
             accumulated_updates = {}
-            with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            with ProcessPoolExecutor(max_workers=max_workers, initializer=_init_scan_worker) as executor:
                 # Submit all tasks
                 futures = {
                     executor.submit(_process_single_file, f, grid_size, tools, all_cached_scores.get(f, {})): f

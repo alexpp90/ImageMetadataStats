@@ -106,6 +106,44 @@ def _configure_container_styles(style: ttk.Style, colors: ThemeColors) -> None:
     style.configure(
         "MetaPanel.TFrame", background=colors.bg_panel, bordercolor=colors.border_color
     )
+    style.configure(
+        "MetaCard.TFrame",
+        background="#27272A",
+        relief="solid",
+        borderwidth=1,
+    )
+    style.configure(
+        "Card.TFrame",
+        background="#27272A",
+    )
+    style.configure(
+        "EmeraldBadge.TLabel",
+        background="#064E3B",
+        foreground="#34D399",
+        font=("Helvetica", 9, "bold"),
+        padding=[6, 2],
+    )
+    style.configure(
+        "AmberBadge.TLabel",
+        background="#78350F",
+        foreground="#FBBF24",
+        font=("Helvetica", 9, "bold"),
+        padding=[6, 2],
+    )
+    style.configure(
+        "IndigoBadge.TLabel",
+        background="#312E81",
+        foreground="#A5B4FC",
+        font=("Helvetica", 9, "bold"),
+        padding=[6, 2],
+    )
+    style.configure(
+        "VioletBadge.TLabel",
+        background="#4C1D95",
+        foreground="#C4B5FD",
+        font=("Helvetica", 9, "bold"),
+        padding=[6, 2],
+    )
 
 
 def _configure_typography_styles(style: ttk.Style, colors: ThemeColors) -> None:
@@ -272,6 +310,15 @@ def apply_dark_theme(root: tk.Tk) -> None:
     root.option_add("*Menu.foreground", colors.fg_light)
     root.option_add("*Menu.activeBackground", colors.accent_blue)
     root.option_add("*Menu.activeForeground", "#FFFFFF")
+
+    # Configure Listbox globally
+    root.option_add("*Listbox.background", colors.bg_dark)
+    root.option_add("*Listbox.foreground", colors.fg_light)
+    root.option_add("*Listbox.selectBackground", colors.accent_hover)
+    root.option_add("*Listbox.selectForeground", "#FFFFFF")
+    root.option_add("*Listbox.highlightThickness", "1")
+    root.option_add("*Listbox.highlightColor", colors.border_color)
+    root.option_add("*Listbox.highlightBackground", colors.bg_dark)
 
     # Set root window color
     root.configure(bg=colors.bg_dark)
@@ -1644,9 +1691,12 @@ class MainApp(tk.Tk):
         from photo_selector_toolbox.gui.widgets import ask_directory
         folder = ask_directory(parent=self)
         if folder:
+            self.show_frame("SharpnessTool")
             sharpness_frame = self.frames.get("SharpnessTool")
             if sharpness_frame:
                 sharpness_frame.folder_var.set(folder)
+                if hasattr(sharpness_frame, "_load_folder_contents"):
+                    sharpness_frame._load_folder_contents(folder)
                 # Add to recent folders
                 from photo_selector_toolbox.core.config import add_recent_folder
                 add_recent_folder(folder)
@@ -1669,9 +1719,12 @@ class MainApp(tk.Tk):
         self.recent_menu.add_command(label="Clear Recent", command=self._clear_recent_folders)
 
     def _open_recent_folder(self, folder_path):
+        self.show_frame("SharpnessTool")
         sharpness_frame = self.frames.get("SharpnessTool")
         if sharpness_frame:
             sharpness_frame.folder_var.set(folder_path)
+            if hasattr(sharpness_frame, "_load_folder_contents"):
+                sharpness_frame._load_folder_contents(folder_path)
 
     def _clear_recent_folders(self):
         from photo_selector_toolbox.core.config import load_config, save_config
