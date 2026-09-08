@@ -1,0 +1,3 @@
+## 2024-05-23 - Tkinter Global Cursor Settings
+**Learning:** In Tkinter, setting the `cursor` property via `ttk.Style().configure('TButton', cursor='hand2')` is silently ignored because it is a widget-level option, not a style option. Additionally, applying a cursor globally to container widgets introduces severe UX regressions because child widgets inherit the cursor if they don't explicitly define one.
+**Action:** To apply a cursor globally to `ttk` widgets, use the Tk option database specifically targeting interactive leaf widgets (e.g., `root.option_add('*TButton.cursor', 'hand2')`). For a native feel on macOS, use `pointinghand` instead of `hand2`.
