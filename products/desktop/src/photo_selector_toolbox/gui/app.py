@@ -273,6 +273,14 @@ def apply_dark_theme(root: tk.Tk) -> None:
     root.option_add("*Menu.activeBackground", colors.accent_blue)
     root.option_add("*Menu.activeForeground", "#FFFFFF")
 
+    # Set interactive widget cursors globally
+    # Use native pointing hand cursor on macOS, hand2 on others
+    cursor_type = "pointinghand" if sys.platform == "darwin" else "hand2"
+    root.option_add("*TButton.cursor", cursor_type)
+    root.option_add("*TCheckbutton.cursor", cursor_type)
+    root.option_add("*TRadiobutton.cursor", cursor_type)
+    root.option_add("*TCombobox.cursor", cursor_type)
+
     # Set root window color
     root.configure(bg=colors.bg_dark)
 
