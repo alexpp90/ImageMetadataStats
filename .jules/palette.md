@@ -1,0 +1,3 @@
+## 2025-01-20 - Global Cursors in Tkinter
+**Learning:** In Tkinter, configuring the `cursor` property on a `ttk.Style` is silently ignored because it's a widget-level option. When applying global cursors using the option database (`root.option_add`), you must target specific interactive leaf widgets like `*TButton.cursor`, not container widgets. Additionally, the native hand cursor on macOS is `pointinghand`, not `hand2`.
+**Action:** Always use the Tk option database to apply cursors globally, conditionally handle macOS by using `pointinghand`, and explicitly apply them only to leaf widgets to prevent child components from inheriting unexpected cursors.
