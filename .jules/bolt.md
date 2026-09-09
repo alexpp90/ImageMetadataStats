@@ -1,0 +1,3 @@
+## 2025-05-18 - Optimized cv2.Laplacian precision
+**Learning:** In `src/photo_selector_toolbox/core/sharpness.py`, the `_calculate_sharpness_from_gray` and `_calculate_noise_from_gray` functions compute the variance and median absolute deviation of the Laplacian of an image using `cv2.CV_64F` precision. Using `cv2.CV_32F` precision is significantly faster (around 2x speedup) and provides sufficient accuracy for determining image sharpness and noise for our use case.
+**Action:** Replace `cv2.CV_64F` with `cv2.CV_32F` in these functions. Ensure that the resulting numpy float values are explicitly cast back to standard Python floats (e.g., using `float()`) to prevent downstream type errors (e.g., test failures or JSON serialization issues with `numpy.float32`).
